@@ -128,6 +128,9 @@ def trunc(s, n):
 
 
 # --------------------------------------------------------------------------- TUI
+GENRE_OTHER = "Other"
+
+
 class Menu:
     def __init__(self, rows, runopts, cidx):
         self.all = rows
@@ -136,18 +139,48 @@ class Menu:
         self.filter = ""
         self.sel = 0
         self.top = 0
-        self.open = False
+        self.detail_open = False       # show the cover/detail card for the selected game
         self.con = None                # GB64 db (lazy)
         self.dcache = {}               # query -> (record_or_None, cover_path_or_None)
-        self.apply_filter()
+        # group rows by genre, preserving popularity order; groups in first-seen order
+        order, groups = [], {}
+        for r in rows:
+            g = (r[6] if len(r) > 6 and r[6] else "") or GENRE_OTHER
+            if g not in groups:
+                groups[g] = []; order.append(g)
+            groups[g].append(r)
+        self.groups = [(g, groups[g]) for g in order]
+        self.gopen = set()             # expanded genres
+        self.rebuild()
 
     # ---- model
-    def apply_filter(self):
+    def rebuild(self):
+        """Flat view: ('group', genre, count, expanded) and ('game', row) items."""
         q = self.filter.lower()
-        self.rows = [r for r in self.all if q in r[3].lower()] if q else list(self.all)
-        self.sel = min(self.sel, max(0, len(self.rows) - 1))
-        self.top = 0
-        self.open = False
+        view = []
+        for genre, rows in self.groups:
+            matched = [r for r in rows if q in r[3].lower()] if q else rows
+            if not matched:
+                continue
+            expanded = bool(q) or genre in self.gopen
+            view.append(("group", genre, len(matched), expanded))
+            if expanded:
+                view.extend(("game", r) for r in matched)
+        self.view = view
+        self.sel = min(self.sel, max(0, len(view) - 1))
+
+    def set_filter(self, f):
+        self.filter = f
+        self.sel = self.top = 0
+        self.detail_open = False
+        self.rebuild()
+
+    def set_group(self, genre, want_open):
+        (self.gopen.add if want_open else self.gopen.discard)(genre)
+        self.rebuild()
+        for idx, it in enumerate(self.view):
+            if it[0] == "group" and it[1] == genre:
+                self.sel = idx; break
 
     def detail(self, row):
         """(gb64_record_or_None, cover_path_or_None) for a row, cached."""
@@ -213,45 +246,49 @@ class Menu:
     def frame(self):
         cols, lines = shutil.get_terminal_size((80, 24))
         body_h = max(3, lines - 2)
+        sel = self.view[self.sel] if self.view else None
         card_h, sel_rec, sel_cover = 0, None, None
-        if self.open and self.rows:
-            sel_rec, sel_cover = self.detail(self.rows[self.sel])
+        if self.detail_open and sel and sel[0] == "game":
+            sel_rec, sel_cover = self.detail(sel[1])
             card_h = self.card_height(sel_cover, body_h)   # grow the card to fit the cover
         budget = max(1, body_h - card_h)
         if self.sel < self.top:
             self.top = self.sel
         elif self.sel >= self.top + budget:
             self.top = self.sel - budget + 1
-        self.top = max(0, min(self.top, max(0, len(self.rows) - budget)))
+        self.top = max(0, min(self.top, max(0, len(self.view) - budget)))
 
         have = sum(1 for r in self.all if r[1] == "local")
-        getn = sum(1 for r in self.all if r[1] == "available")
         cur = f"{ESC}[7m {self.filter or 'type to filter'} {ESC}[0m"
-        header = f"{ESC}[1mC64 ▶{ESC}[0m {cur}   ●{have} here · ⬇{getn} downloadable"
+        header = (f"{ESC}[1mC64 ▶{ESC}[0m {cur}   {len(self.groups)} genres · "
+                  f"{len(self.all)} games · ●{have} here")
 
         out = [f"{ESC}[H", header, f"{ESC}[K\r\n"]
         srow = 1                                          # next screen row (0-based)
         img = None
-        for i in range(self.top, min(len(self.rows), self.top + budget)):
-            row = self.rows[i]
-            out.append(self.master_line(row, i, cols)); out.append(f"{ESC}[K\r\n")
+        for i in range(self.top, min(len(self.view), self.top + budget)):
+            item = self.view[i]
+            selected = (i == self.sel)
+            if item[0] == "group":
+                out.append(self.group_line(item, selected, cols))
+            else:
+                out.append(self.game_line(item[1], selected, cols))
+            out.append(f"{ESC}[K\r\n")
             srow += 1
-            if self.open and i == self.sel and card_h:
-                rec, cover = sel_rec, sel_cover
-                dt = self.detail_text(row, rec, cols, card_h - 1)
-                if cover and HAS_IMG:
-                    # width binds for portrait covers; height-cap is the card interior
-                    img = (cover, srow + 1, COVER_W, card_h - 1)
+            if selected and card_h and item[0] == "game":
+                dt = self.detail_text(item[1], sel_rec, cols, card_h - 1)
+                if sel_cover and HAS_IMG:                 # width binds for portrait covers
+                    img = (sel_cover, srow + 1, COVER_W, card_h - 1)
                 for k in range(card_h):
                     left = " " * DETAIL_X
-                    if not cover and k == 1:
+                    if not sel_cover and k == 1:
                         left = "   " + f"{ESC}[2m[no cover]{ESC}[0m" + " " * (DETAIL_X - 13)
                     text = dt[k - 1] if 1 <= k <= len(dt) else ""
                     out.append(left + text); out.append(f"{ESC}[K\r\n")
                     srow += 1
         for _ in range(srow, lines - 1):                 # pad to the footer
             out.append(f"{ESC}[K\r\n")
-        foot = "↑↓ move · →/Tab expand · ← collapse · ↵ play/get · type to filter · esc quit"
+        foot = "↑↓ move · → expand · ← collapse · ↵ open/play · type to filter · esc quit"
         out.append(f"{ESC}[2m{trunc(foot, cols)}{ESC}[0m{ESC}[K")
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
@@ -263,22 +300,26 @@ class Menu:
                            stderr=subprocess.DEVNULL)        # inherits real stdout fd
             sys.stdout.flush()
 
-    def master_line(self, row, i, cols):
-        display, status = row[0], row[1]
-        # strip the leading marker/rank from the index display; we draw our own
-        label = re.sub(r"^[●⬇·]\s*", "", display)
+    def group_line(self, item, selected, cols):
+        _, genre, count, expanded = item
+        caret = "▾" if expanded else "▸"
+        line = f"{ESC}[1m{caret} {trunc(genre, cols - 12)}{ESC}[0m {ESC}[2m({count}){ESC}[0m"
+        if selected:
+            line = f"{ESC}[7m" + re.sub(r"\x1b\[0m", f"{ESC}[0m{ESC}[7m", line) + f"{ESC}[0m"
+        return line
+
+    def game_line(self, row, selected, cols):
+        status = row[1]
+        label = re.sub(r"^[●⬇·]\s*", "", row[0])          # drop any old marker; draw our own
         marker = "●" if status == "local" else "⬇"
-        caret = "▾" if (self.open and i == self.sel) else ("▸" if i == self.sel else " ")
-        if status == "local":
-            btn = f"{ESC}[32m↵ Play{ESC}[0m"; btn_w = 6
-        else:
-            btn = f"{ESC}[33m↵ Get {ESC}[0m"; btn_w = 6
-        left = f"{caret} {marker} "
-        avail = cols - vis_len(left) - btn_w - 2
+        caret = "▾" if (self.detail_open and selected) else " "
+        btn = f"{ESC}[32m↵ Play{ESC}[0m" if status == "local" else f"{ESC}[33m↵ Get {ESC}[0m"
+        left = f"    {caret}{marker} "                     # indent games under their genre
+        avail = cols - vis_len(left) - 6 - 2
         left += trunc(label, max(1, avail))
-        pad = max(1, cols - vis_len(left) - btn_w)
+        pad = max(1, cols - vis_len(left) - 6)
         line = left + " " * pad + btn
-        if i == self.sel:
+        if selected:
             line = f"{ESC}[7m" + re.sub(r"\x1b\[0m", f"{ESC}[0m{ESC}[7m", line) + f"{ESC}[0m"
         return line
 
@@ -292,27 +333,39 @@ class Menu:
             while True:
                 self.frame()
                 key = read_key()
+                item = self.view[self.sel] if self.view else None
                 if key in ("q", "ESC"):
                     if key == "ESC" and self.filter:
-                        self.filter = ""; self.apply_filter()
+                        self.set_filter("")
                         continue
                     return None
                 elif key == "UP":
-                    self.sel = max(0, self.sel - 1)
+                    self.sel = max(0, self.sel - 1); self.detail_open = False
                 elif key == "DOWN":
-                    self.sel = min(len(self.rows) - 1, self.sel + 1)
+                    self.sel = min(len(self.view) - 1, self.sel + 1); self.detail_open = False
                 elif key in ("RIGHT", "TAB"):
-                    self.open = True
+                    if item and item[0] == "group":
+                        self.set_group(item[1], True)
+                    elif item:
+                        self.detail_open = True
                 elif key == "LEFT":
-                    self.open = False
+                    if item and item[0] == "game" and self.detail_open:
+                        self.detail_open = False
+                    elif item and item[0] == "game":
+                        self.set_group(item[1][6] if len(item[1]) > 6 and item[1][6]
+                                       else GENRE_OTHER, False)
+                    elif item and item[0] == "group":
+                        self.set_group(item[1], False)
                 elif key == "ENTER":
-                    if self.rows:
-                        return self.rows[self.sel]
+                    if item and item[0] == "group":
+                        self.set_group(item[1], item[1] not in self.gopen)
+                    elif item:
+                        return item[1]
                 elif key == "BACKSPACE":
                     if self.filter:
-                        self.filter = self.filter[:-1]; self.apply_filter()
+                        self.set_filter(self.filter[:-1])
                 elif key and len(key) == 1 and 32 <= ord(key) < 127:
-                    self.filter += key; self.apply_filter()
+                    self.set_filter(self.filter + key)
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
             sys.stdout.write(f"{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()

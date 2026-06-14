@@ -260,31 +260,39 @@ def missing_titles():
             out.append(re.split(r":| - ", title, maxsplit=1)[0])
     return out
 
-def gb64_ratings():
-    """Canon -> GameBase64 Rating (0-5). Presence also proves the game has details."""
+def gb64_meta():
+    """Canon -> (rating 0-5, parent genre). Presence proves the game has details."""
     info = __import__("importlib").machinery.SourceFileLoader(
         "c64info", os.path.join(HERE, "c64info")).load_module()
     con = info.open_db()
     out = {}
-    for name, rating in con.execute("SELECT Name, Rating FROM Games"):
+    for name, rating, genre in con.execute(
+            "SELECT g.Name, g.Rating, pg.ParentGenre FROM Games g "
+            "LEFT JOIN Genres ge ON ge.GE_Id = g.GE_Id "
+            "LEFT JOIN PGenres pg ON pg.PG_Id = ge.PG_Id"):
         if not name:
             continue
         c = game_title(name)
+        if not c:
+            continue
         r = rating if isinstance(rating, int) and rating > 0 else 0
-        if c and (c not in out or r > out[c]):
-            out[c] = r
+        g = genre if genre and genre not in ("(None)", "(Unknown)") else ""
+        if c not in out:
+            out[c] = (r, g)
+        else:                                    # keep best rating, fill in a genre
+            out[c] = (max(out[c][0], r), out[c][1] or g)
     return out
 
 
 def build_ia_index():
     """Catalogue C64 games on the Internet Archive that have GameBase64 details
-    -> ia_index.tsv (canon<TAB>rating<TAB>downloads<TAB>identifier<TAB>title),
+    -> ia_index.tsv (canon<TAB>rating<TAB>downloads<TAB>genre<TAB>identifier<TAB>title),
     ranked by popularity (GB64 rating, then IA download count). Covers come from
     the libretro set when available, else the IA item's own image (services/img),
     so every catalogued game has a cover."""
-    log("loading GameBase64 ratings ...")
-    ratings = gb64_ratings()
-    keep = set(ratings)
+    log("loading GameBase64 ratings + genres ...")
+    meta = gb64_meta()
+    keep = set(meta)
     log(f"games with details: {len(keep)}  ·  scanning IA collection ({COLL}) ...")
     best, seen, cursor = {}, 0, None     # canon -> (downloads, title, identifier), most-downloaded wins
     while True:
@@ -305,11 +313,11 @@ def build_ia_index():
                     best[c] = (dls, disp, ident)
         cursor = d.get("cursor")
         if not cursor: break
-    rows = [(c, ratings.get(c, 0), dl, ident, disp) for c, (dl, disp, ident) in best.items()]
+    rows = [(c, meta[c][0], dl, meta[c][1], ident, disp) for c, (dl, disp, ident) in best.items()]
     rows.sort(key=lambda r: (r[1], r[2]), reverse=True)        # rating, then IA downloads
     with open(IA_INDEX, "w", encoding="utf-8") as f:
-        for c, r, dl, ident, disp in rows:
-            f.write(f"{c}\t{r}\t{dl}\t{ident}\t{disp}\n")
+        for c, r, dl, genre, ident, disp in rows:
+            f.write(f"{c}\t{r}\t{dl}\t{genre}\t{ident}\t{disp}\n")
     log(f"scanned {seen} IA items; {len(rows)} games on IA with details -> {IA_INDEX}")
     return 0
 

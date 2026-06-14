@@ -113,18 +113,18 @@ def main():
     # Each game is on IA with GameBase64 details, already ranked by popularity (GB64
     # rating, then IA downloads). Local copies are matched by canonical title; the
     # rest are downloadable from IA. Order is preserved.
-    # columns: display <TAB> status <TAB> target <TAB> title <TAB> query <TAB> identifier
+    # columns: display <TAB> status <TAB> target <TAB> title <TAB> query <TAB> identifier <TAB> genre
     n_local = n_avail = 0
     with open(OUT, "w", encoding="utf-8") as out:
         for line in open(IA_INDEX, encoding="utf-8"):
-            canon, rating, downloads, ident, title = line.rstrip("\n").split("\t", 4)
+            canon, rating, downloads, genre, ident, title = line.rstrip("\n").split("\t", 5)
             paths = by_key.get(canon)
             if paths:
                 status, target = "local", pick(paths); n_local += 1
             else:
                 status, target = "available", "ia"; n_avail += 1
             disp = title + (f"   ★{rating}" if rating not in ("0", "") else "")
-            out.write(f"{disp}\t{status}\t{target}\t{title}\t{title}\t{ident}\n")
+            out.write(f"{disp}\t{status}\t{target}\t{title}\t{title}\t{ident}\t{genre}\n")
 
     print(f"{n_local} local + {n_avail} downloadable = {n_local + n_avail} "
           f"games (IA · details, ranked) -> {OUT}", file=sys.stderr)
