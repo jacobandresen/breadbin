@@ -14,9 +14,8 @@ Output line:  display<TAB>path
 import os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-POP  = os.path.join(HERE, "c64_popularity.tsv")
 OUT  = os.path.join(HERE, "c64_index.tsv")
-AVAIL = os.path.join(HERE, "c64_avail.tsv")
+IA_INDEX = os.path.join(HERE, "ia_index.tsv")          # IA games with cover + details
 
 C64_LIB = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64"))
 LIB_DIRS = [
@@ -106,56 +105,29 @@ def main():
                                          os.path.basename(p).count("["),
                                          len(os.path.basename(p))))
 
-    # availability of not-owned games (from c64disk --scan-missing), keyed by query title
-    avail = {}
-    if os.path.exists(AVAIL):
-        for l in open(AVAIL, encoding="utf-8"):
-            f = l.rstrip("\n").split("\t")
-            if len(f) >= 2: avail[f[0]] = f[1]
+    if not os.path.exists(IA_INDEX):
+        print("no ia_index.tsv yet (run: c64menu --refresh); keeping existing index",
+              file=sys.stderr)
+        return                                             # don't wipe a shipped index
 
-    # ranked games tagged local / available; games we can't find anywhere are skipped.
-    # columns: display <TAB> status <TAB> target <TAB> title <TAB> query
-    n_local = n_avail = n_extra = 0
-    ranked_keys = set()
+    # Each game is on IA with GameBase64 details, already ranked by popularity (GB64
+    # rating, then IA downloads). Local copies are matched by canonical title; the
+    # rest are downloadable from IA. Order is preserved.
+    # columns: display <TAB> status <TAB> target <TAB> title <TAB> query <TAB> identifier
+    n_local = n_avail = 0
     with open(OUT, "w", encoding="utf-8") as out:
-        for line in open(POP, encoding="utf-8"):
-            rank, score, votes, title = line.rstrip("\n").split("\t")
-            # match files by either the main title or the full title incl. subtitle,
-            # since some dumps embed the subtitle in the filename (IA: "Ultima V Warriors
-            # of Destiny ...") while others don't (TOSEC: "Ultima V - ...").
-            ranked_keys.add(title_key(title)); ranked_keys.add(norm(title))
-            paths = by_key.get(title_key(title)) or by_key.get(norm(title))
-            query = re.split(r":| - ", title, maxsplit=1)[0]   # main title for c64disk
+        for line in open(IA_INDEX, encoding="utf-8"):
+            canon, rating, downloads, ident, title = line.rstrip("\n").split("\t", 4)
+            paths = by_key.get(canon)
             if paths:
-                status, target, mark = "local", pick(paths), "●"
-                n_local += 1
-            elif query in avail:
-                status, target, mark = "available", avail[query], "⬇"
-                n_avail += 1
+                status, target = "local", pick(paths); n_local += 1
             else:
-                continue                                       # not findable -> skip
-            disp = f"{mark} {int(rank):>3}.  {score:>4} ★  {votes:>4} votes   {title}"
-            out.write(f"{disp}\t{status}\t{target}\t{title}\t{query}\n")
+                status, target = "available", "ia"; n_avail += 1
+            disp = title + (f"   ★{rating}" if rating not in ("0", "") else "")
+            out.write(f"{disp}\t{status}\t{target}\t{title}\t{title}\t{ident}\n")
 
-        # extras: games fetched into breadbin's download folders that aren't ranked
-        dl_by_key = {}
-        for d in DOWNLOAD_DIRS:
-            for root, _, files in os.walk(d):
-                for f in files:
-                    if f.lower().endswith(EXTS):
-                        dl_by_key.setdefault(file_key(f), []).append(os.path.join(root, f))
-        for key, paths in sorted(dl_by_key.items(), key=lambda kv: nice_title(os.path.basename(kv[1][0])).lower()):
-            if not key or key in ranked_keys:
-                continue                                       # ranked games already shown above
-            name = nice_title(os.path.basename(paths[0]))
-            disp = f"●   ·   {name}   (downloaded)"
-            out.write(f"{disp}\tlocal\t{pick(paths)}\t{name}\t{name}\n")
-            n_extra += 1
-
-    print(f"{n_local} local + {n_avail} downloadable + {n_extra} extra = "
-          f"{n_local + n_avail + n_extra} shown "
-          f"({'no avail scan yet' if not avail else 'unfindable skipped'}) -> {OUT}",
-          file=sys.stderr)
+    print(f"{n_local} local + {n_avail} downloadable = {n_local + n_avail} "
+          f"games (IA · details, ranked) -> {OUT}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

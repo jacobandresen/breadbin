@@ -17,17 +17,14 @@ Usage:
   c64menu -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
   c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
 """
-import os, re, sys, html, shutil, select, termios, tty, textwrap, subprocess, tempfile, urllib.request
+import os, re, sys, shutil, select, termios, tty, textwrap, subprocess
 import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-POP = os.path.join(HERE, "c64_popularity.tsv")
 INDEX = os.path.join(HERE, "c64_index.tsv")
 BUILD = os.path.join(HERE, "build_index.py")
 DISK = os.path.join(HERE, "c64disk")
 RUN = os.path.join(HERE, "c64run")
-VOTES_URL = "https://www.lemon64.com/games/votes_list.php"
-UA = "c64menu/1.0 (personal C64 collection tool; polite, low-volume)"
 
 # sibling tools, imported as modules (filenames have no .py)
 _bi = _m.SourceFileLoader("build_index", os.path.join(HERE, "build_index.py")).load_module()
@@ -35,9 +32,8 @@ _cover = _m.SourceFileLoader("bbcover", os.path.join(HERE, "bb-cover")).load_mod
 _info = _m.SourceFileLoader("c64info", os.path.join(HERE, "c64info")).load_module()
 
 ESC = "\x1b"
-DETAIL_X = 22          # column where detail text starts (cover sits to its left)
-DETAIL_H = 10          # height of an expanded detail block (lines)
-COVER_W, COVER_H = 18, 9
+DETAIL_X = 24          # column where detail text starts (cover sits to its left)
+CARD_MAX = 13          # detail card height; capped so the list stays visible
 HAS_IMG = os.environ.get("TERM_PROGRAM") == "WezTerm" and shutil.which("wezterm")
 
 
@@ -51,36 +47,10 @@ def py(script, *args):
 
 
 # --------------------------------------------------------------------------- refresh
-def parse_votes(src_html, out_path):
-    t = open(src_html, encoding="utf-8", errors="replace").read()
-    rows = []
-    for b in t.split("votes-list-game-container")[1:]:
-        sc = re.search(r'votes-list-score">([\d.]+)<', b)
-        vo = re.search(r'>([\d,]+)&nbsp;votes', b)
-        ti = re.search(r'<h3[^>]*><a[^>]*class="bold-blue"[^>]*>([^<]+)</a>', b)
-        if sc and ti:
-            rows.append((sc.group(1), (vo.group(1).replace(",", "") if vo else "0"),
-                         html.unescape(ti.group(1)).strip()))
-    with open(out_path, "w", encoding="utf-8") as f:
-        for i, (s, v, ti) in enumerate(rows, 1):
-            f.write(f"{i}\t{s}\t{v}\t{ti}\n")
-    print(f"  {len(rows)} ranked games pulled", file=sys.stderr)
-
-
 def refresh():
-    print("Fetching popularity scores...", file=sys.stderr)
-    fd, tmp = tempfile.mkstemp(); os.close(fd)
-    try:
-        req = urllib.request.Request(VOTES_URL, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            open(tmp, "wb").write(r.read())
-        parse_votes(tmp, POP)
-    except Exception as e:
-        die(f"could not refresh popularity scores: {e}")
-    finally:
-        os.remove(tmp)
-    py(BUILD)
-    py(DISK, "--scan-missing", "--source", "all")
+    # catalogue IA games that have a cover + GameBase64 details (ranked), then build.
+    if py(DISK, "--ia-index").returncode != 0:
+        die("could not build the IA catalogue")
     py(BUILD)
 
 
@@ -95,12 +65,29 @@ def load_rows():
 
 
 def canon_of(row):
-    return _bi.norm(re.split(r":| - ", row[4], maxsplit=1)[0])
+    # mirror c64disk.game_title so the cover canon matches the catalogue's canon
+    base = re.split(r"[\(\[]", row[4], maxsplit=1)[0]
+    base = re.split(r":| - ", base, maxsplit=1)[0]
+    base = re.sub(r"\bv\d+(\.\d+)*\b", "", base)
+    return _bi.norm(base)
 
 
-def with_covers(rows, cidx):
-    """Keep only games that have a box cover in the libretro thumbnails set."""
-    return [r for r in rows if canon_of(r) in cidx]
+def ia_cover(ident):
+    """Fallback cover: the Internet Archive item's own image (services/img), cached."""
+    if not ident:
+        return None
+    cache = os.path.join(_cover.CDIR, "ia_" + re.sub(r"[^A-Za-z0-9_.-]", "_", ident) + ".jpg")
+    if os.path.exists(cache) and os.path.getsize(cache) > 0:
+        return cache
+    try:
+        data = _cover.fetch(f"https://archive.org/services/img/{ident}")
+        if len(data) < 1000:                  # generic placeholder icon -> treat as none
+            return None
+        os.makedirs(_cover.CDIR, exist_ok=True)
+        open(cache, "wb").write(data)
+        return cache
+    except Exception:
+        return None
 
 
 def vis_len(s):
@@ -149,45 +136,47 @@ class Menu:
             rec = None
         cover = None
         try:
-            cover = _cover.ensure_cover(canon_of(row), self.cidx)
+            cover = _cover.ensure_cover(canon_of(row), self.cidx)   # libretro boxart first
         except Exception:
             cover = None
+        if not cover:
+            cover = ia_cover(row[5] if len(row) > 5 else "")        # else the IA item image
         self.dcache[query] = (rec, cover)
         return self.dcache[query]
 
     # ---- rendering
-    def detail_text(self, row, rec, width):
+    def detail_text(self, row, rec, width, max_lines):
         right = max(10, width - DETAIL_X)
         lines = []
         title = row[3]
         if rec:
-            head = f"{ESC}[1m{title}{ESC}[0m" + (f"  ({rec['year']})" if rec["year"] else "")
-            lines.append(head)
+            lines.append(f"{ESC}[1m{title}{ESC}[0m" + (f"  ({rec['year']})" if rec["year"] else ""))
             d = dict(rec["rows"])
-            genre = d.get("Genre")
-            pub = " · ".join(x for x in (d.get("Publisher"), d.get("Developer")) if x)
-            people = " · ".join(x for x in (d.get("Programmer"),
-                                            d.get("Music") and "♪ " + d["Music"]) if x)
-            facts = " · ".join(x for x in (d.get("Players"),
-                                           d.get("Rating") and "★" + d["Rating"],
-                                           d.get("Classic") and "classic") if x)
-            for v in (genre, pub, people, facts):
+            for v in (d.get("Genre"),
+                      " · ".join(x for x in (d.get("Publisher"), d.get("Developer")) if x),
+                      " · ".join(x for x in (d.get("Programmer"),
+                                             d.get("Music") and "♪ " + d["Music"]) if x),
+                      " · ".join(x for x in (d.get("Players"),
+                                             d.get("Rating") and "★" + d["Rating"],
+                                             d.get("Classic") and "classic") if x),
+                      d.get("Language")):
                 if v:
                     lines.append(f"{ESC}[2m{trunc(v, right)}{ESC}[0m")
-            if rec["note"]:
+            if rec["note"] and len(lines) < max_lines - 1:
                 lines.append("")
-                for w in textwrap.wrap(rec["note"], right)[:2]:
+                for w in textwrap.wrap(rec["note"], right)[: max_lines - len(lines)]:
                     lines.append(f"{ESC}[2m{w}{ESC}[0m")
         else:
             lines.append(f"{ESC}[1m{title}{ESC}[0m")
             lines.append(f"{ESC}[2m(no GameBase64 entry){ESC}[0m")
-        return lines[:DETAIL_H]
+        return lines[:max_lines]
 
     def frame(self):
         cols, lines = shutil.get_terminal_size((80, 24))
         body_h = max(3, lines - 2)
-        budget = body_h - (DETAIL_H if self.open and self.rows else 0)
-        budget = max(1, budget)
+        # card height adapts but always leaves room for the list (>= 3 rows)
+        card_h = min(CARD_MAX, max(5, body_h - 3)) if self.open and self.rows else 0
+        budget = max(1, body_h - card_h)
         if self.sel < self.top:
             self.top = self.sel
         elif self.sel >= self.top + budget:
@@ -200,37 +189,37 @@ class Menu:
         header = f"{ESC}[1mC64 ▶{ESC}[0m {cur}   ●{have} here · ⬇{getn} downloadable"
 
         out = [f"{ESC}[H", header, f"{ESC}[K\r\n"]
-        screen_lines = 1
+        srow = 1                                          # next screen row (0-based)
         img = None
-        end = min(len(self.rows), self.top + budget)
-        for i in range(self.top, end):
+        for i in range(self.top, min(len(self.rows), self.top + budget)):
             row = self.rows[i]
             out.append(self.master_line(row, i, cols)); out.append(f"{ESC}[K\r\n")
-            screen_lines += 1
-            if self.open and i == self.sel:
+            srow += 1
+            if self.open and i == self.sel and card_h:
                 rec, cover = self.detail(row)
-                dt = self.detail_text(row, rec, cols)
-                img = (cover, screen_lines) if cover and HAS_IMG else None
-                for k in range(DETAIL_H):
+                cover_h, cover_w = card_h - 1, DETAIL_X - 4
+                dt = self.detail_text(row, rec, cols, card_h - 1)
+                if cover and HAS_IMG:
+                    img = (cover, srow + 1, cover_w, cover_h)   # cover starts on card line 1
+                for k in range(card_h):
                     left = " " * DETAIL_X
                     if not cover and k == 1:
-                        left = "  " + f"{ESC}[2m[no cover]{ESC}[0m" + " " * (DETAIL_X - 12)
-                    text = dt[k] if k < len(dt) else ""
+                        left = "   " + f"{ESC}[2m[no cover]{ESC}[0m" + " " * (DETAIL_X - 13)
+                    text = dt[k - 1] if 1 <= k <= len(dt) else ""
                     out.append(left + text); out.append(f"{ESC}[K\r\n")
-                    screen_lines += 1
-        # pad to footer
-        for _ in range(screen_lines, lines - 1):
+                    srow += 1
+        for _ in range(srow, lines - 1):                 # pad to the footer
             out.append(f"{ESC}[K\r\n")
-        foot = ("↑↓ move · →/Tab expand · ↵ play/get · type to filter · esc quit")
+        foot = "↑↓ move · →/Tab expand · ← collapse · ↵ play/get · type to filter · esc quit"
         out.append(f"{ESC}[2m{trunc(foot, cols)}{ESC}[0m{ESC}[K")
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
         if img:
-            cover, srow = img
-            subprocess.run(["wezterm", "imgcat", "--position", f"2,{srow}",
-                            "--width", str(COVER_W), "--height", str(COVER_H),
+            cover, irow, cw, ch = img
+            subprocess.run(["wezterm", "imgcat", "--position", f"2,{irow}",
+                            "--width", str(cw), "--height", str(ch),
                             "--no-move-cursor", cover],
-                           stdout=sys.stdout, stderr=subprocess.DEVNULL)
+                           stderr=subprocess.DEVNULL)        # inherits real stdout fd
             sys.stdout.flush()
 
     def master_line(self, row, i, cols):
@@ -361,9 +350,9 @@ def main(argv):
         cidx = _cover.load_index()
     except Exception as e:
         die(f"could not load cover index: {e}")
-    rows = with_covers(load_rows(), cidx)
+    rows = load_rows()
     if not rows:
-        die("no games with covers to show (try: c64menu --refresh)")
+        die("no games to show (try: c64menu --refresh)")
     chosen = Menu(rows, runopts, cidx).run()
     if not chosen:
         return 0

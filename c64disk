@@ -30,6 +30,7 @@ from build_index import norm, title_key
 
 COLL      = "softwarelibrary_c64"
 SEARCH    = "https://archive.org/advancedsearch.php"
+SCRAPE    = "https://archive.org/services/search/v1/scrape"
 META      = "https://archive.org/metadata/"
 DL        = "https://archive.org/download/"
 TOSEC_ID  = "tosec-20161111-commodore-c64"
@@ -39,6 +40,8 @@ TOSEC_INDEX = os.path.join(HERE, "tosec_index.tsv")
 POP       = os.path.join(HERE, "c64_popularity.tsv")
 INDEX     = os.path.join(HERE, "c64_index.tsv")
 AVAIL     = os.path.join(HERE, "c64_avail.tsv")
+IA_INDEX  = os.path.join(HERE, "ia_index.tsv")
+COVERS    = os.path.join(HERE, "covers_index.tsv")
 DEST_DFLT = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64") + "/_IA_downloads")
 UA        = "c64disk/1.0 (personal C64 collection tool; polite, low-volume)"
 EXT_PRIO  = (".d64", ".g64", ".d81", ".d71", ".t64", ".prg", ".crt")
@@ -257,6 +260,60 @@ def missing_titles():
             out.append(re.split(r":| - ", title, maxsplit=1)[0])
     return out
 
+def gb64_ratings():
+    """Canon -> GameBase64 Rating (0-5). Presence also proves the game has details."""
+    info = __import__("importlib").machinery.SourceFileLoader(
+        "c64info", os.path.join(HERE, "c64info")).load_module()
+    con = info.open_db()
+    out = {}
+    for name, rating in con.execute("SELECT Name, Rating FROM Games"):
+        if not name:
+            continue
+        c = game_title(name)
+        r = rating if isinstance(rating, int) and rating > 0 else 0
+        if c and (c not in out or r > out[c]):
+            out[c] = r
+    return out
+
+
+def build_ia_index():
+    """Catalogue C64 games on the Internet Archive that have GameBase64 details
+    -> ia_index.tsv (canon<TAB>rating<TAB>downloads<TAB>identifier<TAB>title),
+    ranked by popularity (GB64 rating, then IA download count). Covers come from
+    the libretro set when available, else the IA item's own image (services/img),
+    so every catalogued game has a cover."""
+    log("loading GameBase64 ratings ...")
+    ratings = gb64_ratings()
+    keep = set(ratings)
+    log(f"games with details: {len(keep)}  ·  scanning IA collection ({COLL}) ...")
+    best, seen, cursor = {}, 0, None     # canon -> (downloads, title, identifier), most-downloaded wins
+    while True:
+        params = {"q": f"collection:{COLL}", "fields": "title,identifier,downloads", "count": 10000}
+        if cursor: params["cursor"] = cursor
+        d = json.loads(get(SCRAPE + "?" + urllib.parse.urlencode(params)))
+        items = d.get("items", [])
+        if not items: break
+        for it in items:
+            seen += 1
+            ident = it.get("identifier", "")
+            title = it.get("title") or ident
+            c = game_title(title)
+            if c in keep:
+                disp = re.sub(r"\s+", " ", re.split(r"[\(\[]", title, 1)[0]).strip()
+                dls = int(it.get("downloads") or 0)
+                if c not in best or dls > best[c][0]:
+                    best[c] = (dls, disp, ident)
+        cursor = d.get("cursor")
+        if not cursor: break
+    rows = [(c, ratings.get(c, 0), dl, ident, disp) for c, (dl, disp, ident) in best.items()]
+    rows.sort(key=lambda r: (r[1], r[2]), reverse=True)        # rating, then IA downloads
+    with open(IA_INDEX, "w", encoding="utf-8") as f:
+        for c, r, dl, ident, disp in rows:
+            f.write(f"{c}\t{r}\t{dl}\t{ident}\t{disp}\n")
+    log(f"scanned {seen} IA items; {len(rows)} games on IA with details -> {IA_INDEX}")
+    return 0
+
+
 def scan_missing(sources):
     """For each not-owned ranked game, record whether it's downloadable and from
     where -> c64_avail.tsv (query<TAB>source). Network-heavy; run on refresh."""
@@ -283,6 +340,7 @@ def main(argv):
         if a in ("-n", "--list"):     dry = True
         elif a == "--missing":        use_missing = True
         elif a == "--scan-missing":   scan = True
+        elif a == "--ia-index":       return build_ia_index()
         elif a == "--dest":           i += 1; dest = argv[i]
         elif a == "--source":         i += 1; sources = ["ia", "tosec"] if argv[i] == "all" else [argv[i]]; src_set = True
         elif a == "--refresh-index":
