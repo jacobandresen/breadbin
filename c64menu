@@ -17,7 +17,7 @@ Usage:
   c64menu -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
   c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
 """
-import os, re, sys, struct, shutil, select, termios, tty, textwrap, subprocess
+import os, re, sys, struct, fcntl, shutil, select, termios, tty, textwrap, subprocess
 import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,10 +33,22 @@ _info = _m.SourceFileLoader("c64info", os.path.join(HERE, "c64info")).load_modul
 
 ESC = "\x1b"
 DETAIL_X = 24          # column where detail text starts (cover sits to its left)
-COVER_W = 18          # cover width in cells; card height grows to fit the cover
-CELL_AR = 0.5         # terminal cell width:height ratio (~1:2) for aspect maths
+COVER_W = 18          # preferred cover width in cells
 CARD_MIN = 8          # smallest detail card
 HAS_IMG = os.environ.get("TERM_PROGRAM") == "WezTerm" and shutil.which("wezterm")
+
+
+def cell_px():
+    """(width, height) pixels of one terminal cell, or a 1:2 fallback ratio."""
+    for fd in (1, 0, 2):
+        try:
+            rows, cols, xp, yp = struct.unpack(
+                "HHHH", fcntl.ioctl(fd, termios.TIOCGWINSZ, b"\0" * 8))
+            if cols and rows and xp and yp:
+                return xp / cols, yp / rows
+        except Exception:
+            pass
+    return 1.0, 2.0
 
 
 def die(msg):
@@ -233,24 +245,36 @@ class Menu:
             lines.append(f"{ESC}[2m(no GameBase64 entry){ESC}[0m")
         return lines[:max_lines]
 
-    def card_height(self, cover, body_h):
-        """Card tall enough to contain the cover at COVER_W cells, leaving >=3 list rows."""
-        need = CARD_MIN
-        if cover:
-            sz = image_size(cover)
-            if sz and sz[0]:
-                w, h = sz
-                need = max(need, round(COVER_W * (h / w) * CELL_AR) + 1)   # +1 top padding
-        return max(CARD_MIN, min(need, body_h - 3))
+    def cover_box(self, cover, body_h, cell):
+        """(card_h, cover_w, cover_h) in cells. cover_w/cover_h are consistent with the
+        real image + cell aspect and capped, so the image can't overflow the card or
+        the text column however imgcat interprets them."""
+        if not cover:
+            return CARD_MIN, 0, 0
+        sz = image_size(cover)
+        if not sz or not sz[0] or not sz[1]:
+            return CARD_MIN, 0, 0
+        iw, ih = sz
+        cwpx, chpx = cell
+        ar = (ih / iw) * (cwpx / chpx)            # rendered cell aspect (height per width)
+        w = COVER_W
+        h = round(w * ar)
+        max_h = max(CARD_MIN, body_h - 3) - 1     # keep >=3 list rows, 1 row top padding
+        if h > max_h:                             # too tall -> shrink (narrower)
+            h = max_h; w = max(4, round(h / ar))
+        if w > DETAIL_X - 2:                       # too wide -> clamp to the cover column
+            w = DETAIL_X - 2; h = round(w * ar)
+        h = max(3, h)
+        return h + 1, w, h
 
     def frame(self):
         cols, lines = shutil.get_terminal_size((80, 24))
         body_h = max(3, lines - 2)
         sel = self.view[self.sel] if self.view else None
-        card_h, sel_rec, sel_cover = 0, None, None
+        card_h, cov_w, cov_h, sel_rec, sel_cover = 0, 0, 0, None, None
         if self.detail_open and sel and sel[0] == "game":
             sel_rec, sel_cover = self.detail(sel[1])
-            card_h = self.card_height(sel_cover, body_h)   # grow the card to fit the cover
+            card_h, cov_w, cov_h = self.cover_box(sel_cover, body_h, cell_px())
         budget = max(1, body_h - card_h)
         if self.sel < self.top:
             self.top = self.sel
@@ -277,8 +301,8 @@ class Menu:
             srow += 1
             if selected and card_h and item[0] == "game":
                 dt = self.detail_text(item[1], sel_rec, cols, card_h - 1)
-                if sel_cover and HAS_IMG:                 # width binds for portrait covers
-                    img = (sel_cover, srow + 1, COVER_W, card_h - 1)
+                if sel_cover and HAS_IMG and cov_w:
+                    img = (sel_cover, srow + 1, cov_w, cov_h)
                 for k in range(card_h):
                     left = " " * DETAIL_X
                     if not sel_cover and k == 1:
