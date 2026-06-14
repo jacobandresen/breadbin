@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
 USAGE = """breadbin - Commodore 64 game library (find . fetch . launch)
 
   breadbin menu              browse ranked games; play owned, fetch the rest (default)
+  breadbin kiosk             grid of game cards (cover + details); play/fetch on Enter
   breadbin play  <name>      launch a game straight into the emulator (LOAD"*",8,1 : RUN)
   breadbin info  <name>      show GameBase64 details for a game (year, genre, author, ...)
   breadbin get   <name>      download a tape from the Ultimate Tape Archive
@@ -25,6 +26,7 @@ Add --help to any subcommand for its own options, e.g.  breadbin disk --help
 
 COMMANDS = {
     "menu": "c64menu", "pick": "c64menu", "browse": "c64menu",
+    "kiosk": "c64kiosk", "grid": "c64kiosk", "cards": "c64kiosk",
     "play": "c64run", "run": "c64run", "launch": "c64run",
     "info": "c64info", "details": "c64info",
     "get": "c64get", "tape": "c64get",
