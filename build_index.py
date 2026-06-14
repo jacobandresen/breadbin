@@ -16,6 +16,7 @@ import os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT  = os.path.join(HERE, "c64_index.tsv")
 IA_INDEX = os.path.join(HERE, "ia_index.tsv")          # IA games with cover + details
+DOWNLOADED = os.path.join(HERE, "downloaded.tsv")      # IA identifier -> saved boot disk path
 
 C64_LIB = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64"))
 LIB_DIRS = [
@@ -113,13 +114,24 @@ def main():
     # Each game is on IA with GameBase64 details, already ranked by popularity (GB64
     # rating, then IA downloads). Local copies are matched by canonical title; the
     # rest are downloadable from IA. Order is preserved.
+    # games downloaded via c64disk --id, matched by exact IA identifier (reliable
+    # even when a filename-derived canon wouldn't match the catalogue canon)
+    downloaded = {}
+    if os.path.exists(DOWNLOADED):
+        for l in open(DOWNLOADED, encoding="utf-8"):
+            f = l.rstrip("\n").split("\t", 1)
+            if len(f) == 2 and os.path.exists(f[1]):
+                downloaded[f[0]] = f[1]
+
     # columns: display <TAB> status <TAB> target <TAB> title <TAB> query <TAB> identifier <TAB> genre
     n_local = n_avail = 0
     with open(OUT, "w", encoding="utf-8") as out:
         for line in open(IA_INDEX, encoding="utf-8"):
             canon, rating, downloads, genre, ident, title = line.rstrip("\n").split("\t", 5)
             paths = by_key.get(canon)
-            if paths:
+            if ident in downloaded:
+                status, target = "local", downloaded[ident]; n_local += 1
+            elif paths:
                 status, target = "local", pick(paths); n_local += 1
             else:
                 status, target = "available", "ia"; n_avail += 1

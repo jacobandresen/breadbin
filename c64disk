@@ -42,6 +42,7 @@ INDEX     = os.path.join(HERE, "c64_index.tsv")
 AVAIL     = os.path.join(HERE, "c64_avail.tsv")
 IA_INDEX  = os.path.join(HERE, "ia_index.tsv")
 COVERS    = os.path.join(HERE, "covers_index.tsv")
+DOWNLOADED = os.path.join(HERE, "downloaded.tsv")     # IA identifier -> saved boot disk path
 DEST_DFLT = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64") + "/_IA_downloads")
 UA        = "c64disk/1.0 (personal C64 collection tool; polite, low-volume)"
 EXT_PRIO  = (".d64", ".g64", ".d81", ".d71", ".t64", ".prg", ".crt")
@@ -260,6 +261,21 @@ def missing_titles():
             out.append(re.split(r":| - ", title, maxsplit=1)[0])
     return out
 
+def record_download(ident, path):
+    """Remember that an IA item was downloaded, so build_index can mark it local
+    by exact identifier (filename-derived canons are unreliable for subtitled games)."""
+    rows = {}
+    if os.path.exists(DOWNLOADED):
+        for l in open(DOWNLOADED, encoding="utf-8"):
+            f = l.rstrip("\n").split("\t", 1)
+            if len(f) == 2:
+                rows[f[0]] = f[1]
+    rows[ident] = path
+    with open(DOWNLOADED, "w", encoding="utf-8") as f:
+        for k, v in sorted(rows.items()):
+            f.write(f"{k}\t{v}\n")
+
+
 def gb64_meta():
     """Canon -> (rating 0-5, parent genre). Presence proves the game has details."""
     info = __import__("importlib").machinery.SourceFileLoader(
@@ -369,6 +385,8 @@ def main(argv):
     if ident:
         log(f"downloading IA item {ident} -> {dest}")
         got = download_ia(ident, ident, dest, dry)
+        if got and not dry:
+            record_download(ident, os.path.join(dest, got[0]))   # boot disk = first file
         log(f"\n{'would download' if dry else 'downloaded'} {len(got)} disk image(s).")
         return 0 if got else 1
     if not use_missing and not queries:

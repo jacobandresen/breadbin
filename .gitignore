@@ -7,3 +7,6 @@ gb64.sqlitedb
 # python bytecode
 __pycache__/
 *.pyc
+
+# per-user record of downloaded IA items (c64disk --id)
+downloaded.tsv
