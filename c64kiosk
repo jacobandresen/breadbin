@@ -19,11 +19,11 @@ cm = _m.SourceFileLoader("c64menu", os.path.join(HERE, "c64menu")).load_module()
 ESC = cm.ESC
 GENRE_OTHER = cm.GENRE_OTHER
 
-TOPN = 3                          # covers shown per genre on the overview
 PAD_X = 2                         # gutter between cards
 # size targets; the grid stretches cards to fill the screen around these
 TARGET_CW, TARGET_CH = 22, 16     # expanded-genre card
-OV_SECTION = 18                   # overview: target rows per genre section
+OV_CW = 16                        # overview: ~cover width -> covers per genre row
+OV_SECTION = 5                    # overview: rows per genre section (=> ~7 genres/page)
 
 
 def cover_for(row, cidx):
@@ -84,11 +84,13 @@ class Kiosk:
                 groups[g] = []; order.append(g)
             groups[g].append(r)
         self.groups = [(g, groups[g]) for g in order]
-        # overview focusables: title then top-N covers, per genre
+        # covers per genre row = how many fit across the terminal (filled row)
+        self.topn = max(1, shutil.get_terminal_size((80, 24)).columns // OV_CW)
+        # overview focusables: title then the row of covers, per genre
         self.ofocus = []                                  # ("title", gi) | ("game", gi, j)
         for gi, (g, grows) in enumerate(self.groups):
             self.ofocus.append(("title", gi))
-            for j in range(min(TOPN, len(grows))):
+            for j in range(min(self.topn, len(grows))):
                 self.ofocus.append(("game", gi, j))
         self.titles = [i for i, it in enumerate(self.ofocus) if it[0] == "title"]
         self.mode = "overview"
@@ -101,10 +103,10 @@ class Kiosk:
     def overview_frame(self):
         cols_term, lines_term = shutil.get_terminal_size((80, 24))
         cell = cm.cell_px()
-        vis_g = max(1, (lines_term - 1) // OV_SECTION)
+        vis_g = max(1, min(len(self.groups), (lines_term - 1) // OV_SECTION))
         sec_h = (lines_term - 1) // vis_g
-        card_h = sec_h - 2                                 # 1 title row + 1 gap
-        card_w = cols_term // TOPN
+        card_h = max(1, sec_h - 1)                          # 1 title row, rest is covers
+        card_w = cols_term // self.topn
         fgi = self.ofocus[self.osel][1]
         if fgi < self.otop:
             self.otop = fgi
@@ -129,12 +131,22 @@ class Kiosk:
             tline = f"{ESC}[1;93m{label}{ESC}[0m" if tfoc else f"{ESC}[1m{label}{ESC}[0m"
             out.append(f"{ESC}[{base};1H{tline}")
             self.rects.append((1, cols_term, base, base, ti))
-            for j in range(min(TOPN, cnt)):
+            for j in range(min(self.topn, cnt)):
                 x = 1 + j * card_w
                 y = base + 1
                 foc_idx = ti + 1 + j
-                draw_cover(out, imgs, cover_for(grows[j], self.cidx),
-                           x, y, card_w - PAD_X, card_h, cell, self.osel == foc_idx)
+                focused = (self.osel == foc_idx)
+                cover = cover_for(grows[j], self.cidx)
+                if cover and cm.HAS_IMG:                     # inset 1 col each side for focus bars
+                    w, h = fit_cover(cover, cell, card_w - PAD_X - 2, card_h)
+                    imgs.append((cover, x, y - 1, w, h))     # 1-based (x+1, y) -> 0-based (x, y-1)
+                elif not cover:
+                    out.append(f"{ESC}[{y + card_h // 2};{x + 1}H{ESC}[2m[no cover]{ESC}[0m")
+                if focused:                                  # slim bright side bars = focus
+                    bar = f"{ESC}[1;93m┃{ESC}[0m"
+                    for i in range(card_h):
+                        out.append(f"{ESC}[{y + i};{x}H{bar}"
+                                   f"{ESC}[{y + i};{x + card_w - PAD_X - 1}H{bar}")
                 self.rects.append((x, x + card_w - PAD_X - 1, y, y + card_h - 1, foc_idx))
         sys.stdout.write("".join(out)); sys.stdout.flush()
         for cover, x0, y0, w, h in imgs:
