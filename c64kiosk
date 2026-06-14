@@ -200,8 +200,10 @@ class Kiosk:
             self.top = sel_row - vis_rows + 1
 
         genre = self.groups[self.genre][0]
-        header = (f"{ESC}[1m{genre}{ESC}[0m  {ESC}[2m{n} games · click a cover to play · "
-                  f"esc back · q quit{ESC}[0m")
+        name = " ".join(genre.upper())
+        bar = (f"  {name}    ({n} games)   click a cover to play · esc back · q quit"
+               .ljust(cols_term)[:cols_term])
+        header = f"{ESC}[1;97;44m{bar}{ESC}[0m"            # full-width genre title bar
         out = [f"{ESC}[2J{ESC}[H", header]
         imgs = []
         for r in range(vis_rows):
