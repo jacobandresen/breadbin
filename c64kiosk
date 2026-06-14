@@ -163,6 +163,7 @@ class Kiosk:
             subprocess.run(["wezterm", "imgcat", "--position", f"{x0},{y0}",
                             "--width", str(w), "--height", str(h),
                             "--no-move-cursor", cover], stderr=subprocess.DEVNULL)
+        sys.stdout.write(cm.MOUSE_ON)            # imgcat can reset mouse tracking; re-arm it
         sys.stdout.flush()
 
     def hit(self, x, y):
@@ -217,6 +218,7 @@ class Kiosk:
             subprocess.run(["wezterm", "imgcat", "--position", f"{x0},{y0}",
                             "--width", str(w), "--height", str(h),
                             "--no-move-cursor", cover], stderr=subprocess.DEVNULL)
+        sys.stdout.write(cm.MOUSE_ON)            # imgcat can reset mouse tracking; re-arm it
         sys.stdout.flush()
 
     def card_at(self, x, y, cols, vis_rows, card_w, card_h):

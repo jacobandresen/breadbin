@@ -328,6 +328,7 @@ class Menu:
                             "--width", str(cw), "--height", str(ch),
                             "--no-move-cursor", cover],
                            stderr=subprocess.DEVNULL)        # inherits real stdout fd
+            sys.stdout.write(MOUSE_ON)                       # imgcat can reset mouse tracking
             sys.stdout.flush()
 
     def group_line(self, item, selected, cols):
