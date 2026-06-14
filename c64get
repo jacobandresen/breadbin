@@ -27,7 +27,7 @@ BASE       = "https://uta.pokefinder.org/Ultimate_Tape_Archive/"
 IDX_CACHE  = os.path.join(HERE, "uta_index.html")
 POP        = os.path.join(HERE, "c64_popularity.tsv")
 INDEX      = os.path.join(HERE, "c64_index.tsv")
-DEST_DFLT  = "/opt/media/Games/Commodore/C64 Roms/_UTA_downloads"
+DEST_DFLT  = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64") + "/_UTA_downloads")
 UA         = "c64get/1.0 (personal C64 collection tool; polite, low-volume)"
 TAP_MAGIC  = b"C64-TAPE-RAW"
 

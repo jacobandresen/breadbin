@@ -1,111 +1,177 @@
-#!/usr/bin/env bash
-#
-# c64menu — pick a ranked C64 game and launch (or fetch) it.
-#
-# Lists ranked C64 games you own or can download, marking availability. Games that
-# can't be found in your collection or any download source are skipped.
-#     ●  in your collection   →  Enter boots it via c64run (real LOAD"*",8,1 : RUN)
-#     ⬇  downloadable         →  Enter fetches it via c64disk, then boots it.
-#
-# Usage:
-#   c64menu            # open the fuzzy picker
-#   c64menu -w         # pass --warp (fast-load) to c64run
-#   c64menu -f         # pass --fullscreen to c64run
-#   c64menu -r         # pass --real (true drive emulation) to c64run
-#   c64menu --refresh  # re-pull popularity scores, re-scan availability, rebuild
-#
-set -euo pipefail
+#!/usr/bin/env python3
+"""c64menu - pick a ranked C64 game and launch (or fetch) it.
 
-HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-POP="$HERE/c64_popularity.tsv"
-INDEX="$HERE/c64_index.tsv"
-BUILD="$HERE/build_index.py"
-DISK="$HERE/c64disk"
-VOTES_URL="https://www.lemon64.com/games/votes_list.php"
+Lists ranked C64 games you own or can download, marking availability. Games that
+can't be found in your collection or any download source are skipped.
+    o   in your collection   ->  Enter boots it via c64run (real LOAD"*",8,1 : RUN)
+    v   downloadable         ->  Enter fetches it via c64disk, then boots it.
 
-C64RUN_OPTS=()
-die() { printf 'c64menu: %s\n' "$*" >&2; exit 1; }
+Usage:
+  c64menu            open the fuzzy picker
+  c64menu -w         pass --warp (fast-load) to c64run
+  c64menu -f         pass --fullscreen to c64run
+  c64menu -r         pass --real (true drive emulation) to c64run
+  c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
+"""
+import os, re, sys, html, shlex, shutil, subprocess, tempfile, urllib.request
 
-refresh() {
-  echo "Fetching popularity scores..." >&2
-  local html; html="$(mktemp)"
-  curl -sL --max-time 30 "$VOTES_URL" -o "$html" || die "could not fetch popularity scores"
-  python3 - "$html" "$POP" <<'PY' || die "could not parse popularity page"
-import re, html as H, sys
-src, out = sys.argv[1], sys.argv[2]
-t = open(src, encoding="utf-8", errors="replace").read()
-rows = []
-for b in t.split("votes-list-game-container")[1:]:
-    sc = re.search(r'votes-list-score">([\d.]+)<', b)
-    vo = re.search(r'>([\d,]+)&nbsp;votes', b)
-    ti = re.search(r'<h3[^>]*><a[^>]*class="bold-blue"[^>]*>([^<]+)</a>', b)
-    if sc and ti:
-        rows.append((sc.group(1),
-                     (vo.group(1).replace(",", "") if vo else "0"),
-                     H.unescape(ti.group(1)).strip()))
-with open(out, "w", encoding="utf-8") as f:
-    for i, (s, v, ti) in enumerate(rows, 1):
-        f.write(f"{i}\t{s}\t{v}\t{ti}\n")
-print(f"  {len(rows)} ranked games pulled", file=sys.stderr)
-PY
-  python3 "$BUILD" >/dev/null 2>&1                 # local set, so the scan knows what's owned
-  "$DISK" --scan-missing --source all || true      # which not-owned games are downloadable
-  python3 "$BUILD"                                  # rebuild: local + downloadable, skip the rest
-}
+HERE = os.path.dirname(os.path.abspath(__file__))
+POP = os.path.join(HERE, "c64_popularity.tsv")
+INDEX = os.path.join(HERE, "c64_index.tsv")
+BUILD = os.path.join(HERE, "build_index.py")
+DISK = os.path.join(HERE, "c64disk")
+RUN = os.path.join(HERE, "c64run")
+BBCOVER = os.path.join(HERE, "bb-cover")
+VOTES_URL = "https://www.lemon64.com/games/votes_list.php"
+UA = "c64menu/1.0 (personal C64 collection tool; polite, low-volume)"
 
-# --- flags -------------------------------------------------------------------
-while [[ ${1:-} == -* ]]; do
-  case "$1" in
-    -w|--warp)       C64RUN_OPTS+=( -w ) ;;
-    -f|--fullscreen) C64RUN_OPTS+=( -f ) ;;
-    -r|--real)       C64RUN_OPTS+=( -r ) ;;
-    --refresh)       refresh; [[ ${2:-} ]] || exit 0 ;;
-    -h|--help)       sed -n '3,16p' "$0"; exit 0 ;;
-    *)               die "unknown option: $1 (try --help)" ;;
-  esac
-  shift
-done
 
-command -v fzf >/dev/null || die "fzf not found"
-[[ -f "$INDEX" ]] || refresh
-[[ -s "$INDEX" ]] || die "index is empty (try: c64menu --refresh)"
+def die(msg):
+    print(f"c64menu: {msg}", file=sys.stderr)
+    sys.exit(1)
 
-have=$(grep -cP '\tlocal\t'     "$INDEX" || true)
-getn=$(grep -cP '\tavailable\t' "$INDEX" || true)
-choice="$(
-  fzf --with-nth=1 --delimiter='\t' \
-      --height=90% --reverse --no-sort --cycle \
-      --prompt='C64 ▶ ' \
-      --header="C64 games · ●$have here / ⬇$getn downloadable · Enter: play, or fetch+play" \
-      --preview "'$HERE/bb-cover' {}" --preview-window='right,40%,border-left' \
-      < "$INDEX"
-)" || exit 0   # Esc / Ctrl-C = cancel
 
-[[ -n "$choice" ]] || exit 0
-status="$(printf '%s' "$choice" | cut -f2)"
-target="$(printf '%s' "$choice" | cut -f3)"
-title="$( printf '%s' "$choice" | cut -f4)"
-query="$( printf '%s' "$choice" | cut -f5)"
+def py(script, *args):
+    """Run one of our sibling python tools with the same interpreter."""
+    return subprocess.run([sys.executable, script, *args])
 
-# 1) already local -> just launch
-if [[ "$status" == local ]]; then
-  exec c64run "${C64RUN_OPTS[@]}" "$target"
-fi
 
-# 2) downloadable -> fetch via c64disk from the source the scan found it in
-command -v c64disk >/dev/null || die "c64disk not found"
-printf '"%s" is not in your collection (downloadable from %s).\n' "$title" "$target" >&2
-read -r -p "Download and play? [Y/n] " ans || exit 0
-[[ "$ans" =~ ^[Nn] ]] && exit 0
+def parse_votes(src_html, out_path):
+    t = open(src_html, encoding="utf-8", errors="replace").read()
+    rows = []
+    for b in t.split("votes-list-game-container")[1:]:
+        sc = re.search(r'votes-list-score">([\d.]+)<', b)
+        vo = re.search(r'>([\d,]+)&nbsp;votes', b)
+        ti = re.search(r'<h3[^>]*><a[^>]*class="bold-blue"[^>]*>([^<]+)</a>', b)
+        if sc and ti:
+            rows.append((sc.group(1),
+                         (vo.group(1).replace(",", "") if vo else "0"),
+                         html.unescape(ti.group(1)).strip()))
+    with open(out_path, "w", encoding="utf-8") as f:
+        for i, (s, v, ti) in enumerate(rows, 1):
+            f.write(f"{i}\t{s}\t{v}\t{ti}\n")
+    print(f"  {len(rows)} ranked games pulled", file=sys.stderr)
 
-c64disk --source "$target" "$query" || true
-python3 "$BUILD" >/dev/null 2>&1          # re-match the new files
 
-newline="$(awk -F'\t' -v t="$title" '$4 == t {print; exit}' "$INDEX")"
-if [[ "$(printf '%s' "$newline" | cut -f2)" == local ]]; then
-  echo "Done — launching $title" >&2
-  exec c64run "${C64RUN_OPTS[@]}" "$(printf '%s' "$newline" | cut -f3)"
-fi
+def refresh():
+    print("Fetching popularity scores...", file=sys.stderr)
+    fd, tmp = tempfile.mkstemp()
+    os.close(fd)
+    try:
+        req = urllib.request.Request(VOTES_URL, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            open(tmp, "wb").write(r.read())
+    except Exception as e:
+        die(f"could not fetch popularity scores: {e}")
+    try:
+        parse_votes(tmp, POP)
+    except Exception as e:
+        die(f"could not parse popularity page: {e}")
+    finally:
+        os.remove(tmp)
+    py(BUILD)                                            # local set, so the scan knows what's owned
+    py(DISK, "--scan-missing", "--source", "all")        # which not-owned games are downloadable
+    py(BUILD)                                            # rebuild: local + downloadable, skip the rest
 
-die "download of \"$title\" didn't produce a matching disk (its dump may not match the ranked title).
-    Anything fetched is under .../C64/_IA_downloads. Retry with:  c64disk --source $target \"$query\""
+
+def count_status(status):
+    if not os.path.exists(INDEX):
+        return 0
+    n = 0
+    for line in open(INDEX, encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if len(f) >= 2 and f[1] == status:
+            n += 1
+    return n
+
+
+def run_fzf(have, getn, runopts):
+    header = (f"C64 games - o{have} here / v{getn} downloadable - "
+              "Enter: play, or fetch+play")
+    cmd = [
+        "fzf", "--with-nth=1", "--delimiter=\t",
+        "--height=90%", "--reverse", "--no-sort", "--cycle",
+        "--prompt=C64 > ",
+        f"--header={header}",
+        "--preview", f"{shlex.quote(BBCOVER)} {{}}",
+        "--preview-window=right,40%,border-left",
+    ]
+    data = open(INDEX, encoding="utf-8").read()
+    r = subprocess.run(cmd, input=data, capture_output=True, text=True)
+    return r.stdout.rstrip("\n")
+
+
+def index_line_for_title(title):
+    for line in open(INDEX, encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if len(f) >= 4 and f[3] == title:
+            return f
+    return None
+
+
+def main(argv):
+    runopts = []
+    i = 0
+    while i < len(argv) and argv[i].startswith("-"):
+        a = argv[i]
+        if a in ("-w", "--warp"):           runopts.append("-w")
+        elif a in ("-f", "--fullscreen"):   runopts.append("-f")
+        elif a in ("-r", "--real"):         runopts.append("-r")
+        elif a == "--refresh":
+            refresh()
+            if i + 1 >= len(argv):
+                return 0
+        elif a in ("-h", "--help"):
+            print(__doc__); return 0
+        else:
+            die(f"unknown option: {a} (try --help)")
+        i += 1
+
+    if not shutil.which("fzf"):
+        die("fzf not found")
+    if not os.path.exists(INDEX):
+        refresh()
+    if not os.path.getsize(INDEX):
+        die("index is empty (try: c64menu --refresh)")
+
+    have = count_status("local")
+    getn = count_status("available")
+    choice = run_fzf(have, getn, runopts)
+    if not choice:
+        return 0                                          # Esc / Ctrl-C = cancel
+
+    fields = choice.split("\t")
+    status = fields[1] if len(fields) > 1 else ""
+    target = fields[2] if len(fields) > 2 else ""
+    title = fields[3] if len(fields) > 3 else ""
+    query = fields[4] if len(fields) > 4 else ""
+
+    # 1) already local -> just launch
+    if status == "local":
+        os.execv(RUN, [RUN, *runopts, target])
+
+    # 2) downloadable -> fetch via c64disk from the source the scan found it in
+    print(f'"{title}" is not in your collection (downloadable from {target}).',
+          file=sys.stderr)
+    try:
+        ans = input("Download and play? [Y/n] ")
+    except EOFError:
+        return 0
+    if ans.strip().lower().startswith("n"):
+        return 0
+
+    py(DISK, "--source", target, query)
+    py(BUILD)                                             # re-match the new files
+
+    newline = index_line_for_title(title)
+    if newline and newline[1] == "local":
+        print(f"Done - launching {title}", file=sys.stderr)
+        os.execv(RUN, [RUN, *runopts, newline[2]])
+
+    die(f'download of "{title}" didn\'t produce a matching disk (its dump may not match '
+        f'the ranked title).\n    Anything fetched is under .../C64/_IA_downloads. '
+        f'Retry with:  c64disk --source {target} "{query}"')
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

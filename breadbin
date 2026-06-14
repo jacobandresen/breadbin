@@ -1,17 +1,16 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 #
-# breadbin — Commodore 64 game library: find · fetch · launch.
-#   (named after the "breadbin" — the classic beige C64 case)
+# breadbin - Commodore 64 game library: find . fetch . launch.
+#   (named after the "breadbin" - the classic beige C64 case)
 #
 # A thin umbrella over the toolkit. The standalone c64run / c64menu / c64get /
 # c64disk commands still work; this just gives them one memorable entry point.
 #
-set -euo pipefail
-HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+import os, sys
 
-usage() {
-  cat <<'EOF'
-breadbin — Commodore 64 game library (find · fetch · launch)
+HERE = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+
+USAGE = """breadbin - Commodore 64 game library (find . fetch . launch)
 
   breadbin menu              browse ranked games; play owned, fetch the rest (default)
   breadbin play  <name>      launch a game straight into the emulator (LOAD"*",8,1 : RUN)
@@ -21,16 +20,30 @@ breadbin — Commodore 64 game library (find · fetch · launch)
   breadbin tosec             browse the whole TOSEC catalogue; download + play on pick
 
 Add --help to any subcommand for its own options, e.g.  breadbin disk --help
-EOF
+"""
+
+COMMANDS = {
+    "menu": "c64menu", "pick": "c64menu", "browse": "c64menu",
+    "play": "c64run", "run": "c64run", "launch": "c64run",
+    "get": "c64get", "tape": "c64get",
+    "disk": "c64disk",
+    "tosec": "c64tosec", "browse-all": "c64tosec",
 }
 
-cmd="${1:-menu}"; shift 2>/dev/null || true
-case "$cmd" in
-  menu|pick|browse) exec "$HERE/c64menu" "$@" ;;
-  play|run|launch)  exec "$HERE/c64run"  "$@" ;;
-  get|tape)         exec "$HERE/c64get"  "$@" ;;
-  disk)             exec "$HERE/c64disk" "$@" ;;
-  tosec|browse-all) exec "$HERE/c64tosec" "$@" ;;
-  -h|--help|help)   usage ;;
-  *)                printf 'breadbin: unknown command "%s" (try: breadbin --help)\n' "$cmd" >&2; exit 2 ;;
-esac
+
+def main(argv):
+    cmd = argv[0] if argv else "menu"
+    rest = argv[1:]
+    if cmd in ("-h", "--help", "help"):
+        print(USAGE)
+        return 0
+    script = COMMANDS.get(cmd)
+    if not script:
+        print(f'breadbin: unknown command "{cmd}" (try: breadbin --help)', file=sys.stderr)
+        return 2
+    path = os.path.join(HERE, script)
+    os.execv(path, [path, *rest])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -18,16 +18,15 @@ POP  = os.path.join(HERE, "c64_popularity.tsv")
 OUT  = os.path.join(HERE, "c64_index.tsv")
 AVAIL = os.path.join(HERE, "c64_avail.tsv")
 
+C64_LIB = os.path.expanduser(os.environ.get("C64_LIB", "~/Games/Commodore/C64"))
 LIB_DIRS = [
-    "/opt/media/Games/Commodore/C64 Roms",
-    "/opt/media/Games/Commodore/C64",
-    "/opt/RetroGames/Commodore",
+    C64_LIB,
 ]
 # breadbin's own download folders — games fetched here also show in the menu (as extras),
 # even when they're not in the ranked list. NOT the whole library (that would flood it).
 DOWNLOAD_DIRS = [
-    "/opt/media/Games/Commodore/C64/_IA_downloads",
-    "/opt/media/Games/Commodore/C64 Roms/_UTA_downloads",
+    os.path.join(C64_LIB, "_IA_downloads"),
+    os.path.join(C64_LIB, "_UTA_downloads"),
 ]
 EXTS = (".d64", ".d71", ".d81", ".t64", ".tap", ".crt", ".g64", ".nib", ".p00", ".x64")
 
