@@ -22,7 +22,8 @@ GENRE_OTHER = cm.GENRE_OTHER
 PAD_X = 2                         # gutter between cards
 # size targets; the grid stretches cards to fill the screen around these
 TARGET_CW, TARGET_CH = 22, 16     # expanded-genre card
-OV_SECTION = 10                   # overview: rows per genre section (tall covers)
+OV_SECTION = 12                   # overview: rows per genre section (tall covers)
+TITLE_H = 3                       # overview: height of the clickable genre bar
 AR_REP = 0.6                      # typical cover aspect (cells tall per wide), for sizing
 
 
@@ -110,7 +111,7 @@ class Kiosk:
         cell = cm.cell_px()
         vis_g = max(1, min(len(self.groups), (lines_term - 1) // OV_SECTION))
         sec_h = (lines_term - 1) // vis_g
-        card_h = max(1, sec_h - 2)                          # title row + covers + gap row
+        card_h = max(1, sec_h - TITLE_H - 1)                # title bar + covers + gap row
         card_w = cols_term // self.topn
         fgi = self.ofocus[self.osel][1]
         if fgi < self.otop:
@@ -132,14 +133,17 @@ class Kiosk:
             ti = self.titles[gi]
             tfoc = (self.osel == ti)
             cnt = len(grows)
-            label = f" ▸ {genre}  ({cnt})  —  click / ⏎ to open"
-            bar = label[:cols_term].ljust(cols_term)
-            style = f"{ESC}[1;30;103m" if tfoc else f"{ESC}[7m"   # focus: black-on-yellow
-            out.append(f"{ESC}[{base};1H{style}{bar}{ESC}[0m")
-            self.rects.append((1, cols_term, base, base, ti))
+            style = f"{ESC}[1;30;103m" if tfoc else f"{ESC}[1;97;44m"  # focus: black/yellow else white/blue
+            name = " ".join(genre.upper())                   # spaced caps = bigger look
+            label = f"  {name}    ({cnt} games)   click / ⏎ to open".ljust(cols_term)[:cols_term]
+            mid = TITLE_H // 2
+            for k in range(TITLE_H):                          # multi-row bar = big click target
+                text = label if k == mid else " " * cols_term
+                out.append(f"{ESC}[{base + k};1H{style}{text}{ESC}[0m")
+            self.rects.append((1, cols_term, base, base + TITLE_H - 1, ti))
             for j in range(min(self.topn, cnt)):
                 x = 1 + j * card_w
-                y = base + 1
+                y = base + TITLE_H
                 foc_idx = ti + 1 + j
                 focused = (self.osel == foc_idx)
                 cover = cover_for(grows[j], self.cidx)
