@@ -22,8 +22,8 @@ GENRE_OTHER = cm.GENRE_OTHER
 PAD_X = 2                         # gutter between cards
 # size targets; the grid stretches cards to fill the screen around these
 TARGET_CW, TARGET_CH = 22, 16     # expanded-genre card
-OV_CW = 16                        # overview: ~cover width -> covers per genre row
-OV_SECTION = 5                    # overview: rows per genre section (=> ~7 genres/page)
+OV_SECTION = 10                   # overview: rows per genre section (tall covers)
+AR_REP = 0.6                      # typical cover aspect (cells tall per wide), for sizing
 
 
 def cover_for(row, cidx):
@@ -84,8 +84,13 @@ class Kiosk:
                 groups[g] = []; order.append(g)
             groups[g].append(r)
         self.groups = [(g, groups[g]) for g in order]
-        # covers per genre row = how many fit across the terminal (filled row)
-        self.topn = max(1, shutil.get_terminal_size((80, 24)).columns // OV_CW)
+        # covers per genre row: size a card so a cover fills the section height, then
+        # see how many such cards fit across the width (so covers use the full height).
+        cols0, lines0 = shutil.get_terminal_size((80, 24))
+        vis_g0 = max(1, min(len(self.groups), (lines0 - 1) // OV_SECTION))
+        card_h0 = max(1, (lines0 - 1) // vis_g0 - 1)
+        card_w0 = round(card_h0 / AR_REP) + PAD_X + 2
+        self.topn = max(1, cols0 // card_w0)
         # overview focusables: title then the row of covers, per genre
         self.ofocus = []                                  # ("title", gi) | ("game", gi, j)
         for gi, (g, grows) in enumerate(self.groups):
