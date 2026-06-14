@@ -318,7 +318,7 @@ class Menu:
                     srow += 1
         for _ in range(srow, lines - 1):                 # pad to the footer
             out.append(f"{ESC}[K\r\n")
-        foot = "↑↓/scroll move · →/click expand · ↵/click open/play · type to filter · esc quit"
+        foot = "↑↓/scroll/click select · → expand · ↵ open/play · type to filter · esc quit"
         out.append(f"{ESC}[2m{trunc(foot, cols)}{ESC}[0m{ESC}[K")
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
@@ -353,19 +353,6 @@ class Menu:
             line = f"{ESC}[7m" + re.sub(r"\x1b\[0m", f"{ESC}[0m{ESC}[7m", line) + f"{ESC}[0m"
         return line
 
-    def activate(self, idx):
-        """Act on the view item at idx (group toggles; game opens detail, or plays
-        if it was already the open selection). Returns a row to launch, or None."""
-        item = self.view[idx]
-        if item[0] == "group":
-            self.sel = idx
-            self.set_group(item[1], item[1] not in self.gopen)
-        elif idx == self.sel and self.detail_open:
-            return item[1]                                # second click -> play/get
-        else:
-            self.sel = idx; self.detail_open = True
-        return None
-
     # ---- loop
     def run(self):
         fd = sys.stdin.fileno()
@@ -385,12 +372,10 @@ class Menu:
                         self.sel = max(0, self.sel - 1); self.detail_open = False
                     elif b == 65:                        # wheel down
                         self.sel = min(len(self.view) - 1, self.sel + 1); self.detail_open = False
-                    elif (b & 0b11) == 0:                # left button
+                    elif (b & 0b11) == 0:                # left click -> select only
                         idx = self.rowmap.get(y)
                         if idx is not None:
-                            row = self.activate(idx)
-                            if row:
-                                return row
+                            self.sel = idx; self.detail_open = False
                     continue
                 if key in ("q", "ESC"):
                     if key == "ESC" and self.filter:

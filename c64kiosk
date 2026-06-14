@@ -153,11 +153,9 @@ class Kiosk:
                         self.sel = max(0, self.sel - cols)
                     elif b == 65:                        # wheel down -> next row
                         self.sel = min(n - 1, self.sel + cols)
-                    elif (b & 0b11) == 0:                # left click
+                    elif (b & 0b11) == 0:                # left click -> select only
                         idx = self.card_at(x, y, cols, vis_rows)
                         if idx is not None:
-                            if idx == self.sel:
-                                return self.rows[idx]    # click selected card -> play/get
                             self.sel = idx
                     continue
                 if key in ("q", "ESC"):
