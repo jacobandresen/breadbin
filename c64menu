@@ -94,6 +94,15 @@ def load_rows():
     return rows
 
 
+def canon_of(row):
+    return _bi.norm(re.split(r":| - ", row[4], maxsplit=1)[0])
+
+
+def with_covers(rows, cidx):
+    """Keep only games that have a box cover in the libretro thumbnails set."""
+    return [r for r in rows if canon_of(r) in cidx]
+
+
 def vis_len(s):
     return len(re.sub(r"\x1b\[[0-9;]*m", "", s))
 
@@ -104,15 +113,15 @@ def trunc(s, n):
 
 # --------------------------------------------------------------------------- TUI
 class Menu:
-    def __init__(self, rows, runopts):
+    def __init__(self, rows, runopts, cidx):
         self.all = rows
         self.runopts = runopts
+        self.cidx = cidx               # cover index (canon -> filename)
         self.filter = ""
         self.sel = 0
         self.top = 0
         self.open = False
         self.con = None                # GB64 db (lazy)
-        self.cidx = None               # cover index (lazy)
         self.dcache = {}               # query -> (record_or_None, cover_path_or_None)
         self.apply_filter()
 
@@ -140,10 +149,7 @@ class Menu:
             rec = None
         cover = None
         try:
-            if self.cidx is None:
-                self.cidx = _cover.load_index()
-            canon = _bi.norm(re.split(r":| - ", query, maxsplit=1)[0])
-            cover = _cover.ensure_cover(canon, self.cidx)
+            cover = _cover.ensure_cover(canon_of(row), self.cidx)
         except Exception:
             cover = None
         self.dcache[query] = (rec, cover)
@@ -351,7 +357,14 @@ def main(argv):
     if not sys.stdin.isatty():
         die("c64menu needs an interactive terminal")
 
-    chosen = Menu(load_rows(), runopts).run()
+    try:
+        cidx = _cover.load_index()
+    except Exception as e:
+        die(f"could not load cover index: {e}")
+    rows = with_covers(load_rows(), cidx)
+    if not rows:
+        die("no games with covers to show (try: c64menu --refresh)")
+    chosen = Menu(rows, runopts, cidx).run()
     if not chosen:
         return 0
     if chosen[1] == "local":
