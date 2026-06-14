@@ -14,6 +14,7 @@ USAGE = """breadbin - Commodore 64 game library (find . fetch . launch)
 
   breadbin menu              browse ranked games; play owned, fetch the rest (default)
   breadbin play  <name>      launch a game straight into the emulator (LOAD"*",8,1 : RUN)
+  breadbin info  <name>      show GameBase64 details for a game (year, genre, author, ...)
   breadbin get   <name>      download a tape from the Ultimate Tape Archive
   breadbin disk  <name>      download a disk from the Internet Archive / TOSEC
   breadbin disk  --source all <name>
@@ -25,6 +26,7 @@ Add --help to any subcommand for its own options, e.g.  breadbin disk --help
 COMMANDS = {
     "menu": "c64menu", "pick": "c64menu", "browse": "c64menu",
     "play": "c64run", "run": "c64run", "launch": "c64run",
+    "info": "c64info", "details": "c64info",
     "get": "c64get", "tape": "c64get",
     "disk": "c64disk",
     "tosec": "c64tosec", "browse-all": "c64tosec",

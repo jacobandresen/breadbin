@@ -1,6 +1,9 @@
 # downloaded box-art cache (bb-cover)
 covers/
 
+# cached GameBase64 SQLite database (c64info)
+gb64.sqlitedb
+
 # python bytecode
 __pycache__/
 *.pyc
