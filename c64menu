@@ -17,7 +17,7 @@ Usage:
   c64menu -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
   c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
 """
-import os, re, sys, shutil, select, termios, tty, textwrap, subprocess
+import os, re, sys, struct, shutil, select, termios, tty, textwrap, subprocess
 import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +33,9 @@ _info = _m.SourceFileLoader("c64info", os.path.join(HERE, "c64info")).load_modul
 
 ESC = "\x1b"
 DETAIL_X = 24          # column where detail text starts (cover sits to its left)
-CARD_MAX = 13          # detail card height; capped so the list stays visible
+COVER_W = 18          # cover width in cells; card height grows to fit the cover
+CELL_AR = 0.5         # terminal cell width:height ratio (~1:2) for aspect maths
+CARD_MIN = 8          # smallest detail card
 HAS_IMG = os.environ.get("TERM_PROGRAM") == "WezTerm" and shutil.which("wezterm")
 
 
@@ -88,6 +90,33 @@ def ia_cover(ident):
         return cache
     except Exception:
         return None
+
+
+def image_size(path):
+    """(width, height) in pixels for a PNG or JPEG, without any image library."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(26)
+            if head[:8] == b"\x89PNG\r\n\x1a\n":
+                return struct.unpack(">II", head[16:24])
+            if head[:2] == b"\xff\xd8":                  # JPEG: walk the segment markers
+                f.seek(2)
+                while True:
+                    b = f.read(1)
+                    if not b:
+                        break
+                    if b != b"\xff":
+                        continue
+                    m = f.read(1)
+                    while m == b"\xff":
+                        m = f.read(1)
+                    if m and 0xC0 <= m[0] <= 0xCF and m[0] not in (0xC4, 0xC8, 0xCC):
+                        f.read(3); h, w = struct.unpack(">HH", f.read(4)); return w, h
+                    ln = struct.unpack(">H", f.read(2))[0]
+                    f.seek(ln - 2, 1)
+    except Exception:
+        pass
+    return None
 
 
 def vis_len(s):
@@ -171,11 +200,23 @@ class Menu:
             lines.append(f"{ESC}[2m(no GameBase64 entry){ESC}[0m")
         return lines[:max_lines]
 
+    def card_height(self, cover, body_h):
+        """Card tall enough to contain the cover at COVER_W cells, leaving >=3 list rows."""
+        need = CARD_MIN
+        if cover:
+            sz = image_size(cover)
+            if sz and sz[0]:
+                w, h = sz
+                need = max(need, round(COVER_W * (h / w) * CELL_AR) + 1)   # +1 top padding
+        return max(CARD_MIN, min(need, body_h - 3))
+
     def frame(self):
         cols, lines = shutil.get_terminal_size((80, 24))
         body_h = max(3, lines - 2)
-        # card height adapts but always leaves room for the list (>= 3 rows)
-        card_h = min(CARD_MAX, max(5, body_h - 3)) if self.open and self.rows else 0
+        card_h, sel_rec, sel_cover = 0, None, None
+        if self.open and self.rows:
+            sel_rec, sel_cover = self.detail(self.rows[self.sel])
+            card_h = self.card_height(sel_cover, body_h)   # grow the card to fit the cover
         budget = max(1, body_h - card_h)
         if self.sel < self.top:
             self.top = self.sel
@@ -196,11 +237,11 @@ class Menu:
             out.append(self.master_line(row, i, cols)); out.append(f"{ESC}[K\r\n")
             srow += 1
             if self.open and i == self.sel and card_h:
-                rec, cover = self.detail(row)
-                cover_h, cover_w = card_h - 1, DETAIL_X - 4
+                rec, cover = sel_rec, sel_cover
                 dt = self.detail_text(row, rec, cols, card_h - 1)
                 if cover and HAS_IMG:
-                    img = (cover, srow + 1, cover_w, cover_h)   # cover starts on card line 1
+                    # width binds for portrait covers; height-cap is the card interior
+                    img = (cover, srow + 1, COVER_W, card_h - 1)
                 for k in range(card_h):
                     left = " " * DETAIL_X
                     if not cover and k == 1:
