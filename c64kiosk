@@ -123,17 +123,43 @@ class Kiosk:
                 f"{ESC}[{y + 1};{x}H{ESC}[2m{genre}{ESC}[0m",
                 f"{ESC}[{y + 2};{x}H{rating}"]
 
+    def card_at(self, x, y, cols, vis_rows):
+        """View index of the card under screen cell (x, y), or None."""
+        if y < 2:
+            return None
+        c, r = (x - 1) // CARD_W, (y - 2) // CARD_H
+        if 0 <= c < cols and 0 <= r < vis_rows:
+            idx = (self.top + r) * cols + c
+            if idx < len(self.rows):
+                return idx
+        return None
+
     def run(self):
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
-        sys.stdout.write(f"{ESC}[?1049h{ESC}[?25l")
+        sys.stdout.write(f"{ESC}[?1049h{ESC}[?25l{cm.MOUSE_ON}")
         try:
             tty.setraw(fd)
             while True:
                 self.frame()
-                cols, _ = self.grid(*shutil.get_terminal_size((80, 24)))
+                cols, vis_rows = self.grid(*shutil.get_terminal_size((80, 24)))
                 key = cm.read_key()
                 n = len(self.rows)
+                if isinstance(key, tuple) and key[0] == "MOUSE":
+                    _, b, x, y, press = key
+                    if not press:
+                        continue
+                    if b == 64:                          # wheel up -> previous row
+                        self.sel = max(0, self.sel - cols)
+                    elif b == 65:                        # wheel down -> next row
+                        self.sel = min(n - 1, self.sel + cols)
+                    elif (b & 0b11) == 0:                # left click
+                        idx = self.card_at(x, y, cols, vis_rows)
+                        if idx is not None:
+                            if idx == self.sel:
+                                return self.rows[idx]    # click selected card -> play/get
+                            self.sel = idx
+                    continue
                 if key in ("q", "ESC"):
                     if key == "ESC" and self.filter:
                         self.filter = ""; self.apply_filter(); continue
@@ -156,7 +182,7 @@ class Kiosk:
                     self.filter += key; self.apply_filter()
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
-            sys.stdout.write(f"{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()
+            sys.stdout.write(f"{cm.MOUSE_OFF}{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()
 
 
 def main(argv):

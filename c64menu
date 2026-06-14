@@ -32,6 +32,8 @@ _cover = _m.SourceFileLoader("bbcover", os.path.join(HERE, "bb-cover")).load_mod
 _info = _m.SourceFileLoader("c64info", os.path.join(HERE, "c64info")).load_module()
 
 ESC = "\x1b"
+MOUSE_ON = "\x1b[?1000h\x1b[?1006h"      # report button presses, SGR extended coords
+MOUSE_OFF = "\x1b[?1006l\x1b[?1000l"
 DETAIL_X = 24          # column where detail text starts (cover sits to its left)
 COVER_W = 18          # preferred cover width in cells
 CARD_MIN = 8          # smallest detail card
@@ -152,6 +154,7 @@ class Menu:
         self.sel = 0
         self.top = 0
         self.detail_open = False       # show the cover/detail card for the selected game
+        self.rowmap = {}               # screen row -> view index (for mouse clicks)
         self.con = None                # GB64 db (lazy)
         self.dcache = {}               # query -> (record_or_None, cover_path_or_None)
         # group rows by genre, preserving popularity order; groups in first-seen order
@@ -289,6 +292,7 @@ class Menu:
 
         out = [f"{ESC}[H", header, f"{ESC}[K\r\n"]
         srow = 1                                          # next screen row (0-based)
+        self.rowmap = {}                                  # 1-based screen row -> view index
         img = None
         for i in range(self.top, min(len(self.view), self.top + budget)):
             item = self.view[i]
@@ -298,6 +302,7 @@ class Menu:
             else:
                 out.append(self.game_line(item[1], selected, cols))
             out.append(f"{ESC}[K\r\n")
+            self.rowmap[srow + 1] = i
             srow += 1
             if selected and card_h and item[0] == "game":
                 dt = self.detail_text(item[1], sel_rec, cols, card_h - 1)
@@ -309,10 +314,11 @@ class Menu:
                         left = "   " + f"{ESC}[2m[no cover]{ESC}[0m" + " " * (DETAIL_X - 13)
                     text = dt[k - 1] if 1 <= k <= len(dt) else ""
                     out.append(left + text); out.append(f"{ESC}[K\r\n")
+                    self.rowmap[srow + 1] = i
                     srow += 1
         for _ in range(srow, lines - 1):                 # pad to the footer
             out.append(f"{ESC}[K\r\n")
-        foot = "↑↓ move · → expand · ← collapse · ↵ open/play · type to filter · esc quit"
+        foot = "↑↓/scroll move · →/click expand · ↵/click open/play · type to filter · esc quit"
         out.append(f"{ESC}[2m{trunc(foot, cols)}{ESC}[0m{ESC}[K")
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
@@ -347,17 +353,45 @@ class Menu:
             line = f"{ESC}[7m" + re.sub(r"\x1b\[0m", f"{ESC}[0m{ESC}[7m", line) + f"{ESC}[0m"
         return line
 
+    def activate(self, idx):
+        """Act on the view item at idx (group toggles; game opens detail, or plays
+        if it was already the open selection). Returns a row to launch, or None."""
+        item = self.view[idx]
+        if item[0] == "group":
+            self.sel = idx
+            self.set_group(item[1], item[1] not in self.gopen)
+        elif idx == self.sel and self.detail_open:
+            return item[1]                                # second click -> play/get
+        else:
+            self.sel = idx; self.detail_open = True
+        return None
+
     # ---- loop
     def run(self):
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
-        sys.stdout.write(f"{ESC}[?1049h{ESC}[?25l")          # alt screen, hide cursor
+        sys.stdout.write(f"{ESC}[?1049h{ESC}[?25l{MOUSE_ON}")   # alt screen, hide cursor, mouse
         try:
             tty.setraw(fd)
             while True:
                 self.frame()
                 key = read_key()
                 item = self.view[self.sel] if self.view else None
+                if isinstance(key, tuple) and key[0] == "MOUSE":
+                    _, b, x, y, press = key
+                    if not press:
+                        continue
+                    if b == 64:                          # wheel up
+                        self.sel = max(0, self.sel - 1); self.detail_open = False
+                    elif b == 65:                        # wheel down
+                        self.sel = min(len(self.view) - 1, self.sel + 1); self.detail_open = False
+                    elif (b & 0b11) == 0:                # left button
+                        idx = self.rowmap.get(y)
+                        if idx is not None:
+                            row = self.activate(idx)
+                            if row:
+                                return row
+                    continue
                 if key in ("q", "ESC"):
                     if key == "ESC" and self.filter:
                         self.set_filter("")
@@ -392,7 +426,7 @@ class Menu:
                     self.set_filter(self.filter + key)
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
-            sys.stdout.write(f"{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()
+            sys.stdout.write(f"{MOUSE_OFF}{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()
 
 
 def read_key():
@@ -403,10 +437,23 @@ def read_key():
         r, _, _ = select.select([0], [], [], 0.05)
         if not r:
             return "ESC"
-        if os.read(0, 1) == b"[":
-            code = os.read(0, 1).decode("latin-1", "ignore")
-            return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(code, "")
-        return "ESC"
+        if os.read(0, 1) != b"[":
+            return "ESC"
+        code = os.read(0, 1)
+        if code == b"<":                          # SGR mouse: ESC [ < b ; x ; y (M|m)
+            buf = b""
+            while True:
+                c = os.read(0, 1)
+                if not c or c in (b"M", b"m"):
+                    break
+                buf += c
+            try:
+                b, x, y = (int(v) for v in buf.split(b";"))
+            except Exception:
+                return ""
+            return ("MOUSE", b, x, y, c == b"M")  # press=True, release=False
+        return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(
+            code.decode("latin-1", "ignore"), "")
     if ch in (b"\r", b"\n"):
         return "ENTER"
     if ch == b"\t":
