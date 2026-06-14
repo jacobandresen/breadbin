@@ -34,6 +34,21 @@ def cover_for(row, cidx):
     return cover
 
 
+def fit_cover(cover, cell):
+    """(w, h) cells that fit the cover inside the COVER_CW x COVER_CH box, preserving
+    aspect, so the image never spills over the card's text below it."""
+    sz = cm.image_size(cover)
+    if not sz or not sz[0] or not sz[1]:
+        return COVER_CW, COVER_CH
+    iw, ih = sz
+    cwpx, chpx = cell
+    ar = (ih / iw) * (cwpx / chpx)            # rendered cell height per cell width
+    w, h = COVER_CW, round(COVER_CW * ar)
+    if h > COVER_CH:
+        h = COVER_CH; w = max(1, round(h / ar))
+    return max(1, w), max(1, h)
+
+
 class Kiosk:
     def __init__(self, rows, runopts, cidx):
         self.all = rows
@@ -57,6 +72,7 @@ class Kiosk:
     def frame(self):
         cols_term, lines_term = shutil.get_terminal_size((80, 24))
         cols, vis_rows = self.grid(cols_term, lines_term)
+        cell = cm.cell_px()
         n = len(self.rows)
         sel_row = self.sel // cols if cols else 0
         if sel_row < self.top:
@@ -82,15 +98,16 @@ class Kiosk:
                 sel = (idx == self.sel)
                 cover = cover_for(row, self.cidx)
                 if cover and cm.HAS_IMG:
-                    imgs.append((cover, x - 1, y - 1))  # imgcat is 0-based
+                    w, h = fit_cover(cover, cell)
+                    imgs.append((cover, x - 1, y - 1, w, h))   # imgcat is 0-based
                 elif not cover:
                     out.append(f"{ESC}[{y + COVER_CH // 2};{x}H{ESC}[2m[no cover]{ESC}[0m")
                 out += self.card_text(row, x, y + COVER_CH, sel)
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
-        for cover, x0, y0 in imgs:
+        for cover, x0, y0, w, h in imgs:
             subprocess.run(["wezterm", "imgcat", "--position", f"{x0},{y0}",
-                            "--width", str(COVER_CW), "--height", str(COVER_CH),
+                            "--width", str(w), "--height", str(h),
                             "--no-move-cursor", cover], stderr=subprocess.DEVNULL)
         sys.stdout.flush()
 
