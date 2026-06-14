@@ -1,0 +1,6 @@
+# downloaded box-art cache (bb-cover)
+covers/
+
+# python bytecode
+__pycache__/
+*.pyc
