@@ -107,7 +107,25 @@ def _which(cmd):
     return which(cmd)
 
 
-def show(con, gid):
+def open_db(refresh=False):
+    """Connect to the (lazily-downloaded) GB64 DB with lenient text decoding."""
+    ensure_db(refresh)
+    con = sqlite3.connect(DB)
+    # GB64 text is Windows-1252 (the .mdb origin), not UTF-8 -> decode leniently.
+    con.text_factory = lambda b: b.decode("utf-8") if _utf8(b) else b.decode("cp1252", "replace")
+    return con
+
+
+def best_match(con, query):
+    """Return the GA_Id of the single best match for query, or None."""
+    matches, exact = search(con, query)
+    if exact:
+        return exact[0][0]
+    return matches[0][0] if matches else None
+
+
+def record(con, gid, note_limit=500):
+    """Structured GB64 details for one game: {name, year, rows:[(label,val)], note}."""
     (name, year, pub, dev, pgenre, genre, prog, musician, lang,
      pf, pt, psim, rating, classic, comment, memo,
      wl_name, wl_url, filename) = con.execute(DETAIL_SQL, (gid,)).fetchone()
@@ -124,9 +142,7 @@ def show(con, gid):
     g = " / ".join(x for x in (clean(pgenre), clean(genre)) if x)
     rating = clean(rating)
 
-    print(f"\n  {name}" + (f"  ({year})" if clean(year) else ""))
-    print("  " + "-" * max(len(name) + 8, 24))
-    rows = [
+    rows = [(lbl, v) for lbl, v in (
         ("Publisher",  clean(pub)),
         ("Developer",  clean(dev)),
         ("Genre",      g or None),
@@ -138,16 +154,24 @@ def show(con, gid):
         ("Classic",    "yes" if clean(classic) else None),
         ("GB64 file",  clean(filename)),
         ("Link",       clean(wl_url) and f"{clean(wl_name) or ''} {clean(wl_url)}".strip()),
-    ]
-    for label, val in rows:
-        if val is not None:
-            print(f"    {label:<11} {val}")
+    ) if v is not None]
+
     note = clean(comment) or clean(memo)
     if note:
-        note = re.sub(r"\s+", " ", note).strip()         # memos can be long crack docs
-        if len(note) > 500:
-            note = note[:500].rsplit(" ", 1)[0] + " ..."
-        print(f"\n    {note}")
+        note = re.sub(r"\s+", " ", note).strip()             # memos can be long crack docs
+        if note_limit and len(note) > note_limit:
+            note = note[:note_limit].rsplit(" ", 1)[0] + " ..."
+    return {"name": name, "year": clean(year), "rows": rows, "note": note}
+
+
+def show(con, gid):
+    r = record(con, gid)
+    print(f"\n  {r['name']}" + (f"  ({r['year']})" if r["year"] else ""))
+    print("  " + "-" * max(len(r["name"]) + 8, 24))
+    for label, val in r["rows"]:
+        print(f"    {label:<11} {val}")
+    if r["note"]:
+        print(f"\n    {r['note']}")
     print()
 
 
@@ -163,14 +187,11 @@ def main(argv):
         else:                         queries.append(a)
         i += 1
 
-    ensure_db(refresh)
-    if not queries:
-        if refresh: return 0
+    if not queries and not refresh:
         die("give a game title (see --help)")
-
-    con = sqlite3.connect(DB)
-    # GB64 text is Windows-1252 (the .mdb origin), not UTF-8 -> decode leniently.
-    con.text_factory = lambda b: b.decode("utf-8") if _utf8(b) else b.decode("cp1252", "replace")
+    con = open_db(refresh)
+    if not queries:
+        return 0
     query = " ".join(queries)
     matches, exact = search(con, query)
     if not matches:

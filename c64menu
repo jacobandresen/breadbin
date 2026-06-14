@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""c64menu - pick a ranked C64 game and launch (or fetch) it.
+"""c64menu - master/detail picker for ranked C64 games.
 
-Lists ranked C64 games you own or can download, marking availability. Games that
-can't be found in your collection or any download source are skipped.
-    o   in your collection   ->  Enter boots it via c64run (real LOAD"*",8,1 : RUN)
-    v   downloadable         ->  Enter fetches it via c64disk, then boots it.
+A keyboard-driven list (no fzf). Each game is one master line: marker, title and
+an action button.  Expand the selected row (-> / Tab) to reveal a detail line
+with the box cover and GameBase64 facts.  Enter is the action button: it plays a
+game you own, or downloads-then-plays one you don't.
+
+    o  in your collection   .  Enter plays it (c64run: LOAD"*",8,1 : RUN)
+    v  downloadable         .  Enter fetches it (c64disk), then plays it.
+
+Keys:  up/down move . ->/Tab expand . <- collapse . Enter play/get
+       type to filter . Backspace edit . Esc clear filter or quit . q quit
 
 Usage:
-  c64menu            open the fuzzy picker
-  c64menu -w         pass --warp (fast-load) to c64run
-  c64menu -f         pass --fullscreen to c64run
-  c64menu -r         pass --real (true drive emulation) to c64run
+  c64menu            open the picker
+  c64menu -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
   c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
 """
-import os, re, sys, html, shlex, shutil, subprocess, tempfile, urllib.request
+import os, re, sys, html, shutil, select, termios, tty, textwrap, subprocess, tempfile, urllib.request
+import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 POP = os.path.join(HERE, "c64_popularity.tsv")
@@ -21,9 +26,19 @@ INDEX = os.path.join(HERE, "c64_index.tsv")
 BUILD = os.path.join(HERE, "build_index.py")
 DISK = os.path.join(HERE, "c64disk")
 RUN = os.path.join(HERE, "c64run")
-BBCOVER = os.path.join(HERE, "bb-cover")
 VOTES_URL = "https://www.lemon64.com/games/votes_list.php"
 UA = "c64menu/1.0 (personal C64 collection tool; polite, low-volume)"
+
+# sibling tools, imported as modules (filenames have no .py)
+_bi = _m.SourceFileLoader("build_index", os.path.join(HERE, "build_index.py")).load_module()
+_cover = _m.SourceFileLoader("bbcover", os.path.join(HERE, "bb-cover")).load_module()
+_info = _m.SourceFileLoader("c64info", os.path.join(HERE, "c64info")).load_module()
+
+ESC = "\x1b"
+DETAIL_X = 22          # column where detail text starts (cover sits to its left)
+DETAIL_H = 10          # height of an expanded detail block (lines)
+COVER_W, COVER_H = 18, 9
+HAS_IMG = os.environ.get("TERM_PROGRAM") == "WezTerm" and shutil.which("wezterm")
 
 
 def die(msg):
@@ -32,10 +47,10 @@ def die(msg):
 
 
 def py(script, *args):
-    """Run one of our sibling python tools with the same interpreter."""
     return subprocess.run([sys.executable, script, *args])
 
 
+# --------------------------------------------------------------------------- refresh
 def parse_votes(src_html, out_path):
     t = open(src_html, encoding="utf-8", errors="replace").read()
     rows = []
@@ -44,8 +59,7 @@ def parse_votes(src_html, out_path):
         vo = re.search(r'>([\d,]+)&nbsp;votes', b)
         ti = re.search(r'<h3[^>]*><a[^>]*class="bold-blue"[^>]*>([^<]+)</a>', b)
         if sc and ti:
-            rows.append((sc.group(1),
-                         (vo.group(1).replace(",", "") if vo else "0"),
+            rows.append((sc.group(1), (vo.group(1).replace(",", "") if vo else "0"),
                          html.unescape(ti.group(1)).strip()))
     with open(out_path, "w", encoding="utf-8") as f:
         for i, (s, v, ti) in enumerate(rows, 1):
@@ -55,58 +69,261 @@ def parse_votes(src_html, out_path):
 
 def refresh():
     print("Fetching popularity scores...", file=sys.stderr)
-    fd, tmp = tempfile.mkstemp()
-    os.close(fd)
+    fd, tmp = tempfile.mkstemp(); os.close(fd)
     try:
         req = urllib.request.Request(VOTES_URL, headers={"User-Agent": UA})
         with urllib.request.urlopen(req, timeout=30) as r:
             open(tmp, "wb").write(r.read())
-    except Exception as e:
-        die(f"could not fetch popularity scores: {e}")
-    try:
         parse_votes(tmp, POP)
     except Exception as e:
-        die(f"could not parse popularity page: {e}")
+        die(f"could not refresh popularity scores: {e}")
     finally:
         os.remove(tmp)
-    py(BUILD)                                            # local set, so the scan knows what's owned
-    py(DISK, "--scan-missing", "--source", "all")        # which not-owned games are downloadable
-    py(BUILD)                                            # rebuild: local + downloadable, skip the rest
+    py(BUILD)
+    py(DISK, "--scan-missing", "--source", "all")
+    py(BUILD)
 
 
-def count_status(status):
-    if not os.path.exists(INDEX):
-        return 0
-    n = 0
+# --------------------------------------------------------------------------- data
+def load_rows():
+    rows = []
     for line in open(INDEX, encoding="utf-8"):
         f = line.rstrip("\n").split("\t")
-        if len(f) >= 2 and f[1] == status:
-            n += 1
-    return n
+        if len(f) >= 5:
+            rows.append(f)            # display, status, target, title, query
+    return rows
 
 
-def run_fzf(have, getn, runopts):
-    header = (f"C64 games - o{have} here / v{getn} downloadable - "
-              "Enter: play, or fetch+play")
-    cmd = [
-        "fzf", "--with-nth=1", "--delimiter=\t",
-        "--height=90%", "--reverse", "--no-sort", "--cycle",
-        "--prompt=C64 > ",
-        f"--header={header}",
-        "--preview", f"{shlex.quote(BBCOVER)} {{}}",
-        "--preview-window=right,40%,border-left",
-    ]
-    data = open(INDEX, encoding="utf-8").read()
-    r = subprocess.run(cmd, input=data, capture_output=True, text=True)
-    return r.stdout.rstrip("\n")
+def vis_len(s):
+    return len(re.sub(r"\x1b\[[0-9;]*m", "", s))
 
 
-def index_line_for_title(title):
-    for line in open(INDEX, encoding="utf-8"):
-        f = line.rstrip("\n").split("\t")
-        if len(f) >= 4 and f[3] == title:
-            return f
-    return None
+def trunc(s, n):
+    return s if len(s) <= n else s[: max(0, n - 1)] + "…"
+
+
+# --------------------------------------------------------------------------- TUI
+class Menu:
+    def __init__(self, rows, runopts):
+        self.all = rows
+        self.runopts = runopts
+        self.filter = ""
+        self.sel = 0
+        self.top = 0
+        self.open = False
+        self.con = None                # GB64 db (lazy)
+        self.cidx = None               # cover index (lazy)
+        self.dcache = {}               # query -> (record_or_None, cover_path_or_None)
+        self.apply_filter()
+
+    # ---- model
+    def apply_filter(self):
+        q = self.filter.lower()
+        self.rows = [r for r in self.all if q in r[3].lower()] if q else list(self.all)
+        self.sel = min(self.sel, max(0, len(self.rows) - 1))
+        self.top = 0
+        self.open = False
+
+    def detail(self, row):
+        """(gb64_record_or_None, cover_path_or_None) for a row, cached."""
+        query = row[4]
+        if query in self.dcache:
+            return self.dcache[query]
+        rec = None
+        try:
+            if self.con is None:
+                self.con = _info.open_db()
+            gid = _info.best_match(self.con, query)
+            if gid is not None:
+                rec = _info.record(self.con, gid, note_limit=240)
+        except Exception:
+            rec = None
+        cover = None
+        try:
+            if self.cidx is None:
+                self.cidx = _cover.load_index()
+            canon = _bi.norm(re.split(r":| - ", query, maxsplit=1)[0])
+            cover = _cover.ensure_cover(canon, self.cidx)
+        except Exception:
+            cover = None
+        self.dcache[query] = (rec, cover)
+        return self.dcache[query]
+
+    # ---- rendering
+    def detail_text(self, row, rec, width):
+        right = max(10, width - DETAIL_X)
+        lines = []
+        title = row[3]
+        if rec:
+            head = f"{ESC}[1m{title}{ESC}[0m" + (f"  ({rec['year']})" if rec["year"] else "")
+            lines.append(head)
+            d = dict(rec["rows"])
+            genre = d.get("Genre")
+            pub = " · ".join(x for x in (d.get("Publisher"), d.get("Developer")) if x)
+            people = " · ".join(x for x in (d.get("Programmer"),
+                                            d.get("Music") and "♪ " + d["Music"]) if x)
+            facts = " · ".join(x for x in (d.get("Players"),
+                                           d.get("Rating") and "★" + d["Rating"],
+                                           d.get("Classic") and "classic") if x)
+            for v in (genre, pub, people, facts):
+                if v:
+                    lines.append(f"{ESC}[2m{trunc(v, right)}{ESC}[0m")
+            if rec["note"]:
+                lines.append("")
+                for w in textwrap.wrap(rec["note"], right)[:2]:
+                    lines.append(f"{ESC}[2m{w}{ESC}[0m")
+        else:
+            lines.append(f"{ESC}[1m{title}{ESC}[0m")
+            lines.append(f"{ESC}[2m(no GameBase64 entry){ESC}[0m")
+        return lines[:DETAIL_H]
+
+    def frame(self):
+        cols, lines = shutil.get_terminal_size((80, 24))
+        body_h = max(3, lines - 2)
+        budget = body_h - (DETAIL_H if self.open and self.rows else 0)
+        budget = max(1, budget)
+        if self.sel < self.top:
+            self.top = self.sel
+        elif self.sel >= self.top + budget:
+            self.top = self.sel - budget + 1
+        self.top = max(0, min(self.top, max(0, len(self.rows) - budget)))
+
+        have = sum(1 for r in self.all if r[1] == "local")
+        getn = sum(1 for r in self.all if r[1] == "available")
+        cur = f"{ESC}[7m {self.filter or 'type to filter'} {ESC}[0m"
+        header = f"{ESC}[1mC64 ▶{ESC}[0m {cur}   ●{have} here · ⬇{getn} downloadable"
+
+        out = [f"{ESC}[H", header, f"{ESC}[K\r\n"]
+        screen_lines = 1
+        img = None
+        end = min(len(self.rows), self.top + budget)
+        for i in range(self.top, end):
+            row = self.rows[i]
+            out.append(self.master_line(row, i, cols)); out.append(f"{ESC}[K\r\n")
+            screen_lines += 1
+            if self.open and i == self.sel:
+                rec, cover = self.detail(row)
+                dt = self.detail_text(row, rec, cols)
+                img = (cover, screen_lines) if cover and HAS_IMG else None
+                for k in range(DETAIL_H):
+                    left = " " * DETAIL_X
+                    if not cover and k == 1:
+                        left = "  " + f"{ESC}[2m[no cover]{ESC}[0m" + " " * (DETAIL_X - 12)
+                    text = dt[k] if k < len(dt) else ""
+                    out.append(left + text); out.append(f"{ESC}[K\r\n")
+                    screen_lines += 1
+        # pad to footer
+        for _ in range(screen_lines, lines - 1):
+            out.append(f"{ESC}[K\r\n")
+        foot = ("↑↓ move · →/Tab expand · ↵ play/get · type to filter · esc quit")
+        out.append(f"{ESC}[2m{trunc(foot, cols)}{ESC}[0m{ESC}[K")
+        sys.stdout.write("".join(out)); sys.stdout.flush()
+
+        if img:
+            cover, srow = img
+            subprocess.run(["wezterm", "imgcat", "--position", f"2,{srow}",
+                            "--width", str(COVER_W), "--height", str(COVER_H),
+                            "--no-move-cursor", cover],
+                           stdout=sys.stdout, stderr=subprocess.DEVNULL)
+            sys.stdout.flush()
+
+    def master_line(self, row, i, cols):
+        display, status = row[0], row[1]
+        # strip the leading marker/rank from the index display; we draw our own
+        label = re.sub(r"^[●⬇·]\s*", "", display)
+        marker = "●" if status == "local" else "⬇"
+        caret = "▾" if (self.open and i == self.sel) else ("▸" if i == self.sel else " ")
+        if status == "local":
+            btn = f"{ESC}[32m↵ Play{ESC}[0m"; btn_w = 6
+        else:
+            btn = f"{ESC}[33m↵ Get {ESC}[0m"; btn_w = 6
+        left = f"{caret} {marker} "
+        avail = cols - vis_len(left) - btn_w - 2
+        left += trunc(label, max(1, avail))
+        pad = max(1, cols - vis_len(left) - btn_w)
+        line = left + " " * pad + btn
+        if i == self.sel:
+            line = f"{ESC}[7m" + re.sub(r"\x1b\[0m", f"{ESC}[0m{ESC}[7m", line) + f"{ESC}[0m"
+        return line
+
+    # ---- loop
+    def run(self):
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        sys.stdout.write(f"{ESC}[?1049h{ESC}[?25l")          # alt screen, hide cursor
+        try:
+            tty.setraw(fd)
+            while True:
+                self.frame()
+                key = read_key()
+                if key in ("q", "ESC"):
+                    if key == "ESC" and self.filter:
+                        self.filter = ""; self.apply_filter()
+                        continue
+                    return None
+                elif key == "UP":
+                    self.sel = max(0, self.sel - 1)
+                elif key == "DOWN":
+                    self.sel = min(len(self.rows) - 1, self.sel + 1)
+                elif key in ("RIGHT", "TAB"):
+                    self.open = True
+                elif key == "LEFT":
+                    self.open = False
+                elif key == "ENTER":
+                    if self.rows:
+                        return self.rows[self.sel]
+                elif key == "BACKSPACE":
+                    if self.filter:
+                        self.filter = self.filter[:-1]; self.apply_filter()
+                elif key and len(key) == 1 and 32 <= ord(key) < 127:
+                    self.filter += key; self.apply_filter()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            sys.stdout.write(f"{ESC}[?25h{ESC}[?1049l"); sys.stdout.flush()
+
+
+def read_key():
+    ch = os.read(0, 1)
+    if not ch:
+        return None
+    if ch == b"\x1b":
+        r, _, _ = select.select([0], [], [], 0.05)
+        if not r:
+            return "ESC"
+        if os.read(0, 1) == b"[":
+            code = os.read(0, 1).decode("latin-1", "ignore")
+            return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT"}.get(code, "")
+        return "ESC"
+    if ch in (b"\r", b"\n"):
+        return "ENTER"
+    if ch == b"\t":
+        return "TAB"
+    if ch in (b"\x7f", b"\x08"):
+        return "BACKSPACE"
+    if ch == b"\x03":
+        return "ESC"
+    try:
+        return ch.decode("utf-8")
+    except UnicodeDecodeError:
+        return ""
+
+
+# --------------------------------------------------------------------------- actions
+def play(target, runopts):
+    os.execv(RUN, [RUN, *runopts, target])
+
+
+def fetch_and_play(row, runopts):
+    status, target, title, query = row[1], row[2], row[3], row[4]
+    print(f'"{title}" is not in your collection (downloadable from {target}).', file=sys.stderr)
+    py(DISK, "--source", target, query)
+    py(BUILD)
+    for f in load_rows():
+        if f[3] == title and f[1] == "local":
+            print(f"Done - launching {title}", file=sys.stderr)
+            play(f[2], runopts)
+    die(f'download of "{title}" produced no matching disk. '
+        f'Retry:  c64disk --source {target} "{query}"')
 
 
 def main(argv):
@@ -127,50 +344,20 @@ def main(argv):
             die(f"unknown option: {a} (try --help)")
         i += 1
 
-    if not shutil.which("fzf"):
-        die("fzf not found")
     if not os.path.exists(INDEX):
         refresh()
     if not os.path.getsize(INDEX):
         die("index is empty (try: c64menu --refresh)")
+    if not sys.stdin.isatty():
+        die("c64menu needs an interactive terminal")
 
-    have = count_status("local")
-    getn = count_status("available")
-    choice = run_fzf(have, getn, runopts)
-    if not choice:
-        return 0                                          # Esc / Ctrl-C = cancel
-
-    fields = choice.split("\t")
-    status = fields[1] if len(fields) > 1 else ""
-    target = fields[2] if len(fields) > 2 else ""
-    title = fields[3] if len(fields) > 3 else ""
-    query = fields[4] if len(fields) > 4 else ""
-
-    # 1) already local -> just launch
-    if status == "local":
-        os.execv(RUN, [RUN, *runopts, target])
-
-    # 2) downloadable -> fetch via c64disk from the source the scan found it in
-    print(f'"{title}" is not in your collection (downloadable from {target}).',
-          file=sys.stderr)
-    try:
-        ans = input("Download and play? [Y/n] ")
-    except EOFError:
+    chosen = Menu(load_rows(), runopts).run()
+    if not chosen:
         return 0
-    if ans.strip().lower().startswith("n"):
-        return 0
-
-    py(DISK, "--source", target, query)
-    py(BUILD)                                             # re-match the new files
-
-    newline = index_line_for_title(title)
-    if newline and newline[1] == "local":
-        print(f"Done - launching {title}", file=sys.stderr)
-        os.execv(RUN, [RUN, *runopts, newline[2]])
-
-    die(f'download of "{title}" didn\'t produce a matching disk (its dump may not match '
-        f'the ranked title).\n    Anything fetched is under .../C64/_IA_downloads. '
-        f'Retry with:  c64disk --source {target} "{query}"')
+    if chosen[1] == "local":
+        play(chosen[2], runopts)
+    fetch_and_play(chosen, runopts)
+    return 0
 
 
 if __name__ == "__main__":
