@@ -123,7 +123,7 @@ def main(argv):
     emu = pick_emulator()
     opts = []
     if warp:        opts.append("-autostart-warp")       # fast-load, then normal speed
-    if fullscreen:  opts.append("-fullscreen")
+    if fullscreen:  opts.append("-VICIIfull")            # VIC-II (C64) fullscreen
     if real:        opts.append("-autostart-handle-tde")  # accurate (slow) drive loading
 
     print(f'LOAD"*",8,1 : RUN   ->  {os.path.basename(game)}   [{os.path.basename(emu[0])}]',
