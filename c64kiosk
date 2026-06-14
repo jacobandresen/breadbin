@@ -9,7 +9,7 @@ Usage:
   c64kiosk            open the kiosk
   c64kiosk -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
 """
-import os, sys, re, shutil, termios, tty, subprocess
+import os, sys, shutil, termios, tty, subprocess
 import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -18,9 +18,9 @@ ESC = cm.ESC
 
 # fixed card geometry (cells) so the grid is uniform; covers fit inside the box
 COVER_CW, COVER_CH = 16, 9        # cover image box
-PAD_X, TEXT_H = 2, 3              # gutter between cards; text lines under a cover
+PAD_X = 2                         # gutter between cards
 CARD_W = COVER_CW + PAD_X
-CARD_H = COVER_CH + TEXT_H + 1
+CARD_H = COVER_CH + 2             # cover + selection bar + gap (no details)
 
 
 def cover_for(row, cidx):
@@ -102,7 +102,8 @@ class Kiosk:
                     imgs.append((cover, x - 1, y - 1, w, h))   # imgcat is 0-based
                 elif not cover:
                     out.append(f"{ESC}[{y + COVER_CH // 2};{x}H{ESC}[2m[no cover]{ESC}[0m")
-                out += self.card_text(row, x, y + COVER_CH, sel)
+                if sel:                                         # selection bar under the cover
+                    out.append(f"{ESC}[{y + COVER_CH};{x}H{ESC}[7m{' ' * COVER_CW}{ESC}[0m")
         sys.stdout.write("".join(out)); sys.stdout.flush()
 
         for cover, x0, y0, w, h in imgs:
@@ -110,18 +111,6 @@ class Kiosk:
                             "--width", str(w), "--height", str(h),
                             "--no-move-cursor", cover], stderr=subprocess.DEVNULL)
         sys.stdout.flush()
-
-    def card_text(self, row, x, y, sel):
-        w = CARD_W - 1
-        title = cm.trunc(re.sub(r"\s+★\d+\s*$", "", row[3]), w)
-        genre = cm.trunc(row[6] if len(row) > 6 and row[6] else "", w)
-        m = re.search(r"★(\d)", row[0])
-        mark = "●" if row[1] == "local" else "⬇"
-        rating = (f"★{m.group(1)} " if m else "") + mark
-        tline = f"{ESC}[7m{title}{ESC}[0m" if sel else f"{ESC}[1m{title}{ESC}[0m"
-        return [f"{ESC}[{y};{x}H{tline}",
-                f"{ESC}[{y + 1};{x}H{ESC}[2m{genre}{ESC}[0m",
-                f"{ESC}[{y + 2};{x}H{rating}"]
 
     def card_at(self, x, y, cols, vis_rows):
         """View index of the card under screen cell (x, y), or None."""
