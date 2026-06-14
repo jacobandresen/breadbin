@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# c64run — boot a Commodore 64 game straight into the emulator, no launcher GUI.
+#
+# Auto-picks a VICE emulator, preferring a LICENSE-FREE one (no C64 Forever needed):
+#   1. native x64sc / x64 on PATH         (free VICE, its own bundled ROMs)
+#   2. the net.sf.VICE flatpak            (free VICE, bundled ROMs)
+#   3. Cloanto C64 Forever's x64.exe (wine, needs the license)  — fallback only
+# Override with  C64_EMU="..."  (e.g. C64_EMU='x64' or a full flatpak command).
+# VICE's -autostart is the emulator equivalent of typing  LOAD"*",8,1  then  RUN .
+#
+# Usage:
+#   c64run <game-file>              # launch an exact .d64/.tap/.crt/.t64/.prg ...
+#   c64run <search words>          # search your collection, launch the match
+#   c64run -w <search words>       # -w / --warp : fast-load (warp during autostart only)
+#   c64run -r <search words>       # -r / --real : true drive emulation (realistic, slower load)
+#   c64run -f <search words>       # -f / --fullscreen
+#   c64run -l <search words>       # -l / --list : just list matches, don't launch
+#
+set -euo pipefail
+
+WINE_X64="/opt/wine/.wine/drive_c/Program Files (x86)/Cloanto/C64 Forever/VICE/x64.exe"
+
+# Where your games live.
+LIB_DIRS=(
+  "/opt/media/Games/Commodore/C64 Roms"
+  "/opt/media/Games/Commodore/C64"
+  "/opt/RetroGames/Commodore"
+)
+
+# Recognised C64 image types.
+EXT_RE='\.(d64|d71|d81|t64|tap|prg|crt|g64|nib|p00|x64)$'
+
+WARP=0 REAL=0 FULLSCREEN=0 LIST=0
+EXTRA_OPTS=()
+
+die() { printf 'c64run: %s\n' "$*" >&2; exit 1; }
+
+# --- pick an emulator (license-free first) -----------------------------------
+EMU=()
+if [[ -n "${C64_EMU:-}" ]]; then
+  read -r -a EMU <<< "$C64_EMU"
+elif command -v x64sc >/dev/null; then EMU=( x64sc )
+elif command -v x64   >/dev/null; then EMU=( x64 )
+elif command -v flatpak >/dev/null && flatpak info net.sf.VICE >/dev/null 2>&1; then
+  EMU=( flatpak run --command=x64sc net.sf.VICE )
+elif [[ -x "$WINE_X64" ]]; then
+  export WINEPREFIX="${WINEPREFIX:-/opt/wine/.wine}" WINEDEBUG="${WINEDEBUG:--all}"
+  EMU=( wine "$WINE_X64" )
+else
+  die "no VICE found — install 'vice', the net.sf.VICE flatpak, or C64 Forever"
+fi
+
+# --- parse flags -------------------------------------------------------------
+while [[ ${1:-} == -* ]]; do
+  case "$1" in
+    -w|--warp)       WARP=1 ;;
+    -r|--real)       REAL=1 ;;
+    -f|--fullscreen) FULLSCREEN=1 ;;
+    -l|--list)       LIST=1 ;;
+    -h|--help)       sed -n '3,18p' "$0"; exit 0 ;;
+    --)              shift; break ;;
+    *)               die "unknown option: $1 (try --help)" ;;
+  esac
+  shift
+done
+
+[[ $# -ge 1 ]] || die "give a game file or search words (try --help)"
+
+# --- resolve the game --------------------------------------------------------
+if [[ -f "$1" && $# -eq 1 ]]; then
+  GAME="$1"
+else
+  query="$*"
+  mapfile -t matches < <(
+    find "${LIB_DIRS[@]}" -type f 2>/dev/null \
+      | grep -iE "$EXT_RE" \
+      | grep -iF -- "$query" \
+      | sort
+  )
+  n=${#matches[@]}
+  if (( n == 0 )); then
+    die "no game matching: $query"
+  elif (( LIST )); then
+    printf '%s\n' "${matches[@]}"; exit 0
+  elif (( n == 1 )); then
+    GAME="${matches[0]}"
+  else
+    echo "Multiple matches for \"$query\":" >&2
+    if [[ -t 0 ]]; then
+      select GAME in "${matches[@]}"; do [[ -n "$GAME" ]] && break; done
+    else
+      printf '  %s\n' "${matches[@]}" >&2
+      die "be more specific, or pass the full path"
+    fi
+  fi
+fi
+
+# --- build VICE options ------------------------------------------------------
+(( WARP ))       && EXTRA_OPTS+=( -autostart-warp )   # fast-load, then normal speed
+(( FULLSCREEN )) && EXTRA_OPTS+=( -fullscreen )
+if (( REAL )); then
+  EXTRA_OPTS+=( -autostart-handle-tde )   # accurate (slow) drive loading
+fi
+
+echo "LOAD\"*\",8,1 : RUN   ->  $(basename "$GAME")   [${EMU[0]##*/}]" >&2
+exec "${EMU[@]}" "${EXTRA_OPTS[@]}" -autostart "$GAME"

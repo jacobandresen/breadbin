@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+# breadbin — Commodore 64 game library: find · fetch · launch.
+#   (named after the "breadbin" — the classic beige C64 case)
+#
+# A thin umbrella over the toolkit. The standalone c64run / c64menu / c64get /
+# c64disk commands still work; this just gives them one memorable entry point.
+#
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+breadbin — Commodore 64 game library (find · fetch · launch)
+
+  breadbin menu              browse ranked games; play owned, fetch the rest (default)
+  breadbin play  <name>      launch a game straight into the emulator (LOAD"*",8,1 : RUN)
+  breadbin get   <name>      download a tape from the Ultimate Tape Archive
+  breadbin disk  <name>      download a disk from the Internet Archive / TOSEC
+  breadbin disk  --source all <name>
+  breadbin tosec             browse the whole TOSEC catalogue; download + play on pick
+
+Add --help to any subcommand for its own options, e.g.  breadbin disk --help
+EOF
+}
+
+cmd="${1:-menu}"; shift 2>/dev/null || true
+case "$cmd" in
+  menu|pick|browse) exec "$HERE/c64menu" "$@" ;;
+  play|run|launch)  exec "$HERE/c64run"  "$@" ;;
+  get|tape)         exec "$HERE/c64get"  "$@" ;;
+  disk)             exec "$HERE/c64disk" "$@" ;;
+  tosec|browse-all) exec "$HERE/c64tosec" "$@" ;;
+  -h|--help|help)   usage ;;
+  *)                printf 'breadbin: unknown command "%s" (try: breadbin --help)\n' "$cmd" >&2; exit 2 ;;
+esac
