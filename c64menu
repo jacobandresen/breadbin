@@ -309,16 +309,21 @@ def play(target, runopts):
 
 
 def fetch_and_play(row, runopts):
-    status, target, title, query = row[1], row[2], row[3], row[4]
-    print(f'"{title}" is not in your collection (downloadable from {target}).', file=sys.stderr)
-    py(DISK, "--source", target, query)
+    title, query = row[3], row[4]
+    ident = row[5] if len(row) > 5 else ""
+    print(f'Downloading "{title}" from the Internet Archive ...', file=sys.stderr)
+    if ident:
+        py(DISK, "--id", ident)                 # exact IA item (no guessing by title)
+    else:
+        py(DISK, "--source", "ia", query)
     py(BUILD)
     for f in load_rows():
         if f[3] == title and f[1] == "local":
             print(f"Done - launching {title}", file=sys.stderr)
             play(f[2], runopts)
     die(f'download of "{title}" produced no matching disk. '
-        f'Retry:  c64disk --source {target} "{query}"')
+        f'Retry:  c64disk --id {ident}' if ident else
+        f'Retry:  c64disk --source ia "{query}"')
 
 
 def main(argv):
