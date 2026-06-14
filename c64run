@@ -8,15 +8,16 @@ Auto-picks a VICE emulator, preferring a LICENSE-FREE one (no C64 Forever needed
 Override with  C64_EMU="..."  (e.g. C64_EMU='x64' or a full flatpak command).
 VICE's -autostart is the emulator equivalent of typing  LOAD"*",8,1  then  RUN .
 
-Defaults: fullscreen, and warp (fast-load) until the game has started.
+Defaults: fullscreen, true-drive autostart, and warp fast-forwarding the load
+until the game has started.
 
 Usage:
   c64run <game-file>             launch an exact .d64/.tap/.crt/.t64/.prg ...
   c64run <search words>          search your collection, launch the match
-  c64run -r <search words>       -r / --real    : true drive emulation (realistic, slower load)
-  c64run --no-warp <search>      load at normal speed (don't fast-load to the game)
+  c64run --no-warp <search>      -W : load at authentic speed (don't fast-forward)
+  c64run -r <search words>       -r / --real : authentic-speed load (alias of --no-warp)
   c64run --windowed <search>     run in a window instead of fullscreen
-  c64run -l <search words>       -l / --list    : just list matches, don't launch
+  c64run -l <search words>       -l / --list : just list matches, don't launch
   (-w / --warp and -f / --fullscreen are accepted too, but are now the default)
 """
 import os, re, sys, shlex, shutil, subprocess
@@ -86,14 +87,14 @@ def choose(matches, query):
 
 
 def main(argv):
-    warp, real, fullscreen, list_only = True, False, True, False
+    warp, fullscreen, list_only = True, True, False
     args = []
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("-w", "--warp"):           warp = True          # default; back-compat
         elif a in ("-W", "--no-warp"):      warp = False
-        elif a in ("-r", "--real"):         real = True
+        elif a in ("-r", "--real"):         warp = False         # authentic-speed load
         elif a in ("-f", "--fullscreen"):   fullscreen = True    # default; back-compat
         elif a == "--windowed":             fullscreen = False
         elif a in ("-l", "--list"):         list_only = True
@@ -121,10 +122,11 @@ def main(argv):
             game = choose(matches, query)
 
     emu = pick_emulator()
-    opts = []
-    if warp:        opts.append("-autostart-warp")       # fast-load, then normal speed
+    # Handle True Drive Emulation on autostart so disk fastloaders/custom loaders run
+    # (many cracked dumps need it); warp then fast-forwards the whole load to the game.
+    opts = ["-autostart-handle-tde"]
+    if warp:        opts.append("-autostart-warp")       # fast-forward loading, then normal speed
     if fullscreen:  opts.append("-VICIIfull")            # VIC-II (C64) fullscreen
-    if real:        opts.append("-autostart-handle-tde")  # accurate (slow) drive loading
 
     print(f'LOAD"*",8,1 : RUN   ->  {os.path.basename(game)}   [{os.path.basename(emu[0])}]',
           file=sys.stderr)
