@@ -74,6 +74,26 @@ def draw_cover(out, imgs, cover, x, y, fw, fh, cell, focused):
 
 
 class Kiosk:
+    def genre_bar(self, genre, cnt, base, cols_term, focused=False, hint=""):
+        """Return a formatted genre title bar line.
+        genre: genre string
+        cnt: number of games
+        base: starting row (1-indexed) for this genre section
+        cols_term: terminal width
+        focused: whether this genre is currently selected
+        hint: optional trailing hint text
+        """
+        # Build the text content
+        name = " ".join(genre.upper())
+        txt = f" {name} ({cnt}) {hint}".ljust(cols_term)[:cols_term]
+        # Color: focused uses reverse video or bright background
+        if focused:
+            bar = f"{ESC}[1;97;44m{txt}{ESC}[0m"
+        else:
+            bar = f"{ESC}[1;97;44m{txt}{ESC}[0m"
+        # Position cursor at the base row
+        return f"{ESC}[{base};1H{bar}"
+    
     def __init__(self, rows, runopts, cidx):
         self.runopts = runopts
         self.cidx = cidx
@@ -131,15 +151,9 @@ class Kiosk:
             genre, grows = self.groups[gi]
             base = 2 + vi * sec_h
             ti = self.titles[gi]
-            tfoc = (self.osel == ti)
             cnt = len(grows)
-            style = f"{ESC}[1;30;103m" if tfoc else f"{ESC}[1;97;44m"  # focus: black/yellow else white/blue
-            name = " ".join(genre.upper())                   # spaced caps = bigger look
-            label = f"  {name}    ({cnt} games)   click / ⏎ to open".ljust(cols_term)[:cols_term]
-            mid = TITLE_H // 2
-            for k in range(TITLE_H):                          # multi-row bar = big click target
-                text = label if k == mid else " " * cols_term
-                out.append(f"{ESC}[{base + k};1H{style}{text}{ESC}[0m")
+            out.append(self.genre_bar(genre, cnt, base, cols_term,
+                                      self.osel == ti, "click / ⏎ to open"))
             self.rects.append((1, cols_term, base, base + TITLE_H - 1, ti))
             for j in range(min(self.topn, cnt)):
                 x = 1 + j * card_w

@@ -10,9 +10,9 @@ Wizard of Wor   ★5	available	ia	Wizard of Wor	Wizard of Wor	d64_Wizard_of_Wor_
 Space Taxi   ★5	available	ia	Space Taxi	Space Taxi	d64_Space_Taxi_1984_Muse_Software	Arcade
 Raid Over Moscow   ★5	available	ia	Raid Over Moscow	Raid Over Moscow	d64_Raid_Over_Moscow_1984_Access_Software	Shoot'em Up
 Raid On Bungeling Bay   ★5	available	ia	Raid On Bungeling Bay	Raid On Bungeling Bay	d64_Raid_On_Bungeling_Bay_1984_Broderbund	Shoot'em Up
-The Last Ninja 2   ★5	available	ia	The Last Ninja 2	The Last Ninja 2	Last_Ninja_2_The_1988_System_3_Side_A	Adventure
+The Last Ninja 2   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Last_Ninja_2_The_1988_System_3_Disk_1_of_2_Side_A.d64	The Last Ninja 2	The Last Ninja 2	Last_Ninja_2_The_1988_System_3_Side_A	Adventure
 Elite   ★5	available	ia	Elite	Elite	Elite_1985_Firebird_de	Simulation
-Seven Cities of Gold   ★5	available	ia	Seven Cities of Gold	Seven Cities of Gold	d64_Seven_Cities_of_Gold_1984_Electronic_Arts_Side_A	Adventure
+Seven Cities of Gold   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Seven_Cities_of_Gold_1984_Electronic_Arts_Side_A.d64	Seven Cities of Gold	Seven Cities of Gold	d64_Seven_Cities_of_Gold_1984_Electronic_Arts_Side_A	Adventure
 Bruce Lee   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Bruce_Lee_1984_Datasoft_it.d64	Bruce Lee	Bruce Lee	Bruce_Lee_1984_Datasoft_h_TBC	Arcade
 Great Giana Sisters, The   ★5	available	ia	Great Giana Sisters, The	Great Giana Sisters, The	uta_Great_Giana_Sisters_The_1987_Go_5569	Arcade
 Archon   ★5	available	ia	Archon	Archon	Archon_1983_Electronic_Arts_h_Duo_Asocciates	Board Game
@@ -28,8 +28,8 @@ Pirates   ★5	available	ia	Pirates	Pirates	d64_Pirates_1988_Edicola-Super_Game_
 Thrust   ★5	available	ia	Thrust	Thrust	d64_Thrust_1988_Firebird	Arcade
 Jumpman   ★5	available	ia	Jumpman	Jumpman	Jumpman_1984_Hans_Zethofe_de	Arcade
 Spy vs. Spy   ★5	available	ia	Spy vs. Spy	Spy vs. Spy	spyvsspy_c64	Strategy
-The Way of the Exploding Fist   ★5	available	ia	The Way of the Exploding Fist	The Way of the Exploding Fist	d64_Way_of_the_Exploding_Fist_The_1985_Melbourne_House	Sports
-Defender of the Crown   ★5	available	ia	Defender of the Crown	Defender of the Crown	Defender_of_the_Crown_1987_Cinemaware_Side_A_cr_ESI	Strategy
+The Way of the Exploding Fist   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Way_of_the_Exploding_Fist_The_1985_Melbourne_House.d64	The Way of the Exploding Fist	The Way of the Exploding Fist	d64_Way_of_the_Exploding_Fist_The_1985_Melbourne_House	Sports
+Defender of the Crown   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Defender_of_the_Crown_1987_Cinemaware_Side_A_cr_ESI.d64	Defender of the Crown	Defender of the Crown	Defender_of_the_Crown_1987_Cinemaware_Side_A_cr_ESI	Strategy
 Winter Games   ★5	available	ia	Winter Games	Winter Games	uta_Winter_Games_1989_Kixx_1430	Sports
 Armalyte   ★5	available	ia	Armalyte	Armalyte	Armalyte_1988_Thalamus_h_DOM	Shoot'em Up
 Hover Bovver   ★5	available	ia	Hover Bovver	Hover Bovver	Hover_Bovver_1983_Llamasoft	Arcade
@@ -37,7 +37,7 @@ Mercenary   ★5	available	ia	Mercenary	Mercenary	d64_Mercenary_1985_Novagen_Sof
 Paradroid   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Paradroid_1985_Graftgold_cr_ABC.d64	Paradroid	Paradroid	uta_Paradroid_1985_Hewson_Consultants_205	Shoot'em Up
 Pipe Mania   ★5	available	ia	Pipe Mania	Pipe Mania	d64_Pipe_Mania_1989_Empire	Brain
 California Games   ★5	available	ia	California Games	California Games	uta_California_Games_1987_U.S._Gold_758	Sports
-The Last Ninja 3   ★5	available	ia	The Last Ninja 3	The Last Ninja 3	Last_Ninja_2_The_1988_System_3_Disk_1_of_2_Side_A	Adventure
+The Last Ninja 3   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Last_Ninja_2_The_1988_System_3_Disk_1_of_2_Side_A.d64	The Last Ninja 3	The Last Ninja 3	Last_Ninja_2_The_1988_System_3_Disk_1_of_2_Side_A	Adventure
 Summer Games   ★5	available	ia	Summer Games	Summer Games	uta_Summer_Games_1984_U.S._Gold_18895	Sports
 Turrican   ★5	available	ia	Turrican	Turrican	d64_Turrican_1990_Rainbow_Arts_Side_A_t_7	Shoot'em Up
 hawkeye   ★5	available	ia	hawkeye	hawkeye	c64_hawkeye	Arcade
@@ -63,7 +63,7 @@ Lady Tut   ★5	available	ia	Lady Tut	Lady Tut	Lady_Tut_19xx_Progame	Arcade
 GI Joe   ★5	available	ia	GI Joe	GI Joe	GI_Joe_1985_Epyx_cr_REM_t_7	Shoot'em Up
 Delta Patrol   ★5	available	ia	Delta Patrol	Delta Patrol	Delta_Patrol_1987_Electronic_ArtsThalamus	Shoot'em Up
 Atomino   ★5	available	ia	Atomino	Atomino	Atomino_1990_Psygnosis_cr_Paramount_Random	Brain
-Elite 128   ★5	available	ia	Elite 128	Elite 128	Elite_128_1985_Firebird_de-en	Simulation
+Elite 128   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Elite_128_1985_Firebird_de-en.d64	Elite 128	Elite 128	Elite_128_1985_Firebird_de-en	Simulation
 International Soccer   ★5	available	ia	International Soccer	International Soccer	International_Soccer_1983_Commodore_cr_MCG_Public_Enemy	Sports
 Split Personalities   ★5	available	ia	Split Personalities	Split Personalities	d64_Split_Personalities_1986_Domark	Brain
 Katakis   ★5	available	ia	Katakis	Katakis	Katakis_1988_Rainbow_Arts_cr_CPX	Shoot'em Up
@@ -72,7 +72,7 @@ Thrust Gold   ★5	available	ia	Thrust Gold	Thrust Gold	Thrust_Gold_2001_-_cr_Th
 Wavy Navy   ★4	available	ia	Wavy Navy	Wavy Navy	d64_Wavy_Navy_1983_Sirius_Software	Shoot'em Up
 High Rise   ★4	available	ia	High Rise	High Rise	High_Rise_1986_Compute	Arcade
 Pac-Man   ★1	available	ia	Pac-Man	Pac-Man	d64_Pac-Man_1983_Atari	Arcade
-Breakout   ★1	available	ia	Breakout	Breakout	Breakout_1987_Rejhon_M._D.	Arcade
+Breakout   ★1	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Breakout_1987_Rejhon_M._D..d64	Breakout	Breakout	Breakout_1987_Rejhon_M._D.	Arcade
 UFO   ★1	available	ia	UFO	UFO	d64_UFO_1987_Odin_Computer_Graphics	Shoot'em Up
 Fishbone   ★1	available	ia	Fishbone	Fishbone	Fishbone_2007_Black_Turk	Shoot'em Up
 Shots   ★1	available	ia	Shots	Shots	Shots_19xx_Eaglewing_Software_cr_Peterbonds	Arcade
@@ -157,7 +157,7 @@ Shinobi	available	ia	Shinobi	Shinobi	d64_Shinobi_1989_Virgin_Games	Arcade
 Neuromancer	available	ia	Neuromancer	Neuromancer	d64_Neuromancer_1988_Electronic_Arts_Disk_1_of_2_Side_A	Adventure
 Battletech	available	ia	Battletech	Battletech	Battletech_1989_Infocom_Side_A	Adventure
 Chess	available	ia	Chess	Chess	Chess_19xx_-	Board Game
-Vermeer	available	ia	Vermeer	Vermeer	d64_Vermeer_1987_Ariolasoft_de	Strategy
+Vermeer	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Vermeer_1987_Ariolasoft_de.d64	Vermeer	Vermeer	d64_Vermeer_1987_Ariolasoft_de	Strategy
 Stroker	available	ia	Stroker	Stroker	d64_Stroker_1983_Magic_Carpet_Software	Arcade
 The Three Musketeers	available	ia	The Three Musketeers	The Three Musketeers	d64_Three_Musketeers_The_1987_American_Action_Side_A	Adventure
 Football Director	available	ia	Football Director	Football Director	Football_Director_1988_DH_Games	Sports
