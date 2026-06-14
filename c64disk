@@ -386,7 +386,9 @@ def main(argv):
         log(f"downloading IA item {ident} -> {dest}")
         got = download_ia(ident, ident, dest, dry)
         if got and not dry:
-            record_download(ident, os.path.join(dest, got[0]))   # boot disk = first file
+            boot = os.path.join(dest, got[0])                    # boot disk = first file
+            record_download(ident, boot)
+            print(boot)                                          # stdout: path for callers
         log(f"\n{'would download' if dry else 'downloaded'} {len(got)} disk image(s).")
         return 0 if got else 1
     if not use_missing and not queries:

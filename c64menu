@@ -462,12 +462,19 @@ def fetch_and_play(row, runopts):
     title, query = row[3], row[4]
     ident = row[5] if len(row) > 5 else ""
     print(f'Downloading "{title}" from the Internet Archive ...', file=sys.stderr)
-    if ident:
-        py(DISK, "--id", ident)                 # exact IA item (no guessing by title)
+    path = ""
+    if ident:                                   # exact IA item; c64disk prints the boot path
+        r = subprocess.run([sys.executable, DISK, "--id", ident],
+                           stdout=subprocess.PIPE, text=True)
+        out = [l for l in r.stdout.splitlines() if l.strip()]
+        path = out[-1] if out else ""
     else:
         py(DISK, "--source", "ia", query)
-    py(BUILD)
-    for f in load_rows():
+    py(BUILD)                                   # refresh the menu's local/available state
+    if path and os.path.exists(path):
+        print(f"Done - launching {title}", file=sys.stderr)
+        play(path, runopts)
+    for f in load_rows():                       # fallback: match by title
         if f[3] == title and f[1] == "local":
             print(f"Done - launching {title}", file=sys.stderr)
             play(f[2], runopts)

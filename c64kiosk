@@ -110,7 +110,7 @@ class Kiosk:
         cell = cm.cell_px()
         vis_g = max(1, min(len(self.groups), (lines_term - 1) // OV_SECTION))
         sec_h = (lines_term - 1) // vis_g
-        card_h = max(1, sec_h - 1)                          # 1 title row, rest is covers
+        card_h = max(1, sec_h - 2)                          # title row + covers + gap row
         card_w = cols_term // self.topn
         fgi = self.ofocus[self.osel][1]
         if fgi < self.otop:
@@ -132,9 +132,10 @@ class Kiosk:
             ti = self.titles[gi]
             tfoc = (self.osel == ti)
             cnt = len(grows)
-            label = f"{'▾' if tfoc else '▸'} {genre}  ({cnt})"
-            tline = f"{ESC}[1;93m{label}{ESC}[0m" if tfoc else f"{ESC}[1m{label}{ESC}[0m"
-            out.append(f"{ESC}[{base};1H{tline}")
+            label = f" ▸ {genre}  ({cnt})  —  click / ⏎ to open"
+            bar = label[:cols_term].ljust(cols_term)
+            style = f"{ESC}[1;30;103m" if tfoc else f"{ESC}[7m"   # focus: black-on-yellow
+            out.append(f"{ESC}[{base};1H{style}{bar}{ESC}[0m")
             self.rects.append((1, cols_term, base, base, ti))
             for j in range(min(self.topn, cnt)):
                 x = 1 + j * card_w
