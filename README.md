@@ -4,6 +4,8 @@ A Commodore 64 game library for the terminal: **find · fetch · launch**.
 
 Named after the "breadbin" — the classic beige C64 case.
 
+Supported on **macOS**, **Arch Linux**, and **Ubuntu Linux**.
+
 breadbin is a small toolkit of single-file Python scripts that turn a folder of
 C64 disk/tape images into a browsable, rankable, instantly-playable library. It
 finds games (ranked by Lemon64 popularity, enriched with GameBase64 facts and box
@@ -81,6 +83,14 @@ the emulator.
   rebuilds the index.
 
 ## Dependencies
+
+breadbin runs on **macOS**, **Arch Linux**, and **Ubuntu Linux**. The bundled
+`setup-dependencies.sh` installs VICE and WezTerm for whichever of these
+platforms it detects (Homebrew on macOS, `pacman` on Arch, `apt` on Ubuntu):
+
+```sh
+./setup-dependencies.sh
+```
 
 ### WezTerm (for cover art)
 
