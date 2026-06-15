@@ -1,4 +1,4 @@
-Ghosts 'n Goblins   ★5	available	ia	Ghosts 'n Goblins	Ghosts 'n Goblins	Ghosts_n_Goblins_1986_Elite	Arcade
+Ghosts 'n Goblins   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Ghosts_n_Goblins_1986_Elite.d64	Ghosts 'n Goblins	Ghosts 'n Goblins	Ghosts_n_Goblins_1986_Elite	Arcade
 The Last Ninja   ★5	available	ia	The Last Ninja	The Last Ninja	Last_Ninja_The_1987_System_3_Side_A	Adventure
 Bubble Bobble   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Bubble_Bobble_1987_Firebird.d64	Bubble Bobble	Bubble Bobble	Bubble_Bobble_1987_Firebird	Arcade
 Ghostbusters   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Ghostbusters_1984_Activision.d64	Ghostbusters	Ghostbusters	Ghostbusters_1984_Activision	Arcade
@@ -6,7 +6,7 @@ Blue Max   ★5	available	ia	Blue Max	Blue Max	Blue_Max_1985_Drean_Commodore_es	
 David's Midnight Magic   ★5	available	ia	David's Midnight Magic	David's Midnight Magic	Davids_Midnight_Magic_1984_Broderbund	Arcade
 Turrican II: The Final Fight   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Turrican_II_The_Final_Fight_1991_Rainbow_Arts_Side_A_t_5.d64	Turrican II: The Final Fight	Turrican II: The Final Fight	d64_Turrican_II_The_Final_Fight_1991_Rainbow_Arts_Side_A_t_5	Shoot'em Up
 MULE   ★5	available	ia	MULE	MULE	d64_MULE_1983_Electronic_Arts	Strategy
-Wizard of Wor   ★5	available	ia	Wizard of Wor	Wizard of Wor	d64_Wizard_of_Wor_1983_Commodore	Shoot'em Up
+Wizard of Wor   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Wizard_of_Wor_1983_Commodore.d64	Wizard of Wor	Wizard of Wor	d64_Wizard_of_Wor_1983_Commodore	Shoot'em Up
 Space Taxi   ★5	available	ia	Space Taxi	Space Taxi	d64_Space_Taxi_1984_Muse_Software	Arcade
 Raid Over Moscow   ★5	available	ia	Raid Over Moscow	Raid Over Moscow	d64_Raid_Over_Moscow_1984_Access_Software	Shoot'em Up
 Raid On Bungeling Bay   ★5	available	ia	Raid On Bungeling Bay	Raid On Bungeling Bay	d64_Raid_On_Bungeling_Bay_1984_Broderbund	Shoot'em Up
@@ -23,7 +23,7 @@ Microprose Soccer   ★5	available	ia	Microprose Soccer	Microprose Soccer	d64_Mi
 Commando   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Commando_1985_Elite.d64	Commando	Commando	Commando_1985_Elite_h_ABC	Shoot'em Up
 The Castles of Doctor Creep   ★5	available	ia	The Castles of Doctor Creep	The Castles of Doctor Creep	Castles_of_Doctor_Creep_The_1984_Broderbund	Arcade
 IK+   ★5	available	ia	IK+	IK+	IK_1987_System_3_h_FLT	Sports
-Wizball   ★5	available	ia	Wizball	Wizball	d64_Wizball_1987_Ocean	Shoot'em Up
+Wizball   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Wizball_1987_Ocean.d64	Wizball	Wizball	d64_Wizball_1987_Ocean	Shoot'em Up
 Pirates   ★5	available	ia	Pirates	Pirates	d64_Pirates_1988_Edicola-Super_Game_2000_it	Adventure
 Thrust   ★5	available	ia	Thrust	Thrust	d64_Thrust_1988_Firebird	Arcade
 Jumpman   ★5	available	ia	Jumpman	Jumpman	Jumpman_1984_Hans_Zethofe_de	Arcade
@@ -66,7 +66,7 @@ Atomino   ★5	available	ia	Atomino	Atomino	Atomino_1990_Psygnosis_cr_Paramount_
 Elite 128   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Elite_128_1985_Firebird_de-en.d64	Elite 128	Elite 128	Elite_128_1985_Firebird_de-en	Simulation
 International Soccer   ★5	available	ia	International Soccer	International Soccer	International_Soccer_1983_Commodore_cr_MCG_Public_Enemy	Sports
 Split Personalities   ★5	available	ia	Split Personalities	Split Personalities	d64_Split_Personalities_1986_Domark	Brain
-Katakis   ★5	available	ia	Katakis	Katakis	Katakis_1988_Rainbow_Arts_cr_CPX	Shoot'em Up
+Katakis   ★5	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Katakis_1988_Rainbow_Arts_cr_CPX.d64	Katakis	Katakis	Katakis_1988_Rainbow_Arts_cr_CPX	Shoot'em Up
 Pipe Dream   ★5	available	ia	Pipe Dream	Pipe Dream	Pipe_Dream_1989_Lucasfilm_cr_LRU	Brain
 Thrust Gold   ★5	available	ia	Thrust Gold	Thrust Gold	Thrust_Gold_2001_-_cr_The_Dreams	Arcade
 Wavy Navy   ★4	available	ia	Wavy Navy	Wavy Navy	d64_Wavy_Navy_1983_Sirius_Software	Shoot'em Up
@@ -89,7 +89,7 @@ Out Run	available	ia	Out Run	Out Run	d64_Out_Run_1988_U.S._Gold	Racing
 Choplifter!	available	ia	Choplifter!	Choplifter!	Choplifter_1982_Broderbund_de	Shoot'em Up
 Granny's Garden v2.0	available	ia	Granny's Garden v2.0	Granny's Garden v2.0	Grannys_Garden_v2.0_1987_Stchel_Software	Adventure
 Sex Sex Sex	available	ia	Sex Sex Sex	Sex Sex Sex	Sex_Sex_Sex_19xx_-	Shoot'em Up
-Sim City	available	ia	Sim City	Sim City	d64_Sim_City_1989_Maxis	Strategy
+Sim City	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Sim_City_1989_Maxis.d64	Sim City	Sim City	d64_Sim_City_1989_Maxis	Strategy
 Burger Time	available	ia	Burger Time	Burger Time	Burger_Time_1984_Interceptor_Micros	Arcade
 Portal	available	ia	Portal	Portal	portal_v1_ntsc	Adventure
 Kaiser	available	ia	Kaiser	Kaiser	Kaiser_1985_Ariolasoft_de	Strategy
@@ -107,7 +107,7 @@ Rambo: First Blood Part II	available	ia	Rambo: First Blood Part II	Rambo: First 
 Montezuma's Revenge	available	ia	Montezuma's Revenge	Montezuma's Revenge	d64_Montezumas_Revenge_1984_Parker_Brothers	Arcade
 Airwolf	available	ia	Airwolf	Airwolf	Airwolf_1985_Elite	Shoot'em Up
 Goonies, The	available	ia	Goonies, The	Goonies, The	uta_Goonies_The_1986_American_Action_AB_6951	Arcade
-Gauntlet	available	ia	Gauntlet	Gauntlet	Gauntlet_1986_U.S._Gold	Shoot'em Up
+Gauntlet	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Gauntlet_1986_U.S._Gold.d64	Gauntlet	Gauntlet	Gauntlet_1986_U.S._Gold	Shoot'em Up
 Back to the Future II	available	ia	Back to the Future II	Back to the Future II	Back_to_the_Future_II_1990_Imageworks	Arcade
 BC's Quest for Tires	available	ia	BC's Quest for Tires	BC's Quest for Tires	BCs_Quest_for_Tires_1983_Sierra_Online	Arcade
 Batman	available	ia	Batman	Batman	Batman_1989_Ocean_Side_A	Adventure
@@ -156,7 +156,7 @@ Decathlon	available	ia	Decathlon	Decathlon	Decathlon_1983_Activision_cr_Hitmen	S
 Shinobi	available	ia	Shinobi	Shinobi	d64_Shinobi_1989_Virgin_Games	Arcade
 Neuromancer	available	ia	Neuromancer	Neuromancer	d64_Neuromancer_1988_Electronic_Arts_Disk_1_of_2_Side_A	Adventure
 Battletech	available	ia	Battletech	Battletech	Battletech_1989_Infocom_Side_A	Adventure
-Chess	available	ia	Chess	Chess	Chess_19xx_-	Board Game
+Chess	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Chess_19xx_-.d64	Chess	Chess	Chess_19xx_-	Board Game
 Vermeer	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Vermeer_1987_Ariolasoft_de.d64	Vermeer	Vermeer	d64_Vermeer_1987_Ariolasoft_de	Strategy
 Stroker	available	ia	Stroker	Stroker	d64_Stroker_1983_Magic_Carpet_Software	Arcade
 The Three Musketeers	available	ia	The Three Musketeers	The Three Musketeers	d64_Three_Musketeers_The_1987_American_Action_Side_A	Adventure
@@ -296,7 +296,7 @@ Emanuelle	available	ia	Emanuelle	Emanuelle	Emanuelle_1988_AS_Software_de_Disk_1_
 Hades Nebula	available	ia	Hades Nebula	Hades Nebula	Hades_Nebula_1987_Paranoid_Software	Shoot'em Up
 Jet Set Willy	available	ia	Jet Set Willy	Jet Set Willy	jetsetwilly_tap	Arcade
 President Elect: 1988 Edition	available	ia	President Elect: 1988 Edition	President Elect: 1988 Edition	d64_President_Elect_1988_Edition_1986_SSI	Strategy
-Star Trek: The Computer Game	available	ia	Star Trek: The Computer Game	Star Trek: The Computer Game	d64_Star_Trek_The_Computer_Game_1985_Green_Valley_Publishing	Strategy
+Star Trek: The Computer Game	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Star_Trek_The_Computer_Game_1985_Green_Valley_Publishing.d64	Star Trek: The Computer Game	Star Trek: The Computer Game	d64_Star_Trek_The_Computer_Game_1985_Green_Valley_Publishing	Strategy
 Legacy of the Ancients	local	/Users/jacob/Games/Commodore/C64/_IA_downloads/Legacy of the Ancients (1987)(Electronic Arts)(Disk 1 of 2 Side A).d64	Legacy of the Ancients	Legacy of the Ancients	Legacy_of_the_Ancients_1987_Electronic_Arts_Disk_1_of_2_Side_A	Adventure
 Fuckgame	available	ia	Fuckgame	Fuckgame	Fuckgame_1986_-	Arcade
 Impossible Mission II	available	ia	Impossible Mission II	Impossible Mission II	Impossible_Mission_II_1988-04-07_The_Plymothians	Arcade

@@ -12,8 +12,8 @@ HERE = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
 
 USAGE = """breadbin - Commodore 64 game library (find . fetch . launch)
 
-  breadbin menu              browse ranked games; play owned, fetch the rest (default)
-  breadbin kiosk             grid of game cards (cover + details); play/fetch on Enter
+  breadbin kiosk             grid of game cards (cover + details); play/fetch on Enter (default)
+  breadbin menu              browse ranked games; play owned, fetch the rest
   breadbin play  <name>      launch a game straight into the emulator (LOAD"*",8,1 : RUN)
   breadbin info  <name>      show GameBase64 details for a game (year, genre, author, ...)
   breadbin get   <name>      download a tape from the Ultimate Tape Archive
@@ -36,7 +36,7 @@ COMMANDS = {
 
 
 def main(argv):
-    cmd = argv[0] if argv else "menu"
+    cmd = argv[0] if argv else "kiosk"
     rest = argv[1:]
     if cmd in ("-h", "--help", "help"):
         print(USAGE)

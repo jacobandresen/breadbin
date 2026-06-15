@@ -17,7 +17,7 @@ Usage:
   c64menu -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
   c64menu --refresh  re-pull popularity scores, re-scan availability, rebuild
 """
-import os, re, sys, struct, fcntl, shutil, select, termios, tty, textwrap, subprocess
+import os, re, sys, time, struct, fcntl, shutil, select, termios, tty, textwrap, subprocess
 import importlib.machinery as _m
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +25,7 @@ INDEX = os.path.join(HERE, "c64_index.tsv")
 BUILD = os.path.join(HERE, "build_index.py")
 DISK = os.path.join(HERE, "c64disk")
 RUN = os.path.join(HERE, "c64run")
+PLAYED = os.path.join(HERE, "played.tsv")     # timestamp<TAB>display, appended on each play
 
 # sibling tools, imported as modules (filenames have no .py)
 _bi = _m.SourceFileLoader("build_index", os.path.join(HERE, "build_index.py")).load_module()
@@ -454,31 +455,75 @@ def read_key():
         return ""
 
 
+# --------------------------------------------------------------------------- play history
+def record_play(row):
+    """Append a play event so the kiosk can show a 'latest played' row.
+    Keyed by the row's display string (column 0), which is unique per game."""
+    try:
+        with open(PLAYED, "a", encoding="utf-8") as fh:
+            fh.write(f"{int(time.time())}\t{row[0]}\n")
+    except OSError:
+        pass
+
+
+def recent_plays(limit=None):
+    """Display keys of recently-played games, newest first, de-duplicated."""
+    if not os.path.exists(PLAYED):
+        return []
+    seen, order = set(), []
+    for line in reversed(open(PLAYED, encoding="utf-8").read().splitlines()):
+        parts = line.split("\t")
+        if len(parts) < 2 or parts[1] in seen:
+            continue
+        seen.add(parts[1]); order.append(parts[1])
+        if limit and len(order) >= limit:
+            break
+    return order
+
+
 # --------------------------------------------------------------------------- actions
-def play(target, runopts):
+def play(target, runopts, row=None):
+    if row is not None:
+        record_play(row)
     os.execv(RUN, [RUN, *runopts, target])
 
 
-def fetch_and_play(row, runopts):
+def resolve(row, quiet=False):
+    """Return a local disk path for a row, downloading from the IA if needed.
+    With quiet=True, child output is suppressed (the kiosk owns the screen).
+    Returns "" if the download produced no matching disk."""
+    if row[1] == "local":
+        return row[2]
+    sink = subprocess.DEVNULL if quiet else None
     title, query = row[3], row[4]
     ident = row[5] if len(row) > 5 else ""
-    print(f'Downloading "{title}" from the Internet Archive ...', file=sys.stderr)
     path = ""
     if ident:                                   # exact IA item; c64disk prints the boot path
         r = subprocess.run([sys.executable, DISK, "--id", ident],
-                           stdout=subprocess.PIPE, text=True)
+                           stdout=subprocess.PIPE, stderr=sink, text=True)
         out = [l for l in r.stdout.splitlines() if l.strip()]
         path = out[-1] if out else ""
     else:
-        py(DISK, "--source", "ia", query)
-    py(BUILD)                                   # refresh the menu's local/available state
+        subprocess.run([sys.executable, DISK, "--source", "ia", query],
+                       stdout=sink, stderr=sink)
+    subprocess.run([sys.executable, BUILD], stdout=sink, stderr=sink)  # refresh local/avail state
     if path and os.path.exists(path):
-        print(f"Done - launching {title}", file=sys.stderr)
-        play(path, runopts)
+        return path
     for f in load_rows():                       # fallback: match by title
         if f[3] == title and f[1] == "local":
-            print(f"Done - launching {title}", file=sys.stderr)
-            play(f[2], runopts)
+            return f[2]
+    return ""
+
+
+def fetch_and_play(row, runopts):
+    title = row[3]
+    ident = row[5] if len(row) > 5 else ""
+    query = row[4]
+    print(f'Downloading "{title}" from the Internet Archive ...', file=sys.stderr)
+    path = resolve(row)
+    if path:
+        print(f"Done - launching {title}", file=sys.stderr)
+        play(path, runopts, row)
     die(f'download of "{title}" produced no matching disk. '
         f'Retry:  c64disk --id {ident}' if ident else
         f'Retry:  c64disk --source ia "{query}"')
@@ -520,7 +565,7 @@ def main(argv):
     if not chosen:
         return 0
     if chosen[1] == "local":
-        play(chosen[2], runopts)
+        play(chosen[2], runopts, chosen)
     fetch_and_play(chosen, runopts)
     return 0
 

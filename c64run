@@ -128,8 +128,9 @@ def main(argv):
     if warp:        opts.append("-autostart-warp")       # fast-forward loading, then normal speed
     if fullscreen:  opts.append("-VICIIfull")            # VIC-II (C64) fullscreen
 
-    print(f'LOAD"*",8,1 : RUN   ->  {os.path.basename(game)}   [{os.path.basename(emu[0])}]',
-          file=sys.stderr)
+    if not os.environ.get("C64_QUIET"):         # kiosk launches silently, no banner
+        print(f'LOAD"*",8,1 : RUN   ->  {os.path.basename(game)}   [{os.path.basename(emu[0])}]',
+              file=sys.stderr)
     cmd = emu + opts + ["-autostart", game]
     os.execvp(cmd[0], cmd)
 
