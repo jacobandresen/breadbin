@@ -8,7 +8,7 @@ Supported on **macOS**, **Arch Linux**, and **Ubuntu Linux**.
 
 breadbin is a small toolkit of single-file Python scripts that turn a folder of
 C64 disk/tape images into a browsable, rankable, instantly-playable library. It
-finds games (ranked by Lemon64 popularity, enriched with GameBase64 facts and box
+finds games (ranked by popularity, enriched with GameBase64 facts and box
 art), downloads the ones you don't own from public archives, and boots them
 straight into the VICE emulator — no launcher GUI, no C64 Forever license needed.
 
@@ -130,7 +130,7 @@ used as an interactive picker by `c64get` / `c64disk` / `c64tosec` when availabl
 
 breadbin keeps its data alongside the scripts:
 
-- `c64_popularity.tsv` — Lemon64 popularity scores (rank, score, votes, title).
+- `c64_popularity.tsv` — popularity scores (rank, score, votes, title).
 - `build_index.py` — matches those scores against your collection and writes
   `c64_index.tsv` (`display<TAB>path`), ordered by popularity, including games
   you've downloaded into `_IA_downloads` / `_UTA_downloads`.

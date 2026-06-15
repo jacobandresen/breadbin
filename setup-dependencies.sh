@@ -3,6 +3,7 @@
 # setup-dependencies.sh
 #
 # Installs the project's runtime dependencies:
+#   - Python 3 (the scripts are single-file Python 3, stdlib only)
 #   - VICE     (Commodore emulator)
 #   - WezTerm  (terminal emulator)
 #
@@ -25,6 +26,9 @@ install_macos() {
     log "Updating Homebrew..."
     brew update
 
+    log "Installing Python 3..."
+    brew install python
+
     log "Installing VICE..."
     brew install --cask vice
 
@@ -35,8 +39,8 @@ install_macos() {
 install_arch() {
     have pacman || die "pacman not found; this is not an Arch-based system."
 
-    log "Refreshing package databases and installing VICE and WezTerm..."
-    sudo pacman -Syu --needed --noconfirm vice wezterm
+    log "Refreshing package databases and installing Python 3, VICE and WezTerm..."
+    sudo pacman -Syu --needed --noconfirm python vice wezterm
 }
 
 install_ubuntu() {
@@ -44,6 +48,9 @@ install_ubuntu() {
 
     log "Updating package lists..."
     sudo apt-get update
+
+    log "Installing Python 3..."
+    sudo apt-get install -y python3
 
     log "Installing VICE..."
     sudo apt-get install -y vice
@@ -108,4 +115,4 @@ detect_and_install() {
 }
 
 detect_and_install
-log "Done. VICE and WezTerm are installed."
+log "Done. Python 3, VICE and WezTerm are installed."
