@@ -17,10 +17,12 @@ Usage:
   c64run --no-warp <search>      -W : load at authentic speed (don't fast-forward)
   c64run -r <search words>       -r / --real : authentic-speed load (alias of --no-warp)
   c64run --windowed <search>     run in a window instead of fullscreen
+  c64run -k <search words>       -k / --keyboard : numpad as joystick (port 2 + port 1)
+  c64run -k <search words>       -k / --keyboard : numpad→joystick port 2, WASD→port 1
   c64run -l <search words>       -l / --list : just list matches, don't launch
   (-w / --warp and -f / --fullscreen are accepted too, but are now the default)
 """
-import os, re, sys, shlex, shutil, subprocess
+import os, re, sys, shlex, shutil
 
 WINE_X64 = "/opt/wine/.wine/drive_c/Program Files (x86)/Cloanto/C64 Forever/VICE/x64.exe"
 
@@ -38,6 +40,15 @@ def die(msg):
     sys.exit(1)
 
 
+def _flatpak_installed(app_id):
+    """Check for a flatpak app by looking at known install paths — no subprocess."""
+    roots = [
+        os.path.expanduser("~/.local/share/flatpak/app"),
+        "/var/lib/flatpak/app",
+    ]
+    return any(os.path.isdir(os.path.join(r, app_id)) for r in roots)
+
+
 def pick_emulator():
     """Return the emulator command as an argv list (license-free first)."""
     env = os.environ.get("C64_EMU")
@@ -46,10 +57,8 @@ def pick_emulator():
     for exe in ("x64sc", "x64"):
         if shutil.which(exe):
             return [exe]
-    if shutil.which("flatpak"):
-        if subprocess.run(["flatpak", "info", "net.sf.VICE"],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-            return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"]
+    if shutil.which("flatpak") and _flatpak_installed("net.sf.VICE"):
+        return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"]
     if os.access(WINE_X64, os.X_OK):
         os.environ.setdefault("WINEPREFIX", "/opt/wine/.wine")
         os.environ.setdefault("WINEDEBUG", "-all")
@@ -87,7 +96,7 @@ def choose(matches, query):
 
 
 def main(argv):
-    warp, fullscreen, list_only = True, True, False
+    warp, fullscreen, list_only, keyboard = True, True, False, False
     args = []
     i = 0
     while i < len(argv):
@@ -97,6 +106,7 @@ def main(argv):
         elif a in ("-r", "--real"):         warp = False         # authentic-speed load
         elif a in ("-f", "--fullscreen"):   fullscreen = True    # default; back-compat
         elif a == "--windowed":             fullscreen = False
+        elif a in ("-k", "--keyboard"):     keyboard = True
         elif a in ("-l", "--list"):         list_only = True
         elif a in ("-h", "--help"):         print(__doc__); return 0
         elif a == "--":                     args.extend(argv[i + 1:]); break
@@ -122,11 +132,36 @@ def main(argv):
             game = choose(matches, query)
 
     emu = pick_emulator()
-    # Handle True Drive Emulation on autostart so disk fastloaders/custom loaders run
-    # (many cracked dumps need it); warp then fast-forwards the whole load to the game.
-    opts = ["-autostart-handle-tde"]
+    # -virtualdev8: serve the disk image through VICE's virtual filesystem rather than
+    # hardware 1541 TDE.  The Debian/Ubuntu VICE package ships without drive ROMs (non-free),
+    # so TDE is unavailable; without this flag VICE has no working drive 8 at all and every
+    # LOAD"*",8,1 fails with ?DEVICE NOT PRESENT.  Virtual device is fast and fully compatible
+    # with standard d64/t64/crt autostart; in-game fastloaders that need real TDE won't work
+    # either way when ROMs are absent.
+    opts = ["-virtualdev8"]
     if warp:        opts.append("-autostart-warp")       # fast-forward loading, then normal speed
     if fullscreen:  opts.append("-VICIIfull")            # VIC-II (C64) fullscreen
+    if keyboard:
+        # Map keyboard keysets to joystick ports so the game is playable without a gamepad.
+        # Port 2 (most games): numpad  8=up 2=down 4=left 6=right 0=fire
+        # Port 1 (2-player):   WASD + Left-Shift=fire
+        opts += [
+            "-joydev2", "3",                 # port 2 → keyset B (numpad)
+            "-joydev1", "2",                 # port 1 → keyset A (WASD)
+            "-keysetbup", "KP_8",
+            "-keysetbdown", "KP_2",
+            "-keysetbleft", "KP_4",
+            "-keysetbright", "KP_6",
+            "-keysetbfire", "KP_0",
+            "-keysetaup", "w",
+            "-keysetadown", "s",
+            "-keysetaleft", "a",
+            "-keysetaright", "d",
+            "-keysetafire", "shift",
+        ]
+
+    # Force X11 backend so VICE doesn't end up on a Wayland renderer (SDL issue).
+    os.environ.setdefault("SDL_VIDEODRIVER", "x11")
 
     if not os.environ.get("C64_QUIET"):         # kiosk launches silently, no banner
         print(f'LOAD"*",8,1 : RUN   ->  {os.path.basename(game)}   [{os.path.basename(emu[0])}]',
