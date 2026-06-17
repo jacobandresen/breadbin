@@ -291,7 +291,7 @@ fn build_tosec_index() -> Result<(), String> {
             continue;
         }
         let last = href.split("%2F").last().unwrap_or("");
-        let unq = html_unescape(&core::unquote(last));
+        let unq = core::html_unescape(&core::unquote(last));
         let title = unq.strip_suffix(".zip").unwrap_or(&unq).to_string();
         let url = format!("https:{href}");
         match best.get(&title) {
@@ -416,14 +416,10 @@ fn search_source(source: &str, query: &str) -> Result<Vec<Item>, String> {
 }
 
 // --- matching ----------------------------------------------------------------
-fn have(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
-}
-
 /// fzf pick. None = not interactive / no fzf (caller lists instead).
 fn pick_with_fzf(matches: &[Item]) -> Option<Vec<Item>> {
     use std::io::IsTerminal;
-    if !std::io::stdin().is_terminal() || !have("fzf") {
+    if !std::io::stdin().is_terminal() || !core::command_exists("fzf") {
         return None;
     }
     let input: String = matches
@@ -830,13 +826,4 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         eprintln!("run  c64menu --refresh  to add them to the picker.");
     }
     ExitCode::SUCCESS
-}
-
-// --- small HTML/URL helpers --------------------------------------------------
-fn html_unescape(s: &str) -> String {
-    s.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
 }

@@ -38,14 +38,6 @@ fn get_text(url: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&core::fetch(url, &[("User-Agent", UA)])?).into_owned())
 }
 
-fn html_unescape(s: &str) -> String {
-    s.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-}
-
 /// (norm_title, display_name, href) for every UTA game folder.
 fn load_index(refresh: bool) -> Vec<(String, String, String)> {
     if refresh || !idx_cache().exists() {
@@ -64,7 +56,7 @@ fn load_index(refresh: bool) -> Vec<(String, String, String)> {
     folders
         .into_iter()
         .map(|f| {
-            let name = html_unescape(&core::unquote(&f));
+            let name = core::html_unescape(&core::unquote(&f));
             let spaced = name.replace('_', " ");
             let title = core::split_before(&spaced, r"\s*\((?:\d{4}|19xx)");
             (core::norm(title), name, f)
@@ -84,14 +76,10 @@ fn find_substr<'a>(fmap: &'a [(String, String, String)], q: &str) -> Vec<(&'a st
     fmap.iter().filter(|(nk, _, _)| nk.contains(&qn)).map(|(_, d, h)| (d.as_str(), h.as_str())).collect()
 }
 
-fn have(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
-}
-
 /// fzf multi-select. None = non-interactive (caller lists instead).
 fn pick_with_fzf<'a>(matches: &[(&'a str, &'a str)]) -> Option<Vec<(&'a str, &'a str)>> {
     use std::io::IsTerminal;
-    if !std::io::stdin().is_terminal() || !have("fzf") {
+    if !std::io::stdin().is_terminal() || !core::command_exists("fzf") {
         return None;
     }
     let input = matches.iter().map(|(d, _)| *d).collect::<Vec<_>>().join("\n");
@@ -131,7 +119,7 @@ fn download_folder(href: &str, dest: &Path, dry: bool) -> Vec<std::path::PathBuf
     let mut saved = Vec::new();
     for t in taps {
         let url = format!("{folder_url}{t}");
-        let name = html_unescape(&core::unquote(&t));
+        let name = core::html_unescape(&core::unquote(&t));
         let out = dest.join(&name);
         if dry {
             eprintln!("    would download: {name}");

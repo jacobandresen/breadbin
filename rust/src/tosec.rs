@@ -17,10 +17,6 @@ Usage:
   c64tosec --refresh-index     rebuild the cached TOSEC listing first
 ";
 
-fn have(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
-}
-
 pub fn main(argv: Vec<String>) -> ExitCode {
     let mut runopts: Vec<String> = Vec::new();
     for a in &argv {
@@ -42,7 +38,7 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         }
     }
 
-    if !have("fzf") {
+    if !core::command_exists("fzf") {
         eprintln!("fzf not found");
         return ExitCode::from(2);
     }

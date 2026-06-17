@@ -1,6 +1,6 @@
 // build_index - match the ranked IA catalogue (ia_index.tsv) against the local
 // collection and write c64_index.tsv (display<TAB>status<TAB>target<TAB>title
-// <TAB>query<TAB>identifier<TAB>genre), ordered by popularity. Port of
+// <TAB>query<TAB>identifier<TAB>genre<TAB>downloads), ordered by popularity. Port of
 // build_index.py's main(); norm() lives in core.
 
 use std::collections::HashMap;
@@ -149,7 +149,7 @@ pub fn main(_argv: Vec<String>) -> ExitCode {
         if cols.len() < 6 {
             continue;
         }
-        let (canon, rating, _downloads, genre, ident, title) =
+        let (canon, rating, downloads, genre, ident, title) =
             (cols[0], cols[1], cols[2], cols[3], cols[4], cols[5]);
 
         let (status, target): (&str, String) = if let Some(p) = downloaded.get(ident) {
@@ -169,7 +169,7 @@ pub fn main(_argv: Vec<String>) -> ExitCode {
             title.to_string()
         };
         out.push_str(&format!(
-            "{disp}\t{status}\t{target}\t{title}\t{title}\t{ident}\t{genre}\n"
+            "{disp}\t{status}\t{target}\t{title}\t{title}\t{ident}\t{genre}\t{downloads}\n"
         ));
     }
 

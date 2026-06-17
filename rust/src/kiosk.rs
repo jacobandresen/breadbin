@@ -107,6 +107,17 @@ impl KioskState {
         topn: usize,
     ) -> Self {
         let mut groups = tui::group_by_genre(&all);
+        // Lead with what people actually grab: order each genre by Internet Archive
+        // download count, and order the genre sections by their most-downloaded game.
+        // (Counts come from c64_index.tsv; a pre-column index leaves them all 0, so
+        // the previous rating order stands until the next `--refresh`.)
+        for (_, idxs) in groups.iter_mut() {
+            idxs.sort_by_key(|&i| std::cmp::Reverse(all[i].downloads));
+        }
+        groups.sort_by_key(|(_, idxs)| {
+            std::cmp::Reverse(idxs.first().map(|&i| all[i].downloads).unwrap_or(0))
+        });
+
         // "latest played" synthetic section on top.
         let recent = tui::recent_plays(None);
         if !recent.is_empty() {
@@ -457,6 +468,59 @@ fn error_dialog(
     Ok(())
 }
 
+/// Show the control scheme for this launch (joystick vs keyboard, per player) and
+/// wait for the player to start (any key / click) or cancel (Esc). Returns true to
+/// go ahead and launch. The scheme comes from the same detection c64run uses, so
+/// what's shown is what the game will actually get.
+fn controls_dialog(
+    term: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    game: &str,
+) -> std::io::Result<bool> {
+    let joystick = crate::run::joystick_present();
+    let scheme = crate::run::controls_description(joystick);
+    term.draw(|f| {
+        let area = f.area();
+        let w = area.width.saturating_mul(3) / 5;
+        let w = w.clamp(40.min(area.width), area.width.saturating_sub(2)).max(1);
+        // blank + one line per player + blank + hint, inside the bordered block.
+        let h = (scheme.len() as u16 + 5).min(area.height);
+        let x = (area.width.saturating_sub(w)) / 2;
+        let y = (area.height.saturating_sub(h)) / 2;
+        let rect = Rect::new(x, y, w, h);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD))
+            .title(Line::from(format!(" Controls — {game} ")));
+
+        let mut body = vec![Line::from("")];
+        for line in &scheme {
+            body.push(Line::from(line.clone()));
+        }
+        body.push(Line::from(""));
+        body.push(Line::styled(
+            "press any key to start · Esc to cancel",
+            Style::default().add_modifier(Modifier::DIM),
+        ));
+        let para = Paragraph::new(body)
+            .block(block)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
+
+        f.render_widget(Clear, rect); // mask the grid behind the dialog
+        f.render_widget(para, rect);
+    })?;
+    loop {
+        match event::read()? {
+            Event::Key(k) if k.kind == event::KeyEventKind::Press => {
+                return Ok(k.code != KeyCode::Esc);
+            }
+            Event::Mouse(m) if matches!(m.kind, MouseEventKind::Down(_)) => return Ok(true),
+            _ => {}
+        }
+    }
+}
+
 /// Entry point for c64kiosk.
 pub fn main(argv: Vec<String>) -> ExitCode {
     let mut runopts: Vec<String> = Vec::new();
@@ -569,9 +633,13 @@ fn launch(
 ) -> std::io::Result<()> {
     let row = state.all[row_idx].clone();
     banner(term, &format!("Loading  {} ...", row.title))?;
-    tui::record_play(&row);
     match tui::resolve(&row, true) {
         Some(path) => {
+            // Describe the controls and let the player start or back out.
+            if !controls_dialog(term, &row.title)? {
+                return Ok(());
+            }
+            tui::record_play(&row);
             if let Err(e) = tui::launch_inplace(&path.to_string_lossy(), &state.runopts) {
                 error_dialog(term, &format!("Could not start {}", row.title), &e)?;
             }

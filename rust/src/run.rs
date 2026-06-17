@@ -28,7 +28,7 @@ Usage:
   c64run -W | --no-warp <s>      load at authentic speed (don't fast-forward)
   c64run -r | --real <s>         authentic-speed load (alias of --no-warp)
   c64run --windowed <s>          run in a window instead of fullscreen
-  c64run -k | --keyboard <s>     numpad→joystick port 2, WASD→port 1
+  c64run -k | --keyboard <s>     force keyboard for both players (ignore any joystick)
   c64run -l | --list <s>         just list matches, don't launch
   (-w / --warp and -f / --fullscreen are accepted too, but are now the default)
 ";
@@ -93,16 +93,10 @@ fn has_image_ext(name: &str) -> bool {
     EXTS.iter().any(|e| lower.ends_with(e))
 }
 
-/// Flags that make drive 8 use VICE's virtual (host-filesystem) device instead of
-/// true drive emulation. Needed where VICE ships without the (non-free) 1541 drive
-/// ROMs — e.g. the Debian/Ubuntu package — or every LOAD"*",8,1 fails with
-/// ?DEVICE NOT PRESENT. VICE renamed this option across versions: older builds use
-/// `-virtualdev8`; newer ones (e.g. Homebrew's) split it into `-trapdevice8` +
-/// `+drive8truedrive`. Passing the wrong name makes VICE bail with "error parsing
-/// command line option" and never start, so we ask the emulator's own `-help`
-/// which spelling it understands rather than hardcoding one.
-fn virtual_drive_flags(emu: &[String]) -> Vec<String> {
-    let help = Command::new(&emu[0])
+/// The emulator's `-help` text (stdout + stderr), used to probe which option
+/// spellings this VICE build understands. Empty if the emulator can't be run.
+fn emu_help(emu: &[String]) -> String {
+    Command::new(&emu[0])
         .args(&emu[1..])
         .arg("-help")
         .output()
@@ -111,7 +105,18 @@ fn virtual_drive_flags(emu: &[String]) -> Vec<String> {
             s.push_str(&String::from_utf8_lossy(&o.stderr));
             s
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+/// Flags that make drive 8 use VICE's virtual (host-filesystem) device instead of
+/// true drive emulation. Needed where VICE ships without the (non-free) 1541 drive
+/// ROMs — e.g. the Debian/Ubuntu package — or every LOAD"*",8,1 fails with
+/// ?DEVICE NOT PRESENT. VICE renamed this option across versions: older builds use
+/// `-virtualdev8`; newer ones (e.g. Homebrew's) split it into `-trapdevice8` +
+/// `+drive8truedrive`. Passing the wrong name makes VICE bail with "error parsing
+/// command line option" and never start, so we ask the emulator's own `-help`
+/// which spelling it understands rather than hardcoding one.
+fn virtual_drive_flags(help: &str) -> Vec<String> {
     if help.contains("-virtualdev8") {
         vec!["-virtualdev8".into()]
     } else if help.contains("-trapdevice8") {
@@ -129,7 +134,7 @@ fn find_matches(query: &str) -> Vec<PathBuf> {
     let ql = query.to_lowercase();
     let mut out = Vec::new();
     for root in lib_dirs() {
-        walk(&root, &mut |p| {
+        crate::core::walk_files(&root, &mut |p| {
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
                 if has_image_ext(name) && name.to_lowercase().contains(&ql) {
                     out.push(p.to_path_buf());
@@ -139,21 +144,6 @@ fn find_matches(query: &str) -> Vec<PathBuf> {
     }
     out.sort();
     out
-}
-
-/// Recursively visit every file under `dir`, calling `f` for each.
-fn walk(dir: &Path, f: &mut dyn FnMut(&Path)) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        match entry.file_type() {
-            Ok(t) if t.is_dir() => walk(&path, f),
-            Ok(_) => f(&path),
-            Err(_) => {}
-        }
-    }
 }
 
 /// Resolve multiple matches: interactive numbered pick on a tty, else bail.
@@ -182,6 +172,127 @@ fn choose(matches: &[PathBuf], query: &str) -> PathBuf {
             }
         }
     }
+}
+
+/// True if a game controller (joystick / gamepad) appears to be connected.
+/// Override with C64_JOYSTICK=1 (force on) or C64_JOYSTICK=0 (force off) when the
+/// best-effort, platform-specific detection below guesses wrong.
+pub fn joystick_present() -> bool {
+    if let Ok(v) = std::env::var("C64_JOYSTICK") {
+        return !matches!(v.trim(), "" | "0" | "false" | "no");
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // The kernel joystick API exposes each pad as /dev/input/jsN.
+        std::fs::read_dir("/dev/input")
+            .map(|rd| rd.flatten().any(|e| e.file_name().to_string_lossy().starts_with("js")))
+            .unwrap_or(false)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // A real controller is PrimaryUsage 4 (Joystick) or 5 (Game Pad) on
+        // PrimaryUsagePage 1 (Generic Desktop). Both checks matter: usage 4/5 on
+        // other pages are trackpads, sensors, Touch ID, etc. ioreg prints the two
+        // properties on adjacent lines (usage, then page), so test them pairwise.
+        fn ioreg_val(line: &str, key_eq: &str) -> Option<i64> {
+            if line.contains(key_eq) {
+                line.rsplit('=').next()?.trim().parse().ok()
+            } else {
+                None
+            }
+        }
+        Command::new("ioreg")
+            .args(["-r", "-c", "IOHIDDevice"])
+            .output()
+            .map(|o| {
+                let text = String::from_utf8_lossy(&o.stdout);
+                let lines: Vec<&str> = text.lines().collect();
+                lines.windows(2).any(|w| {
+                    matches!(ioreg_val(w[0], "\"PrimaryUsage\" ="), Some(4) | Some(5))
+                        && ioreg_val(w[1], "\"PrimaryUsagePage\" =") == Some(1)
+                })
+            })
+            .unwrap_or(false)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        false
+    }
+}
+
+/// One human-readable line per player for the current input scheme, for the
+/// kiosk's pre-launch dialog and c64run's own banner.
+pub fn controls_description(joystick: bool) -> Vec<String> {
+    if joystick {
+        vec![
+            "Player 1   Joystick".to_string(),
+            "Player 2   Keyboard — W A S D move, Space = fire".to_string(),
+        ]
+    } else {
+        vec![
+            "Player 1   Keyboard — W A S D move, Space = fire".to_string(),
+            "Player 2   Keyboard — Arrow keys move, Right-Shift = fire".to_string(),
+        ]
+    }
+}
+
+/// Write a small VICE config defining the keyboard joystick keysets, and return
+/// its path. Keyset 1 = WASD + Space (the primary keyboard player); Keyset 2 =
+/// arrow keys + Right-Shift (a second player). Values are GDK keyvals — the format
+/// the GTK build wants, and the letter/space ones match the SDL builds too. This
+/// is the only way to map these keys: VICE has no command-line option to *define*
+/// keyset keys, only to enable the feature. Returns None if the file can't be
+/// written.
+fn write_controls_config() -> Option<std::path::PathBuf> {
+    // w=119 a=97 s=115 d=100 space=32 ; arrows 65361-65364 ; Shift_R=65506
+    let body = "\
+KeySetEnable=1
+KeySet1North=119
+KeySet1South=115
+KeySet1West=97
+KeySet1East=100
+KeySet1Fire=32
+KeySet2North=65362
+KeySet2South=65364
+KeySet2West=65361
+KeySet2East=65363
+KeySet2Fire=65506
+";
+    // x64sc reads the [C64SC] section, x64 reads [C64]; include both so either works.
+    let ini = format!("[C64SC]\n{body}\n[C64]\n{body}");
+    let path = crate::core::data_path("vice-controls.ini");
+    std::fs::write(&path, ini).ok().map(|_| path)
+}
+
+/// VICE options wiring up the two control ports. The C64 reads single-player
+/// games on port 2, so Player 1 = port 2 and Player 2 = port 1.
+///
+/// `-joydev1/2 <0-9>` selects each port's device: 2 = Keyset 1 (WASD), 3 = Keyset
+/// 2 (arrows), 4 = the first host joystick (override with C64_JOYDEV). The keyset
+/// keys themselves are defined in the `-config` file from [`write_controls_config`].
+/// Either way the primary keyboard player gets WASD.
+fn control_flags(joystick: bool) -> Vec<String> {
+    let mut opts: Vec<String> = Vec::new();
+    let cfg = write_controls_config();
+    if let Some(path) = &cfg {
+        opts.push("-config".to_string());
+        opts.push(path.to_string_lossy().into_owned());
+    }
+    if joystick {
+        let dev = std::env::var("C64_JOYDEV")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "4".to_string());
+        // Player 1 = real joystick (port 2); Player 2 = Keyset 1 / WASD (port 1).
+        opts.extend(["-joydev2".to_string(), dev, "-joydev1".to_string(), "2".to_string()]);
+    } else if cfg.is_some() {
+        // Player 1 = Keyset 1 / WASD (port 2); Player 2 = Keyset 2 / arrows (port 1).
+        opts.extend(["-joydev2", "2", "-joydev1", "3"].map(String::from));
+    } else {
+        // Couldn't write the keyset config; fall back to the built-in Numpad.
+        opts.extend(["-joydev2", "1"].map(String::from));
+    }
+    opts
 }
 
 pub fn main(argv: Vec<String>) -> ExitCode {
@@ -243,29 +354,18 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     // 1541 TDE, so a ROM-less VICE still boots games (see virtual_drive_flags for the
     // version-dependent option names). Fully compatible with standard d64/t64/crt
     // autostart; in-game fastloaders that need real TDE won't work when ROMs are absent.
-    let mut opts: Vec<String> = virtual_drive_flags(&emu);
+    let help = emu_help(&emu);
+    let mut opts: Vec<String> = virtual_drive_flags(&help);
     if warp {
         opts.push("-autostart-warp".into()); // fast-forward loading, then normal speed
     }
     if fullscreen {
         opts.push("-VICIIfull".into()); // VIC-II (C64) fullscreen
     }
-    if keyboard {
-        // Map keyboard keysets to joystick ports so the game is playable without a gamepad.
-        // Port 2 (most games): numpad  8=up 2=down 4=left 6=right 0=fire
-        // Port 1 (2-player):   WASD + Left-Shift=fire
-        opts.extend(
-            [
-                "-joydev2", "3", // port 2 → keyset B (numpad)
-                "-joydev1", "2", // port 1 → keyset A (WASD)
-                "-keysetbup", "KP_8", "-keysetbdown", "KP_2", "-keysetbleft", "KP_4",
-                "-keysetbright", "KP_6", "-keysetbfire", "KP_0", "-keysetaup", "w",
-                "-keysetadown", "s", "-keysetaleft", "a", "-keysetaright", "d",
-                "-keysetafire", "shift",
-            ]
-            .map(String::from),
-        );
-    }
+    // Controls: a connected joystick is Player 1, the keyboard is Player 2; with no
+    // joystick both players are on the keyboard. -k forces keyboard-only.
+    let joystick = !keyboard && joystick_present();
+    opts.extend(control_flags(joystick));
 
     // On Linux, force the X11 backend so VICE doesn't end up on a Wayland renderer
     // (an SDL issue). Never do this elsewhere: on macOS there is no X server by
@@ -287,6 +387,9 @@ pub fn main(argv: Vec<String>) -> ExitCode {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         eprintln!("LOAD\"*\",8,1 : RUN   ->  {game_name}   [{emu_name}]");
+        for line in controls_description(joystick) {
+            eprintln!("  {line}");
+        }
     }
 
     // Replace this process with the emulator (no shell, no return path).

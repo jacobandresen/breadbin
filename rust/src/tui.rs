@@ -16,7 +16,7 @@ pub const GENRE_OTHER: &str = "Other";
 pub const LATEST_GENRE: &str = "latest played";
 
 /// One ranked game from c64_index.tsv:
-/// display, status, target, title, query, identifier, genre.
+/// display, status, target, title, query, identifier, genre, downloads.
 #[derive(Clone)]
 pub struct Row {
     pub display: String,
@@ -26,6 +26,9 @@ pub struct Row {
     pub query: String,
     pub ident: String,
     pub genre: String,
+    /// Internet Archive download count — popularity, used to order the kiosk.
+    /// 0 when absent (an index built before this column existed).
+    pub downloads: i64,
 }
 
 impl Row {
@@ -66,6 +69,7 @@ pub fn load_rows() -> Vec<Row> {
                 query: f[4].to_string(),
                 ident: f.get(5).copied().unwrap_or("").to_string(),
                 genre: f.get(6).copied().unwrap_or("").to_string(),
+                downloads: f.get(7).and_then(|s| s.parse().ok()).unwrap_or(0),
             });
         }
     }

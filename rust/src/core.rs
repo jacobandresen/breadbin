@@ -132,6 +132,21 @@ pub fn split_before<'a>(s: &'a str, pattern: &str) -> &'a str {
     }
 }
 
+/// True if `cmd` is an executable on PATH (used to gate optional tools like fzf).
+pub fn command_exists(cmd: &str) -> bool {
+    which::which(cmd).is_ok()
+}
+
+/// Decode the handful of HTML entities that appear in the archive directory
+/// listings we scrape (Internet Archive / UTA file names).
+pub fn html_unescape(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+}
+
 /// HTTP GET returning the body bytes. Sends a polite User-Agent unless overridden.
 pub fn fetch(url: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>, String> {
     let mut req = ureq::get(url);
