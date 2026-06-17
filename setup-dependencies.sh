@@ -2,8 +2,9 @@
 #
 # setup-dependencies.sh
 #
-# Installs the project's runtime dependencies:
-#   - Python 3 (the scripts are single-file Python 3, stdlib only)
+# Installs the project's dependencies:
+#   - Rust     (to build the `breadbin` binary; rustup.rs gives the newest toolchain
+#               if your distro's packaged Rust is older than the crate needs)
 #   - VICE     (Commodore emulator)
 #   - WezTerm  (terminal emulator)
 #
@@ -26,8 +27,8 @@ install_macos() {
     log "Updating Homebrew..."
     brew update
 
-    log "Installing Python 3..."
-    brew install python
+    log "Installing Rust..."
+    brew install rust
 
     log "Installing VICE..."
     brew install --cask vice
@@ -39,8 +40,8 @@ install_macos() {
 install_arch() {
     have pacman || die "pacman not found; this is not an Arch-based system."
 
-    log "Refreshing package databases and installing Python 3, VICE and WezTerm..."
-    sudo pacman -Syu --needed --noconfirm python vice wezterm
+    log "Refreshing package databases and installing Rust, VICE and WezTerm..."
+    sudo pacman -Syu --needed --noconfirm rust vice wezterm
 }
 
 install_ubuntu() {
@@ -49,8 +50,10 @@ install_ubuntu() {
     log "Updating package lists..."
     sudo apt-get update
 
-    log "Installing Python 3..."
-    sudo apt-get install -y python3
+    log "Installing Rust (cargo)..."
+    # Debian/Ubuntu's packaged cargo can lag the crate's minimum; if `cargo build`
+    # later complains it's too old, install the current toolchain from https://rustup.rs
+    sudo apt-get install -y cargo
 
     log "Installing VICE..."
     sudo apt-get install -y vice
@@ -115,4 +118,4 @@ detect_and_install() {
 }
 
 detect_and_install
-log "Done. Python 3, VICE and WezTerm are installed."
+log "Done. Rust, VICE and WezTerm are installed."

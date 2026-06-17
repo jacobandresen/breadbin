@@ -6,7 +6,7 @@ Named after the "breadbin" — the classic beige C64 case.
 
 Supported on **macOS**, **Arch Linux**, and **Ubuntu Linux**.
 
-breadbin is a small toolkit of single-file Python scripts that turn a folder of
+breadbin is a small command-line tool, written in Rust, that turns a folder of
 C64 disk/tape images into a browsable, rankable, instantly-playable library. It
 finds games (ranked by popularity, enriched with GameBase64 facts and box
 art), downloads the ones you don't own from public archives, and boots them
@@ -14,11 +14,19 @@ straight into the VICE emulator — no launcher GUI, no C64 Forever license need
 
 ## Quick start
 
+Build and install the `breadbin` binary (needs the [Rust toolchain](https://rustup.rs)):
+
 ```sh
-./breadbin              # default: opens the cover kiosk
-./breadbin menu         # ranked master/detail list
-./breadbin play barbarian
-./breadbin info "bruce lee"
+cd rust && cargo install --path .
+```
+
+Then:
+
+```sh
+breadbin              # default: opens the cover kiosk
+breadbin menu         # ranked master/detail list
+breadbin play barbarian
+breadbin info "bruce lee"
 ```
 
 Point breadbin at your collection with the `C64_LIB` environment variable
@@ -30,8 +38,7 @@ export C64_LIB="/path/to/your/c64/games"
 
 ## The `breadbin` command
 
-`breadbin` is a thin umbrella over the toolkit. Each subcommand is also a
-standalone script (`c64run`, `c64menu`, …) that works on its own.
+`breadbin` is a single binary that exposes its tools as subcommands.
 
 | Command | What it does |
 | --- | --- |
@@ -74,7 +81,7 @@ the emulator.
 
 - Each game is one row: a marker, the title, and an action button.
   - `o` — in your collection · Enter plays it.
-  - `v` — downloadable · Enter fetches it (via `c64disk`), then plays it.
+  - `v` — downloadable · Enter fetches it (via `breadbin disk`), then plays it.
 - Expand the selected row (`→` / `Tab`) to reveal a detail line with the box
   cover and GameBase64 facts; `←` collapses.
 - Type to filter, `Backspace` to edit, `Esc` to clear the filter or quit, `q` to
@@ -105,7 +112,7 @@ brew install --cask wezterm
 
 ### VICE (for playing games)
 
-`c64run` boots games with the [VICE](https://vice-emu.sourceforge.io/) C64
+`breadbin play` boots games with the [VICE](https://vice-emu.sourceforge.io/) C64
 emulator, using `-autostart` (the equivalent of typing `LOAD"*",8,1` then `RUN`).
 It auto-picks an emulator, preferring a **license-free** one:
 
@@ -121,23 +128,30 @@ Override the emulator with `C64_EMU` (e.g. `C64_EMU='x64'` or a full Flatpak
 command). Defaults are fullscreen, true-drive autostart, and warp fast-forwarding
 the load until the game has started.
 
-### Python 3
+### Rust (to build)
 
-Every tool is a standalone Python 3 script (no third-party packages). `fzf` is
-used as an interactive picker by `c64get` / `c64disk` / `c64tosec` when available.
+breadbin is a single Rust binary with no runtime dependencies beyond VICE (and
+WezTerm for cover art). Build and install it with the
+[Rust toolchain](https://rustup.rs):
+
+```sh
+cd rust && cargo install --path .
+```
 
 ## How it works (data files)
 
-breadbin keeps its data alongside the scripts:
+breadbin keeps its data in its own data directory — `~/.breadbin` by default, or
+`$BREADBIN_HOME` if set — and downloads/builds everything it needs there on first
+run (nothing is bundled in the repo):
 
-- `c64_popularity.tsv` — popularity scores (rank, score, votes, title).
-- `build_index.py` — matches those scores against your collection and writes
-  `c64_index.tsv` (`display<TAB>path`), ordered by popularity, including games
-  you've downloaded into `_IA_downloads` / `_UTA_downloads`.
+- `ia_index.tsv` — the ranked Internet Archive catalogue (GameBase64 rating + IA
+  downloads), built by `breadbin disk --ia-index`.
+- `breadbin index` — matches that catalogue against your collection and writes
+  `c64_index.tsv`, ordered by popularity, including games you've downloaded.
 - `gb64.sqlitedb` — the GameBase64 collection as SQLite (~17 MB, ~30k games),
-  downloaded and cached once; `c64info` reads it offline thereafter.
+  downloaded and cached once; `breadbin info` reads it offline thereafter.
 - `covers/` + `covers_index.tsv` — cached box-art thumbnails (Libretro set).
-- `ia_index.tsv`, `tosec_index.tsv`, `uta_index.html` — cached archive listings.
+- `uta_index.html` — cached Ultimate Tape Archive listing.
 - `played.tsv` — a play log; powers the "latest played" kiosk section.
 - `downloaded.tsv` — maps downloaded archive items to their saved boot-disk path.
 
@@ -146,11 +160,12 @@ breadbin keeps its data alongside the scripts:
 When you don't own a game, breadbin can fetch it from public preservation
 archives:
 
-- **Ultimate Tape Archive** (`c64get`) — tape (`.tap`) preservation, one folder
-  per game.
-- **Internet Archive** (`c64disk`, default source `ia`) — `softwarelibrary_c64`,
-  cracked disk dumps.
-- **TOSEC** (`c64disk --source tosec`, or `c64tosec`) — the comprehensive C64 set
-  with full-title naming, served from the IA zip-of-zips and unpacked locally.
+- **Ultimate Tape Archive** (`breadbin get`) — tape (`.tap`) preservation, one
+  folder per game.
+- **Internet Archive** (`breadbin disk`, default source `ia`) —
+  `softwarelibrary_c64`, cracked disk dumps.
+- **TOSEC** (`breadbin disk --source tosec`, or `breadbin tosec`) — the
+  comprehensive C64 set with full-title naming, served from the IA zip-of-zips
+  and unpacked locally.
 
 Downloads land in your collection, so a `breadbin menu --refresh` picks them up.

@@ -1,12 +1,14 @@
-# downloaded box-art cache (bb-cover)
-covers/
+# Rust build artifacts
+/rust/target/
 
-# cached GameBase64 SQLite database (c64info)
-gb64.sqlitedb
+# breadbin runtime data — downloaded, cached, or built at runtime.
+# The app keeps these in its data dir (~/.breadbin); never commit them.
+/covers/
+/*.sqlitedb
+/*.tsv
+/uta_index.html
 
-# python bytecode
-__pycache__/
-*.pyc
-
-# per-user record of downloaded IA items (c64disk --id)
-downloaded.tsv
+# editor / OS cruft
+.#*
+*~
+.DS_Store
