@@ -1,6 +1,9 @@
 # Rust build artifacts
 /rust/target/
 
+# macOS app packaging output (pack-macos.sh)
+/dist/
+
 # breadbin runtime data — downloaded, cached, or built at runtime.
 # The app keeps these in its data dir (~/.breadbin); never commit them.
 /covers/

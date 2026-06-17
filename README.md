@@ -36,6 +36,20 @@ Point breadbin at your collection with the `C64_LIB` environment variable
 export C64_LIB="/path/to/your/c64/games"
 ```
 
+### macOS app
+
+To get a double-clickable **breadbin.app** (and a drag-to-Applications disk
+image), run the packager:
+
+```sh
+./pack-macos.sh            # builds dist/breadbin.app and dist/breadbin.dmg
+```
+
+The app bundles the compiled binary and opens the cover-art **kiosk** in WezTerm
+(falling back to Terminal + the text menu if WezTerm isn't installed). Install it
+by dragging `breadbin.app` into `/Applications`, or open `breadbin.dmg`. Drop a
+`breadbin.icns` next to `pack-macos.sh` to give the app a custom icon.
+
 ## The `breadbin` command
 
 `breadbin` is a single binary that exposes its tools as subcommands.
