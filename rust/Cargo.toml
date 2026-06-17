@@ -1,0 +1,43 @@
+[package]
+name = "breadbin"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Commodore 64 game library for the terminal: find, fetch, launch — with cover art and a TUI."
+authors = ["Jacob Andresen <jacob.andresen@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/jacobandresen/breadbin"
+homepage = "https://github.com/jacobandresen/breadbin"
+documentation = "https://docs.rs/breadbin"
+readme = "README.md"
+keywords = ["c64", "commodore", "emulator", "tui", "retro"]
+categories = ["command-line-utilities", "games"]
+exclude = ["/target", "*.tsv", "*.sqlitedb", "covers/"]
+
+[[bin]]
+name = "breadbin"
+path = "src/main.rs"
+
+[dependencies]
+image = "0.25"
+which = "7"
+shlex = "1"
+regex = "1"
+# default-features off to disable ureq's automatic gzip/x-gzip response decoding:
+# the GameBase64 DB is served as a .gz with Content-Encoding: x-gzip, and we want
+# the raw bytes so we can decompress it ourselves (see info::ensure_db).
+ureq = { version = "2", default-features = false, features = ["tls"] }
+serde_json = "1"
+flate2 = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+encoding_rs = "0.8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+ratatui = "0.30.1"
+crossterm = "0.29.0"
+ratatui-image = { version = "11.0.4", default-features = false, features = ["image-defaults", "crossterm"] }
+
+[dev-dependencies]
+uuid = { version = "1.10", features = ["v4"] }
+
+[profile.release]
+strip = true
