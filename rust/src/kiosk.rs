@@ -28,7 +28,11 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame, Terminal,
 };
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
+use ratatui_image::{
+    picker::{Picker, ProtocolType, cap_parser::QueryStdioOptions},
+    protocol::StatefulProtocol,
+    Resize, StatefulImage,
+};
 
 use crate::tui::{self, Row};
 
@@ -820,15 +824,11 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         top_rated: tui::top_rated_canons(),
         collections: tui::collections(),
     };
-    let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
-
     // covers per genre row: as many as fit across the width at the target width.
     let cols0 = crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80);
     let topn = (cols0 / TARGET_CW).max(1) as usize;
 
-    let mut state = KioskState::new(rows, cidx, runopts, picker, topn, curation);
-
-    match run_loop(&mut state) {
+    match run_loop(rows, cidx, runopts, topn, curation) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("c64kiosk: terminal error: {e}");
@@ -837,7 +837,13 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     }
 }
 
-fn run_loop(state: &mut KioskState) -> std::io::Result<()> {
+fn run_loop(
+    rows: Vec<tui::Row>,
+    cidx: HashMap<String, String>,
+    runopts: Vec<String>,
+    topn: usize,
+    curation: Curation,
+) -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -845,7 +851,19 @@ fn run_loop(state: &mut KioskState) -> std::io::Result<()> {
     let mut term = Terminal::new(backend)?;
     term.hide_cursor()?;
 
-    let result = event_loop(state, &mut term);
+    // Query the terminal for graphics-protocol support AFTER entering raw mode
+    // so the terminal responds correctly to the capability queries.
+    // Kitty's virtual-placement protocol uses U+10EEEE placeholders; terminals
+    // that don't carry that codepoint in their font render them as squares, so
+    // we skip it and let the picker fall back to iTerm2 / Sixel / Halfblocks.
+    let picker = Picker::from_query_stdio_with_options(QueryStdioOptions {
+        blacklist_protocols: vec![ProtocolType::Kitty],
+        ..Default::default()
+    })
+    .unwrap_or_else(|_| Picker::halfblocks());
+    let mut state = KioskState::new(rows, cidx, runopts, picker, topn, curation);
+
+    let result = event_loop(&mut state, &mut term);
 
     disable_raw_mode()?;
     execute!(term.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
