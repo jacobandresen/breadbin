@@ -21,6 +21,29 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Download Hack Nerd Font into the user's font dir (Linux). Nerd Fonts are not
+# packaged by apt, and the symbol glyphs breadbin's TUI uses (⏎ ↵ ⬇ ♪ ★ ⚠ ▶)
+# are missing from stock DejaVu/Noto -- a Nerd Font supplies them all.
+install_nerd_font() {
+    if fc-list 2>/dev/null | grep -qi "Hack Nerd Font"; then
+        log "Hack Nerd Font already installed; skipping."
+        return
+    fi
+    local dir url tmp
+    dir="${HOME}/.local/share/fonts"
+    url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Hack.zip"
+    mkdir -p "$dir"
+    tmp="$(mktemp -d)"
+    log "Downloading Hack Nerd Font..."
+    if curl -fL "$url" -o "$tmp/Hack.zip"; then
+        unzip -oq "$tmp/Hack.zip" -d "$dir"
+    else
+        warn "Could not download Hack Nerd Font from $url"
+        warn "Install a Nerd Font manually or the TUI's symbol glyphs may not render."
+    fi
+    rm -rf "$tmp"
+}
+
 install_macos() {
     have brew || die "Homebrew is required. Install it from https://brew.sh and re-run."
 
@@ -44,9 +67,10 @@ install_arch() {
     sudo pacman -Syu --needed --noconfirm rust vice wezterm
 
     log "Installing fonts for the TUI's box-drawing and symbol glyphs..."
-    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠ and U+2B07 (⬇).
-    # DejaVu covers most; Noto Sans Symbols 2 (in noto-fonts) provides ⬇.
-    sudo pacman -S --needed --noconfirm ttf-dejavu noto-fonts
+    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠/⏎/↵ and U+2B07 (⬇).
+    # ttf-nerd-fonts-symbols-mono (official repo) supplies the symbol glyphs that
+    # DejaVu/Noto lack (⏎ U+23CE, ⬇ U+2B07, ↵ U+21B5, ♪ U+266A) in monospace cells.
+    sudo pacman -S --needed --noconfirm ttf-dejavu noto-fonts ttf-nerd-fonts-symbols-mono
 }
 
 install_ubuntu() {
@@ -64,10 +88,14 @@ install_ubuntu() {
     sudo apt-get install -y vice
 
     log "Installing fonts for the TUI's box-drawing and symbol glyphs..."
-    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠ and U+2B07 (⬇).
-    # DejaVu/Noto cover most glyphs; fonts-symbola is the catch-all that
-    # guarantees U+2B07 (⬇), which stock Ubuntu fonts are missing.
-    sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-mono fonts-symbola
+    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠/⏎/↵ and U+2B07 (⬇).
+    # Several of these (⏎ U+23CE, ⬇ U+2B07, ↵ U+21B5, ♪ U+266A) are absent from
+    # DejaVu/Noto, so a plain monospace font renders them as tofu. The reliable
+    # fix is a Nerd Font, which packs every one of these into proper monospace
+    # cells -- and it's what the recommended WezTerm config falls back to. Apt
+    # has no Nerd Font, so fetch Hack Nerd Font from the nerd-fonts release.
+    sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-mono curl unzip
+    install_nerd_font
     fc-cache -f || true
 
     log "Installing WezTerm..."
