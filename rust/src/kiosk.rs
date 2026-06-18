@@ -7,7 +7,7 @@
 // Arrow keys move the focus, Enter activates, q quits. Games launch straight into
 // the emulator and return here on exit, never dropping back to the shell.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -39,6 +39,9 @@ Usage:
   c64kiosk            open the kiosk
   c64kiosk -w|-f|-r   pass --warp / --fullscreen / --real through to c64run
 ";
+
+/// Synthetic section for GB64's curated classics, shown below "latest played".
+const CLASSICS_GENRE: &str = "classics";
 
 const TARGET_CW: u16 = 14; // expanded-genre card target width
 const TARGET_CH: u16 = 16; // expanded-genre card target height
@@ -105,6 +108,7 @@ impl KioskState {
         runopts: Vec<String>,
         picker: Picker,
         topn: usize,
+        classics: HashSet<String>,
     ) -> Self {
         let mut groups = tui::group_by_genre(&all);
         // Lead with what people actually grab: order each genre by Internet Archive
@@ -117,6 +121,29 @@ impl KioskState {
         groups.sort_by_key(|(_, idxs)| {
             std::cmp::Reverse(idxs.first().map(|&i| all[i].downloads).unwrap_or(0))
         });
+        // Pin Arcade then Shoot'em Up to the top, and push the catch-all "Other"
+        // bucket to the very bottom; the genres between keep their popularity order
+        // (sort_by_key is stable).
+        groups.sort_by_key(|(genre, _)| match genre.as_str() {
+            "Arcade" => 0,
+            "Shoot'em Up" => 1,
+            g if g == tui::GENRE_OTHER => 3,
+            _ => 2,
+        });
+
+        // Synthetic "classics" section (GB64's curated set), most-downloaded first.
+        if !classics.is_empty() {
+            let mut idxs: Vec<usize> = all
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| classics.contains(&tui::canon_of(r)))
+                .map(|(i, _)| i)
+                .collect();
+            idxs.sort_by_key(|&i| std::cmp::Reverse(all[i].downloads));
+            if !idxs.is_empty() {
+                groups.insert(0, (CLASSICS_GENRE.to_string(), idxs));
+            }
+        }
 
         // "latest played" synthetic section on top.
         let recent = tui::recent_plays(None);
@@ -561,13 +588,14 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         return ExitCode::from(1);
     }
     let cidx = crate::cover::load_index();
+    let classics = tui::classic_canons(); // GB64 curated set (may download the DB)
     let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
 
     // covers per genre row: as many as fit across the width at the target width.
     let cols0 = crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80);
     let topn = (cols0 / TARGET_CW).max(1) as usize;
 
-    let mut state = KioskState::new(rows, cidx, runopts, picker, topn);
+    let mut state = KioskState::new(rows, cidx, runopts, picker, topn, classics);
 
     match run_loop(&mut state) {
         Ok(()) => ExitCode::SUCCESS,

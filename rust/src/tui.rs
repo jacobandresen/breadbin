@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::{core, cover, disk, run};
+use crate::{core, cover, disk, info, run};
 
 /// Genre bucket for rows that carry no genre.
 pub const GENRE_OTHER: &str = "Other";
@@ -110,6 +110,28 @@ pub fn group_by_genre(rows: &[Row]) -> Vec<(String, Vec<usize>)> {
             (g, v)
         })
         .collect()
+}
+
+/// Canonical keys of GB64's curated "classic" games (~50 hand-picked titles),
+/// for the kiosk's Classics section. Match against a row with [`canon_of`].
+/// Empty if the GB64 database can't be read.
+pub fn classic_canons() -> HashSet<String> {
+    let con = info::connect();
+    let mut set = HashSet::new();
+    let Ok(mut stmt) = con.prepare("SELECT Name FROM Games WHERE Classic <> 0 AND Name <> ''")
+    else {
+        return set;
+    };
+    let Ok(rows) = stmt.query_map([], |r| Ok(info::decode_text(r.get_ref(0)?))) else {
+        return set;
+    };
+    for name in rows.flatten().flatten() {
+        let canon = disk::game_title(&name);
+        if !canon.is_empty() {
+            set.insert(canon);
+        }
+    }
+    set
 }
 
 fn now_secs() -> u64 {
