@@ -29,6 +29,8 @@ Usage:
   c64run -r | --real <s>         authentic-speed load (alias of --no-warp)
   c64run --windowed <s>          run in a window instead of fullscreen
   c64run -k | --keyboard <s>     force keyboard for both players (ignore any joystick)
+  c64run --drive-sound <s>       play the authentic 1541 drive loading sound (default)
+  c64run --no-drive-sound <s>    silence the emulated drive
   c64run -l | --list <s>         just list matches, don't launch
   (-w / --warp and -f / --fullscreen are accepted too, but are now the default)
 ";
@@ -113,15 +115,17 @@ fn emu_help(emu: &[String]) -> String {
 /// titles like Out Run — drive the 1541 hardware directly and only load under TDE.
 /// Without it they autostart their boot file and then hang.
 ///
-/// Set C64_VIRTUAL_DRIVE=1 to instead serve the disk through VICE's virtual
+/// With `virtual_drive` we instead serve the disk through VICE's virtual
 /// (host-filesystem) device: lower fidelity (fastloaders break), but the only mode
 /// that works on a ROM-less VICE — e.g. a Linux package missing the non-free 1541
 /// ROMs, where TDE can't run and every LOAD"*",8,1 fails with ?DEVICE NOT PRESENT.
+/// The caller turns this on via C64_VIRTUAL_DRIVE or by auto-detecting that ROM-less
+/// case (see `missing_tde_rom`).
 ///
 /// Option spellings vary across builds and an unknown one makes VICE bail without
 /// starting, so we probe the emulator's own `-help` for what it accepts.
-fn drive_flags(help: &str) -> Vec<String> {
-    if std::env::var_os("C64_VIRTUAL_DRIVE").is_some() {
+fn drive_flags(help: &str, virtual_drive: bool) -> Vec<String> {
+    if virtual_drive {
         if help.contains("-virtualdev8") {
             return vec!["-virtualdev8".into()];
         }
@@ -147,6 +151,86 @@ fn drive_flags(help: &str) -> Vec<String> {
     } else {
         Vec::new()
     }
+}
+
+/// Authentic 1541 drive sound: VICE can emulate the mechanical whir and head-step
+/// clatter the real floppy made while loading. Enabled by default; toggle per-run
+/// with --drive-sound / --no-drive-sound, or persistently with C64_DRIVE_SOUND=0
+/// (or false/no). C64_DRIVE_SOUND_VOLUME sets loudness on VICE's 0-4000 scale
+/// (default 2000).
+///
+/// Two caveats the caller can't change here: the sound is produced by the emulated
+/// 1541 mechanics, so it only plays under True Drive Emulation (not the ROM-less
+/// virtual drive), and VICE mutes audio during warp fast-loading — so it's most
+/// audible for in-game disk access and in --no-warp mode. Harmless when silent,
+/// hence on by default. Option spellings are probed from `-help` like the rest.
+fn drive_sound_flags(help: &str, cli: Option<bool>) -> Vec<String> {
+    // Precedence: --drive-sound/--no-drive-sound, then C64_DRIVE_SOUND, then on.
+    let on = cli.unwrap_or_else(|| match std::env::var("C64_DRIVE_SOUND") {
+        Ok(v) => !matches!(v.trim(), "" | "0" | "false" | "no"),
+        Err(_) => true,
+    });
+    if !on || !help.contains("-drivesound") {
+        return Vec::new();
+    }
+    let mut flags = vec!["-drivesound".to_string()];
+    if help.contains("-drivesoundvolume") {
+        let vol = std::env::var("C64_DRIVE_SOUND_VOLUME")
+            .ok()
+            .filter(|s| s.trim().parse::<u32>().is_ok())
+            .unwrap_or_else(|| "2000".to_string());
+        flags.push("-drivesoundvolume".to_string());
+        flags.push(vol);
+    }
+    flags
+}
+
+/// True when the chosen emulator is a native Linux VICE with no 1541 drive ROM on
+/// its search path — the one case where True Drive Emulation can't start the drive
+/// and `LOAD"*",8,1` fails with `?DEVICE NOT PRESENT ERROR`. The flatpak and the
+/// Cloanto/wine build bundle their own ROMs, and on macOS the Homebrew cask does
+/// too, so this only fires for a bare distro `vice` package missing the non-free
+/// drive ROM (see install_vice_roms in setup-dependencies.sh).
+fn missing_tde_rom(emu: &[String]) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let exe = Path::new(&emu[0])
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        // Only a directly-invoked native binary is at risk; flatpak/wine/etc. ship ROMs.
+        (exe == "x64" || exe == "x64sc") && !tde_rom_available()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = emu;
+        false
+    }
+}
+
+/// Scan VICE's ROM search directories for any `dos1541*` drive ROM.
+#[cfg(target_os = "linux")]
+fn tde_rom_available() -> bool {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Some(d) = std::env::var_os("VICE_DATADIR") {
+        dirs.push(Path::new(&d).join("DRIVES"));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(Path::new(&home).join(".local/share/vice/DRIVES"));
+    }
+    for base in ["/usr/lib/vice", "/usr/share/vice", "/usr/local/lib/vice", "/usr/local/share/vice"]
+    {
+        dirs.push(Path::new(base).join("DRIVES"));
+    }
+    dirs.iter().any(|d| {
+        std::fs::read_dir(d)
+            .map(|rd| {
+                rd.flatten().any(|e| {
+                    e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("dos1541")
+                })
+            })
+            .unwrap_or(false)
+    })
 }
 
 /// Walk the library roots for image files whose name contains the query.
@@ -331,6 +415,7 @@ fn control_flags(joystick: bool) -> Vec<String> {
 
 pub fn main(argv: Vec<String>) -> ExitCode {
     let (mut warp, mut fullscreen, mut list_only, mut keyboard) = (true, true, false, false);
+    let mut drive_sound: Option<bool> = None; // None = env/default; Some = CLI override
     let mut words: Vec<String> = Vec::new();
 
     let mut i = 0;
@@ -343,6 +428,8 @@ pub fn main(argv: Vec<String>) -> ExitCode {
             "-f" | "--fullscreen" => fullscreen = true, // default; back-compat
             "--windowed" => fullscreen = false,
             "-k" | "--keyboard" => keyboard = true,
+            "--drive-sound" => drive_sound = Some(true),
+            "--no-drive-sound" => drive_sound = Some(false),
             "-l" | "--list" => list_only = true,
             "-h" | "--help" => {
                 print!("{HELP}");
@@ -383,13 +470,29 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     };
 
     let emu = pick_emulator();
-
-    // Serve the disk image through VICE's virtual filesystem rather than hardware
-    // 1541 TDE, so a ROM-less VICE still boots games (see virtual_drive_flags for the
-    // version-dependent option names). Fully compatible with standard d64/t64/crt
-    // autostart; in-game fastloaders that need real TDE won't work when ROMs are absent.
     let help = emu_help(&emu);
-    let mut opts: Vec<String> = drive_flags(&help);
+
+    // Drive mode: hardware True Drive Emulation by default, but a native Linux VICE
+    // installed without the (non-free) 1541 drive ROM can't run it — every
+    // LOAD"*",8,1 then fails with `?DEVICE NOT PRESENT ERROR`. Auto-fall back to the
+    // ROM-less virtual drive in that case. C64_VIRTUAL_DRIVE overrides either way
+    // (set it truthy to force virtual, or 0/false/no to force TDE).
+    let virtual_drive = match std::env::var("C64_VIRTUAL_DRIVE") {
+        Ok(v) => !matches!(v.trim(), "" | "0" | "false" | "no"),
+        Err(_) => {
+            let auto = missing_tde_rom(&emu);
+            if auto && std::env::var_os("C64_QUIET").is_none() {
+                eprintln!(
+                    "note: no 1541 drive ROM found for VICE; using its virtual drive \
+                     (in-game fastloaders may not work). Install the ROM, or set \
+                     C64_VIRTUAL_DRIVE=0 to force True Drive Emulation."
+                );
+            }
+            auto
+        }
+    };
+    let mut opts: Vec<String> = drive_flags(&help, virtual_drive);
+    opts.extend(drive_sound_flags(&help, drive_sound));
     if warp {
         opts.push("-autostart-warp".into()); // fast-forward loading, then normal speed
     }
