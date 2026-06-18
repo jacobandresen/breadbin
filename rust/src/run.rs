@@ -142,7 +142,12 @@ fn drive_flags(help: &str, virtual_drive: bool) -> Vec<String> {
         // — correct but slow. -trapdevice8 keeps that fast loader available.
         let mut flags = vec!["-drive8truedrive".to_string()];
         if help.contains("-autostart-handle-tde") {
-            flags.push("-trapdevice8".to_string());
+            // Each option is probed separately: some builds (e.g. VICE on Ubuntu)
+            // ship -autostart-handle-tde but not -trapdevice8, and emitting an
+            // unknown option makes VICE bail with "Unknown option '-trapdevice8'".
+            if help.contains("-trapdevice8") {
+                flags.push("-trapdevice8".to_string());
+            }
             flags.push("-autostart-handle-tde".to_string());
         }
         flags
