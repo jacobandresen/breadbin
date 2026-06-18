@@ -183,10 +183,24 @@ pub fn joystick_present() -> bool {
     }
     #[cfg(target_os = "linux")]
     {
-        // The kernel joystick API exposes each pad as /dev/input/jsN.
-        std::fs::read_dir("/dev/input")
-            .map(|rd| rd.flatten().any(|e| e.file_name().to_string_lossy().starts_with("js")))
-            .unwrap_or(false)
+        let any_entry = |dir: &str, pred: &dyn Fn(&str) -> bool| -> bool {
+            std::fs::read_dir(dir)
+                .map(|rd| rd.flatten().any(|e| pred(&e.file_name().to_string_lossy())))
+                .unwrap_or(false)
+        };
+        // The legacy joystick API (joydev module) exposes each pad as /dev/input/jsN.
+        if any_entry("/dev/input", &|n| n.starts_with("js") && n[2..].parse::<u32>().is_ok()) {
+            return true;
+        }
+        // joydev may not be loaded, but udev still tags controllers in by-id/by-path
+        // (e.g. usb-Sony_Controller-event-joystick, ...-event-gamepad) off the evdev
+        // node, so look for those names too.
+        ["/dev/input/by-id", "/dev/input/by-path"].iter().any(|dir| {
+            any_entry(dir, &|n| {
+                let n = n.to_ascii_lowercase();
+                n.contains("joystick") || n.contains("gamepad")
+            })
+        })
     }
     #[cfg(target_os = "macos")]
     {
