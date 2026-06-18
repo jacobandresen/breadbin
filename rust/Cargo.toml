@@ -35,9 +35,23 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 ratatui = "0.30.1"
 crossterm = "0.29.0"
 ratatui-image = { version = "11.0.4", default-features = false, features = ["image-defaults", "crossterm"] }
+# Pure-Rust SID playback: resid-rs is the MOS6581/8580 chip emulator; breadbin
+# supplies its own 6502 + PSID driver (src/sid.rs) and streams the samples to the
+# audio device via cpal. No external SID player (sidplayfp/vice) is required.
+resid-rs = "1.1"
+cpal = "0.15"
 
 [dev-dependencies]
 uuid = { version = "1.10", features = ["v4"] }
 
 [profile.release]
 strip = true
+
+# reSID's fixpoint resampler and envelope generator rely on C-style wrapping /
+# truncating integer arithmetic. With overflow checks on (debug builds) that
+# tripped genuine-but-expected overflows inside resid-rs (sampler.rs / envelope.rs)
+# on some tunes, panicking with "attempt to multiply with overflow". Release
+# builds already wrap (checks off) and play fine; disable the checks for this one
+# dependency so debug behaves the same. Our own crates keep their overflow checks.
+[profile.dev.package.resid-rs]
+overflow-checks = false

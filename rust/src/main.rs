@@ -16,6 +16,9 @@ mod tosec;
 mod tui;
 mod menu;
 mod kiosk;
+mod demos;
+mod sid;
+mod tunes;
 
 use std::process::ExitCode;
 
@@ -29,6 +32,8 @@ breadbin - Commodore 64 game library (find · fetch · launch)
   breadbin get   <name>      download a tape from the Ultimate Tape Archive
   breadbin disk  <name>      download a disk from the Internet Archive / TOSEC
   breadbin tosec             browse the whole TOSEC catalogue; download + play on pick
+  breadbin demos             browse the best C64 demoscene demos by party; run on pick
+  breadbin tunes             play the best C64 SID music by composer; visualiser on play
   breadbin install-links     create the c64run/c64menu/... symlinks next to this binary
 
 On first run breadbin downloads and builds everything it needs (game catalogue,
@@ -48,6 +53,8 @@ fn resolve_subcommand(cmd: &str) -> Option<&'static str> {
         "get" | "tape" => "c64get",
         "disk" => "c64disk",
         "tosec" | "browse-all" => "c64tosec",
+        "demos" | "demoscene" | "scene" => "c64demos",
+        "tunes" | "music" | "sid" | "jukebox" => "c64tunes",
         "index" | "build-index" => "build_index",
         _ => return None,
     })
@@ -64,6 +71,8 @@ fn run_tool(tool: &str, args: Vec<String>) -> ExitCode {
         "build_index" => build_index::main(args),
         "c64menu" => menu::main(args),
         "c64kiosk" => kiosk::main(args),
+        "c64demos" => demos::main(args),
+        "c64tunes" => tunes::main(args),
         _ => {
             eprintln!("breadbin: no such tool: {tool}");
             ExitCode::from(2)
@@ -73,7 +82,8 @@ fn run_tool(tool: &str, args: Vec<String>) -> ExitCode {
 
 /// The standalone tool names that resolve to this binary via argv[0] dispatch.
 const TOOL_NAMES: &[&str] = &[
-    "c64run", "c64menu", "c64kiosk", "c64info", "c64get", "c64disk", "c64tosec",
+    "c64run", "c64menu", "c64kiosk", "c64info", "c64get", "c64disk", "c64tosec", "c64demos",
+    "c64tunes",
 ];
 
 /// Create the standalone `c64*` symlinks next to the installed binary (or in the
@@ -172,6 +182,47 @@ fn main() -> ExitCode {
             _ => eprintln!("usage: _disk title <s> | ratio <a> <b>"),
         }
         return ExitCode::SUCCESS;
+    }
+
+    // hidden dev aid: render a .sid headlessly to validate the SID engine.
+    //   _sid <file.sid> [song]  -> render ~2s and report peak/rms/non-silence
+    if args.first().map(String::as_str) == Some("_sid") {
+        let path = args.get(1).cloned().unwrap_or_default();
+        let song: u16 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("_sid: cannot read {path}: {e}");
+                return ExitCode::from(1);
+            }
+        };
+        match sid::Player::new(&bytes, song, 44100) {
+            Ok(mut p) => {
+                println!("name={:?} author={:?} songs={}", p.name, p.author, p.songs);
+                let mut buf = vec![0i16; 44100 * 2];
+                let mut peak = 0i32;
+                let mut sumsq = 0f64;
+                let mut nonzero = 0usize;
+                for _ in 0..2 {
+                    let vis = p.render(&mut buf);
+                    for &s in &buf {
+                        let a = (s as i32).abs();
+                        if a > peak { peak = a; }
+                        if s != 0 { nonzero += 1; }
+                        sumsq += (s as f64) * (s as f64);
+                    }
+                    let f: Vec<String> = (0..3).map(|v| format!("{:.3}", vis.voice_freq(v))).collect();
+                    println!("frame={} vol={} voiceFreq=[{}]", vis.frame, vis.volume(), f.join(", "));
+                }
+                let rms = (sumsq / (buf.len() as f64 * 2.0)).sqrt();
+                println!("peak={peak} rms={rms:.1} nonzero={nonzero}/{}", buf.len() * 2);
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("_sid: {e}");
+                return ExitCode::from(1);
+            }
+        }
     }
 
     // Otherwise we're the `breadbin` umbrella: first arg selects the subcommand.
