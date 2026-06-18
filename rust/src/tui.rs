@@ -112,14 +112,14 @@ pub fn group_by_genre(rows: &[Row]) -> Vec<(String, Vec<usize>)> {
         .collect()
 }
 
-/// Canonical keys of GB64's curated "classic" games (~50 hand-picked titles),
-/// for the kiosk's Classics section. Match against a row with [`canon_of`].
-/// Empty if the GB64 database can't be read.
-pub fn classic_canons() -> HashSet<String> {
+/// Canonical keys of the GB64 games matching `where_clause` (a constant SQL
+/// predicate on the `Games` table), for matching rows via [`canon_of`]. Empty if
+/// the GB64 database can't be read.
+fn canons_where(where_clause: &str) -> HashSet<String> {
     let con = info::connect();
     let mut set = HashSet::new();
-    let Ok(mut stmt) = con.prepare("SELECT Name FROM Games WHERE Classic <> 0 AND Name <> ''")
-    else {
+    let sql = format!("SELECT Name FROM Games WHERE Name <> '' AND ({where_clause})");
+    let Ok(mut stmt) = con.prepare(&sql) else {
         return set;
     };
     let Ok(rows) = stmt.query_map([], |r| Ok(info::decode_text(r.get_ref(0)?))) else {
@@ -132,6 +132,52 @@ pub fn classic_canons() -> HashSet<String> {
         }
     }
     set
+}
+
+/// GB64's curated "classic" games (~50 hand-picked titles), for the Classics section.
+pub fn classic_canons() -> HashSet<String> {
+    canons_where("Classic <> 0")
+}
+
+/// Games GB64 marks as joystick-controlled (Control 1/2 = joystick port 1/2), for
+/// the joystick badge. GB64's Control field is only filled in for some games, so
+/// this flags the games *known* to need a joystick, not every one.
+pub fn joystick_canons() -> HashSet<String> {
+    canons_where("Control IN (1, 2)")
+}
+
+/// Games GB64 rates at the top (5/5) — a small, curated set — for the top-rating badge.
+pub fn top_rated_canons() -> HashSet<String> {
+    canons_where("Rating = 5")
+}
+
+/// Curated game collections embedded from the repo's `collections.tsv` at build
+/// time. Each non-comment line is "Collection Name<TAB>Game Title"; titles are
+/// canonicalised so they match catalogue rows via [`canon_of`]. Returns
+/// (name, member canons) in the order collections first appear in the file.
+pub fn collections() -> Vec<(String, HashSet<String>)> {
+    const TSV: &str = include_str!("collections.tsv");
+    let mut order: Vec<String> = Vec::new();
+    let mut map: HashMap<String, HashSet<String>> = HashMap::new();
+    for line in TSV.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((name, title)) = line.split_once('\t') else {
+            continue;
+        };
+        let canon = disk::game_title(title.trim());
+        if canon.is_empty() {
+            continue;
+        }
+        let name = name.trim().to_string();
+        if !map.contains_key(&name) {
+            order.push(name.clone());
+        }
+        map.entry(name).or_default().insert(canon);
+    }
+    order.into_iter().filter_map(|n| map.remove(&n).map(|s| (n, s))).collect()
 }
 
 fn now_secs() -> u64 {

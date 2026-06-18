@@ -1,0 +1,129 @@
+# breadbin curated collections - shown as sections in the kiosk.
+# Format: <Collection Name><TAB><Game Title>. Titles are matched to the catalogue
+# by canonical name, so edit/add/remove freely; lines starting with # are ignored.
+# Seeded from GameBase64: Demoscene Legends = games by legendary SID composers
+# (Hubbard, Galway, Daglish, Tel, Hulsbeck, Follin, Whittaker, Gray) that are
+# classics or highly rated; Ocean Classics = Ocean publisher titles.
+Demoscene Legends	Commando
+Demoscene Legends	Commando Arcade
+Demoscene Legends	Delta
+Demoscene Legends	Delta Patrol
+Demoscene Legends	Great Giana Sisters , The
+Demoscene Legends	Great Giana Sisters II, The
+Demoscene Legends	Green Beret
+Demoscene Legends	Hawkeye
+Demoscene Legends	IK+
+Demoscene Legends	Katakis
+Demoscene Legends	Last Ninja , The
+Demoscene Legends	Last Ninja II
+Demoscene Legends	Microprose Soccer
+Demoscene Legends	Split Personalities
+Demoscene Legends	Thrust
+Demoscene Legends	Thrust Gold
+Demoscene Legends	Turrican
+Demoscene Legends	Wizball
+Ocean Classics	Addams Family, The
+Ocean Classics	Android II
+Ocean Classics	Armageddon
+Ocean Classics	Bangers and Mash
+Ocean Classics	Barmy Builders
+Ocean Classics	Batman - The Caped Crusader
+Ocean Classics	Batman - The Movie
+Ocean Classics	Battle Command
+Ocean Classics	Beach Volley
+Ocean Classics	Blaze Out
+Ocean Classics	Blaze Out - Platoon
+Ocean Classics	Cabal
+Ocean Classics	Cavelon
+Ocean Classics	Chase HQ
+Ocean Classics	Chinese Juggler, The
+Ocean Classics	Cobra
+Ocean Classics	Combat School
+Ocean Classics	Cool World
+Ocean Classics	Daley Thompson's Decathlon
+Ocean Classics	Daley Thompson's Olympic Challenge
+Ocean Classics	Daley Thompson's Super-Test
+Ocean Classics	Darkman
+Ocean Classics	Donkey Kong
+Ocean Classics	Double Dragon
+Ocean Classics	Double Take
+Ocean Classics	Emilio Butragueño Futbol
+Ocean Classics	Eskimo Eddie
+Ocean Classics	Fi$tful of Buck$, A
+Ocean Classics	Firefly
+Ocean Classics	Frankie Goes to Hollywood
+Ocean Classics	GUTZ
+Ocean Classics	Gilligans Gold
+Ocean Classics	Great Escape, The
+Ocean Classics	Gryzor
+Ocean Classics	Head over Heels
+Ocean Classics	Highlander
+Ocean Classics	Highnoon
+Ocean Classics	Hook
+Ocean Classics	Hudson Hawk
+Ocean Classics	Hunchback
+Ocean Classics	Hunchback - The Adventure
+Ocean Classics	Hunchback II - Quasimodo's Revenge
+Ocean Classics	Hyper Active
+Ocean Classics	It's a Knockout
+Ocean Classics	Knight Rider
+Ocean Classics	Kong Strikes Back!
+Ocean Classics	Lethal Weapon
+Ocean Classics	Madballs
+Ocean Classics	Mario Bros.
+Ocean Classics	Match Day
+Ocean Classics	Match Day II
+Ocean Classics	Miami Vice
+Ocean Classics	Midnight Resistance
+Ocean Classics	Moonshadow
+Ocean Classics	Mr. Wimpy - The Hamburger Game
+Ocean Classics	Mutants
+Ocean Classics	NARC
+Ocean Classics	NOMAD
+Ocean Classics	Navy Seals
+Ocean Classics	Neverending Story , The
+Ocean Classics	Newzealand Story, The
+Ocean Classics	Night Breed
+Ocean Classics	Operation Thunderbolt
+Ocean Classics	Operation Wolf
+Ocean Classics	Pang
+Ocean Classics	Parallax
+Ocean Classics	Platoon
+Ocean Classics	Puzznic
+Ocean Classics	Rainbow Islands
+Ocean Classics	Rambo - First Blood Part II
+Ocean Classics	Rambo III - The Rescue
+Ocean Classics	Red Heat
+Ocean Classics	RoboCop
+Ocean Classics	RoboCop II
+Ocean Classics	RoboCop III
+Ocean Classics	Roland's Ratrace
+Ocean Classics	RollerBall
+Ocean Classics	Run the Gauntlet
+Ocean Classics	SCI - Special Criminal Investigation
+Ocean Classics	Shadow Warriors
+Ocean Classics	Shadow of the Beast
+Ocean Classics	Short Circuit
+Ocean Classics	Simpsons, The - Bart vs. the Space Mutants
+Ocean Classics	Sleepwalker
+Ocean Classics	Sly Spy Secret Agent
+Ocean Classics	Smash TV
+Ocean Classics	Space Gun
+Ocean Classics	Spellbound
+Ocean Classics	Stunt Bike
+Ocean Classics	Super Bowl XX
+Ocean Classics	TLL - Tornado Low Level
+Ocean Classics	Tai-Pan
+Ocean Classics	Tank
+Ocean Classics	Terminator II - Judgment Day
+Ocean Classics	Toki
+Ocean Classics	Top Gun
+Ocean Classics	Total Recall
+Ocean Classics	Transformers
+Ocean Classics	Untouchables, The
+Ocean Classics	V - The Computer Game
+Ocean Classics	WWF European Rampage Tour
+Ocean Classics	WWF WrestleMania
+Ocean Classics	Wizball
+Ocean Classics	adidas Championship Football
+Ocean Classics	adidas Championship Tie Break

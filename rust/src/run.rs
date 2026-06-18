@@ -108,23 +108,43 @@ fn emu_help(emu: &[String]) -> String {
         .unwrap_or_default()
 }
 
-/// Flags that make drive 8 use VICE's virtual (host-filesystem) device instead of
-/// true drive emulation. Needed where VICE ships without the (non-free) 1541 drive
-/// ROMs — e.g. the Debian/Ubuntu package — or every LOAD"*",8,1 fails with
-/// ?DEVICE NOT PRESENT. VICE renamed this option across versions: older builds use
-/// `-virtualdev8`; newer ones (e.g. Homebrew's) split it into `-trapdevice8` +
-/// `+drive8truedrive`. Passing the wrong name makes VICE bail with "error parsing
-/// command line option" and never start, so we ask the emulator's own `-help`
-/// which spelling it understands rather than hardcoding one.
-fn virtual_drive_flags(help: &str) -> Vec<String> {
-    if help.contains("-virtualdev8") {
-        vec!["-virtualdev8".into()]
-    } else if help.contains("-trapdevice8") {
-        vec!["-trapdevice8".into(), "+drive8truedrive".into()]
+/// Drive 8 emulation flags. By default we enable cycle-exact True Drive Emulation
+/// (TDE): fastloaders and copy-protected games — a large slice of commercial
+/// titles like Out Run — drive the 1541 hardware directly and only load under TDE.
+/// Without it they autostart their boot file and then hang.
+///
+/// Set C64_VIRTUAL_DRIVE=1 to instead serve the disk through VICE's virtual
+/// (host-filesystem) device: lower fidelity (fastloaders break), but the only mode
+/// that works on a ROM-less VICE — e.g. a Linux package missing the non-free 1541
+/// ROMs, where TDE can't run and every LOAD"*",8,1 fails with ?DEVICE NOT PRESENT.
+///
+/// Option spellings vary across builds and an unknown one makes VICE bail without
+/// starting, so we probe the emulator's own `-help` for what it accepts.
+fn drive_flags(help: &str) -> Vec<String> {
+    if std::env::var_os("C64_VIRTUAL_DRIVE").is_some() {
+        if help.contains("-virtualdev8") {
+            return vec!["-virtualdev8".into()];
+        }
+        if help.contains("-trapdevice8") {
+            return vec!["-trapdevice8".into(), "+drive8truedrive".into()];
+        }
+        return Vec::new();
+    }
+    if help.contains("-drive8truedrive") {
+        // True drive emulation (for fastloaders / copy protection), but let autostart
+        // pull the program in quickly: -autostart-handle-tde turns TDE off just for the
+        // autostart load (so it streams through the instant kernal trap) and back on
+        // for the game. Normal games would otherwise load through the cycle-exact 1541
+        // — correct but slow. -trapdevice8 keeps that fast loader available.
+        let mut flags = vec!["-drive8truedrive".to_string()];
+        if help.contains("-autostart-handle-tde") {
+            flags.push("-trapdevice8".to_string());
+            flags.push("-autostart-handle-tde".to_string());
+        }
+        flags
+    } else if help.contains("-truedrive") {
+        vec!["-truedrive".into()] // older VICE: global true-drive toggle
     } else {
-        // Unknown build: pass nothing rather than a flag it will reject. With drive
-        // ROMs present (e.g. a full Homebrew/Windows VICE) true drive emulation works
-        // anyway; only the ROM-less packages actually need the virtual device.
         Vec::new()
     }
 }
@@ -369,7 +389,7 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     // version-dependent option names). Fully compatible with standard d64/t64/crt
     // autostart; in-game fastloaders that need real TDE won't work when ROMs are absent.
     let help = emu_help(&emu);
-    let mut opts: Vec<String> = virtual_drive_flags(&help);
+    let mut opts: Vec<String> = drive_flags(&help);
     if warp {
         opts.push("-autostart-warp".into()); // fast-forward loading, then normal speed
     }
@@ -380,6 +400,21 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     // joystick both players are on the keyboard. -k forces keyboard-only.
     let joystick = !keyboard && joystick_present();
     opts.extend(control_flags(joystick));
+
+    // Optional VICE diagnostics: C64_VICE_LOG=<path> (or =1 for vice.log in the data
+    // dir) makes VICE write a verbose log of the launch, so a game that won't start
+    // can be inspected. Propagates through the kiosk/menu, which exec c64run.
+    if let Some(spec) = std::env::var_os("C64_VICE_LOG") {
+        let spec = spec.to_string_lossy();
+        let path = if spec == "1" || spec.eq_ignore_ascii_case("true") {
+            crate::core::data_path("vice.log").to_string_lossy().into_owned()
+        } else {
+            spec.into_owned()
+        };
+        opts.push("-verbose".into());
+        opts.push("-logfile".into());
+        opts.push(path);
+    }
 
     // On Linux, force the X11 backend so VICE doesn't end up on a Wayland renderer
     // (an SDL issue). Never do this elsewhere: on macOS there is no X server by

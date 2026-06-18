@@ -60,10 +60,21 @@ enum Mode {
     Genre,
 }
 
+/// GB64-derived data the kiosk decorates the catalogue with: the classics set, the
+/// joystick-controlled set (for badges), and the named collections.tsv sections.
+struct Curation {
+    classics: HashSet<String>,
+    joystick: HashSet<String>,
+    top_rated: HashSet<String>,
+    collections: Vec<(String, HashSet<String>)>,
+}
+
 struct KioskState {
     all: Vec<Row>,
     groups: Vec<(String, Vec<usize>)>,
     cidx: HashMap<String, String>,
+    joystick: HashSet<String>, // canons GB64 marks as joystick-controlled
+    top_rated: HashSet<String>, // canons GB64 rates 5/5
     runopts: Vec<String>,
     picker: Picker,
 
@@ -108,8 +119,9 @@ impl KioskState {
         runopts: Vec<String>,
         picker: Picker,
         topn: usize,
-        classics: HashSet<String>,
+        curation: Curation,
     ) -> Self {
+        let Curation { classics, joystick, top_rated, collections } = curation;
         let mut groups = tui::group_by_genre(&all);
         // Lead with what people actually grab: order each genre by Internet Archive
         // download count, and order the genre sections by their most-downloaded game.
@@ -131,21 +143,21 @@ impl KioskState {
             _ => 2,
         });
 
-        // Synthetic "classics" section (GB64's curated set), most-downloaded first.
-        if !classics.is_empty() {
+        // Curated sections shown above the genres, top to bottom: latest played,
+        // classics, then the named collections from collections.tsv. Each lists its
+        // catalogue members most-downloaded first; empty ones are skipped.
+        let members = |canons: &HashSet<String>| -> Vec<usize> {
             let mut idxs: Vec<usize> = all
                 .iter()
                 .enumerate()
-                .filter(|(_, r)| classics.contains(&tui::canon_of(r)))
+                .filter(|(_, r)| canons.contains(&tui::canon_of(r)))
                 .map(|(i, _)| i)
                 .collect();
             idxs.sort_by_key(|&i| std::cmp::Reverse(all[i].downloads));
-            if !idxs.is_empty() {
-                groups.insert(0, (CLASSICS_GENRE.to_string(), idxs));
-            }
-        }
+            idxs
+        };
+        let mut front: Vec<(String, Vec<usize>)> = Vec::new();
 
-        // "latest played" synthetic section on top.
         let recent = tui::recent_plays(None);
         if !recent.is_empty() {
             let by_disp: HashMap<&str, usize> =
@@ -155,9 +167,25 @@ impl KioskState {
                 .filter_map(|d| by_disp.get(d.as_str()).copied())
                 .collect();
             if !latest.is_empty() {
-                groups.insert(0, (tui::LATEST_GENRE.to_string(), latest));
+                front.push((tui::LATEST_GENRE.to_string(), latest));
             }
         }
+        if !classics.is_empty() {
+            let idxs = members(&classics);
+            if !idxs.is_empty() {
+                front.push((CLASSICS_GENRE.to_string(), idxs));
+            }
+        }
+        for (name, canons) in &collections {
+            let idxs = members(canons);
+            if !idxs.is_empty() {
+                front.push((name.clone(), idxs));
+            }
+        }
+
+        // curated sections first, then the genre groups
+        front.append(&mut groups);
+        groups = front;
 
         let mut ofocus = Vec::new();
         for (gi, (_, idxs)) in groups.iter().enumerate() {
@@ -171,6 +199,8 @@ impl KioskState {
             all,
             groups,
             cidx,
+            joystick,
+            top_rated,
             runopts,
             picker,
             cover_cache: HashMap::new(),
@@ -204,12 +234,29 @@ impl KioskState {
         c
     }
 
-    fn ensure_proto(&mut self, path: &PathBuf) -> bool {
+    fn ensure_proto(&mut self, path: &PathBuf, joystick: bool, top_rated: bool) -> bool {
         if self.proto_cache.contains_key(path) {
             return true;
         }
         match image::open(path) {
             Ok(img) => {
+                // Paint badges into the bitmap itself so they survive graphics-protocol
+                // rendering (which draws the image over any text cells). Cover paths are
+                // 1:1 with a game, so caching the badged protocol by path is safe. The
+                // joystick badge sits bottom-right and the rating star top-right, so
+                // they never overlap.
+                let img = if joystick || top_rated {
+                    let mut rgba = img.to_rgba8();
+                    if top_rated {
+                        draw_rating_badge(&mut rgba);
+                    }
+                    if joystick {
+                        draw_joystick_badge(&mut rgba);
+                    }
+                    image::DynamicImage::ImageRgba8(rgba)
+                } else {
+                    img
+                };
                 self.proto_cache.insert(path.clone(), self.picker.new_resize_protocol(img));
                 true
             }
@@ -233,8 +280,13 @@ impl KioskState {
         if inner.width == 0 || inner.height == 0 {
             return;
         }
+        // Badges are composited into the cover (see ensure_proto): a joystick in the
+        // lower-right for joystick games, a gold star in the top-right for 5/5 games.
+        let canon = tui::canon_of(&self.all[row_idx]);
+        let joystick = self.joystick.contains(&canon);
+        let top_rated = self.top_rated.contains(&canon);
         match self.cover_path(row_idx) {
-            Some(path) if self.ensure_proto(&path) => {
+            Some(path) if self.ensure_proto(&path, joystick, top_rated) => {
                 if let Some(proto) = self.proto_cache.get_mut(&path) {
                     let widget = StatefulImage::default().resize(Resize::Fit(None));
                     f.render_stateful_widget(widget, inner, proto);
@@ -427,6 +479,179 @@ impl KioskState {
     }
 }
 
+/// Composite a circular joystick badge into the lower-right of a cover bitmap: a
+/// gradient-shaded disc carrying a little C64-style stick — domed base, cylindrical
+/// shaft, fire button, and a glossy red ball top with a highlight. Drawn into the
+/// image so it survives graphics-protocol rendering, which paints the cover over
+/// any terminal text in those cells.
+fn draw_joystick_badge(img: &mut image::RgbaImage) {
+    let (w, h) = img.dimensions();
+    if w < 16 || h < 16 {
+        return;
+    }
+    let r = (w.min(h) as f32) * 0.15;
+    let cx = w as f32 - r * 1.35; // lower-right corner, inset by ~0.35r
+    let cy = h as f32 - r * 1.35;
+
+    let rim = image::Rgba([18u8, 18, 22, 255]);
+    let base_dark = image::Rgba([28u8, 30, 36, 255]);
+    let base_lit = image::Rgba([78u8, 82, 96, 255]);
+    let shaft = image::Rgba([40u8, 42, 50, 255]);
+    let shaft_lit = image::Rgba([120u8, 124, 138, 255]);
+    let ball = image::Rgba([206u8, 38, 34, 255]);
+    let ball_shadow = image::Rgba([138u8, 20, 18, 255]);
+    let gloss = image::Rgba([255u8, 235, 230, 255]);
+    let red = image::Rgba([214u8, 44, 40, 255]);
+
+    // badge disc: dark rim + amber face shaded from a light centre to a deep edge.
+    fill_circle(img, cx, cy, r, rim);
+    fill_disc_gradient(img, cx, cy, r * 0.88, [255, 226, 132], [236, 158, 0]);
+
+    // domed base with a lighter top lip
+    fill_ellipse(img, cx, cy + r * 0.42, r * 0.60, r * 0.26, base_dark);
+    fill_ellipse(img, cx, cy + r * 0.34, r * 0.46, r * 0.12, base_lit);
+    // fire button on the base
+    fill_circle(img, cx + r * 0.30, cy + r * 0.36, r * 0.085, red);
+    fill_circle(img, cx + r * 0.275, cy + r * 0.335, r * 0.03, gloss);
+
+    // shaft (with a soft left highlight for a cylindrical feel)
+    fill_rect(img, cx - r * 0.085, cy - r * 0.30, r * 0.17, r * 0.62, shaft);
+    fill_rect(img, cx - r * 0.085, cy - r * 0.30, r * 0.05, r * 0.62, shaft_lit);
+
+    // glossy red ball top
+    fill_circle(img, cx, cy - r * 0.36, r * 0.27, ball_shadow);
+    fill_circle(img, cx - r * 0.02, cy - r * 0.38, r * 0.24, ball);
+    fill_circle(img, cx - r * 0.09, cy - r * 0.45, r * 0.085, gloss);
+}
+
+fn fill_circle(img: &mut image::RgbaImage, cx: f32, cy: f32, r: f32, c: image::Rgba<u8>) {
+    fill_ellipse(img, cx, cy, r, r, c);
+}
+
+fn fill_ellipse(img: &mut image::RgbaImage, cx: f32, cy: f32, rx: f32, ry: f32, c: image::Rgba<u8>) {
+    if rx <= 0.0 || ry <= 0.0 {
+        return;
+    }
+    let (w, h) = img.dimensions();
+    let x0 = (cx - rx).floor().max(0.0) as u32;
+    let x1 = (cx + rx).ceil().min(w as f32 - 1.0) as u32;
+    let y0 = (cy - ry).floor().max(0.0) as u32;
+    let y1 = (cy + ry).ceil().min(h as f32 - 1.0) as u32;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let dx = (x as f32 + 0.5 - cx) / rx;
+            let dy = (y as f32 + 0.5 - cy) / ry;
+            if dx * dx + dy * dy <= 1.0 {
+                img.put_pixel(x, y, c);
+            }
+        }
+    }
+}
+
+/// Filled disc shaded radially from `inner` (centre) to `outer` (edge).
+fn fill_disc_gradient(img: &mut image::RgbaImage, cx: f32, cy: f32, r: f32, inner: [u8; 3], outer: [u8; 3]) {
+    let (w, h) = img.dimensions();
+    let x0 = (cx - r).floor().max(0.0) as u32;
+    let x1 = (cx + r).ceil().min(w as f32 - 1.0) as u32;
+    let y0 = (cy - r).floor().max(0.0) as u32;
+    let y1 = (cy + r).ceil().min(h as f32 - 1.0) as u32;
+    let lerp = |a: u8, b: u8, t: f32| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let d = (dx * dx + dy * dy).sqrt();
+            if d <= r {
+                let t = d / r;
+                img.put_pixel(
+                    x,
+                    y,
+                    image::Rgba([
+                        lerp(inner[0], outer[0], t),
+                        lerp(inner[1], outer[1], t),
+                        lerp(inner[2], outer[2], t),
+                        255,
+                    ]),
+                );
+            }
+        }
+    }
+}
+
+fn fill_rect(img: &mut image::RgbaImage, x: f32, y: f32, rw: f32, rh: f32, c: image::Rgba<u8>) {
+    let (w, h) = img.dimensions();
+    let x0 = x.max(0.0) as u32;
+    let y0 = y.max(0.0) as u32;
+    let x1 = (x + rw).clamp(0.0, w as f32) as u32;
+    let y1 = (y + rh).clamp(0.0, h as f32) as u32;
+    for yy in y0..y1 {
+        for xx in x0..x1 {
+            img.put_pixel(xx, yy, c);
+        }
+    }
+}
+
+/// Composite a gold five-pointed star into the top-right of a cover bitmap: a
+/// "top rated" badge for GB64's 5/5 games. Top-right keeps it clear of the
+/// joystick badge in the bottom-right.
+fn draw_rating_badge(img: &mut image::RgbaImage) {
+    let (w, h) = img.dimensions();
+    if w < 16 || h < 16 {
+        return;
+    }
+    let r = (w.min(h) as f32) * 0.16; // star outer radius
+    let cx = w as f32 - r * 1.2;
+    let cy = r * 1.2;
+    let ir = 0.42; // inner/outer radius ratio of a crisp 5-point star
+    let outline = image::Rgba([92u8, 60, 0, 255]);
+    let gold = image::Rgba([255u8, 186, 10, 255]);
+    let sheen = image::Rgba([255u8, 232, 150, 255]);
+    fill_star(img, cx, cy, r * 1.15, r * 1.15 * ir, outline);
+    fill_star(img, cx, cy, r, r * ir, gold);
+    fill_star(img, cx, cy - r * 0.06, r * 0.5, r * 0.5 * ir, sheen);
+}
+
+fn fill_star(img: &mut image::RgbaImage, cx: f32, cy: f32, r_out: f32, r_in: f32, c: image::Rgba<u8>) {
+    let mut pts = [(0.0f32, 0.0f32); 10];
+    for (k, p) in pts.iter_mut().enumerate() {
+        let ang = -std::f32::consts::FRAC_PI_2 + k as f32 * std::f32::consts::PI / 5.0;
+        let rr = if k % 2 == 0 { r_out } else { r_in };
+        *p = (cx + rr * ang.cos(), cy + rr * ang.sin());
+    }
+    fill_polygon(img, &pts, c);
+}
+
+/// Scanline-free filled polygon via per-pixel even-odd test over the bounding box.
+fn fill_polygon(img: &mut image::RgbaImage, pts: &[(f32, f32)], c: image::Rgba<u8>) {
+    let (w, h) = img.dimensions();
+    let minx = pts.iter().map(|p| p.0).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
+    let maxx = pts.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max).ceil().min(w as f32 - 1.0) as u32;
+    let miny = pts.iter().map(|p| p.1).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
+    let maxy = pts.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max).ceil().min(h as f32 - 1.0) as u32;
+    for y in miny..=maxy {
+        for x in minx..=maxx {
+            if point_in_poly(x as f32 + 0.5, y as f32 + 0.5, pts) {
+                img.put_pixel(x, y, c);
+            }
+        }
+    }
+}
+
+fn point_in_poly(px: f32, py: f32, pts: &[(f32, f32)]) -> bool {
+    let mut inside = false;
+    let n = pts.len();
+    let mut j = n - 1;
+    for i in 0..n {
+        let (xi, yi) = pts[i];
+        let (xj, yj) = pts[j];
+        if (yi > py) != (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
 /// Centered one-line banner (used while a game loads).
 fn banner(term: &mut Terminal<CrosstermBackend<std::io::Stdout>>, msg: &str) -> std::io::Result<()> {
     term.draw(|f| {
@@ -588,14 +813,20 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         return ExitCode::from(1);
     }
     let cidx = crate::cover::load_index();
-    let classics = tui::classic_canons(); // GB64 curated set (may download the DB)
+    // GB64-derived decoration (may download the DB on first use).
+    let curation = Curation {
+        classics: tui::classic_canons(),
+        joystick: tui::joystick_canons(),
+        top_rated: tui::top_rated_canons(),
+        collections: tui::collections(),
+    };
     let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
 
     // covers per genre row: as many as fit across the width at the target width.
     let cols0 = crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80);
     let topn = (cols0 / TARGET_CW).max(1) as usize;
 
-    let mut state = KioskState::new(rows, cidx, runopts, picker, topn, classics);
+    let mut state = KioskState::new(rows, cidx, runopts, picker, topn, curation);
 
     match run_loop(&mut state) {
         Ok(()) => ExitCode::SUCCESS,
