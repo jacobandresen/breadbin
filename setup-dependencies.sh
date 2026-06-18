@@ -44,6 +44,58 @@ install_nerd_font() {
     rm -rf "$tmp"
 }
 
+# Ubuntu/Debian's `vice` package ships the emulator but not the copyrighted
+# Commodore ROMs. Crucially it omits the 1541 disk-drive ROM, so breadbin's
+# default True Drive Emulation can't bring up disk device 8 and every
+# LOAD"*",8,1 fails with `?DEVICE NOT PRESENT ERROR`. Fetch the ROMs (which the
+# VICE project is itself licensed to redistribute) into VICE's own data dir so
+# games just load. As a last resort, `C64_VIRTUAL_DRIVE=1 breadbin play ...`
+# serves disks through the host filesystem instead, needing no drive ROM.
+install_vice_roms() {
+    local raw datadir tmp
+    raw="https://raw.githubusercontent.com/VICE-Team/svn-mirror/main/vice/data"
+
+    # Find the data dir VICE actually searches: derive it from the installed
+    # package (its palette files live alongside the ROMs), else probe the usual
+    # locations.
+    datadir="$(dpkg -L vice 2>/dev/null | grep -m1 '/C64/.*\.vpl$')"
+    datadir="${datadir%/C64/*}"
+    if [ -z "$datadir" ]; then
+        for d in /usr/lib/vice /usr/share/vice /usr/local/lib/vice /usr/local/share/vice; do
+            [ -d "$d" ] && { datadir="$d"; break; }
+        done
+    fi
+    [ -n "$datadir" ] || datadir="/usr/lib/vice"
+
+    if ls "$datadir"/DRIVES/dos1541* >/dev/null 2>&1; then
+        log "VICE drive ROM already present in $datadir; skipping ROM fetch."
+        return
+    fi
+
+    log "Fetching Commodore ROMs into $datadir (VICE package omits them)..."
+    sudo mkdir -p "$datadir/C64" "$datadir/DRIVES"
+
+    # Install each ROM under both its upstream part-number name (what current
+    # VICE expects) and the legacy plain name (older builds), so whichever the
+    # installed VICE asks for is found.  <subdir> <upstream-file> <legacy-name>
+    _fetch_rom() {
+        tmp="$(mktemp)"
+        if curl -fL "$raw/$1/$2" -o "$tmp"; then
+            sudo install -m 644 "$tmp" "$datadir/$1/$2"
+            sudo install -m 644 "$tmp" "$datadir/$1/$3"
+        else
+            warn "Could not download $1/$2 from the VICE mirror."
+        fi
+        rm -f "$tmp"
+    }
+
+    _fetch_rom C64    basic-901226-01.bin               basic
+    _fetch_rom C64    chargen-901225-01.bin             chargen
+    _fetch_rom C64    kernal-901227-03.bin              kernal
+    _fetch_rom DRIVES dos1541-325302-01+901229-05.bin   dos1541
+    _fetch_rom DRIVES dos1541ii-251968-03.bin           dos1541II
+}
+
 install_macos() {
     have brew || die "Homebrew is required. Install it from https://brew.sh and re-run."
 
@@ -85,7 +137,8 @@ install_ubuntu() {
     sudo apt-get install -y cargo
 
     log "Installing VICE..."
-    sudo apt-get install -y vice
+    sudo apt-get install -y vice curl
+    install_vice_roms
 
     log "Installing fonts for the TUI's box-drawing and symbol glyphs..."
     # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠/⏎/↵ and U+2B07 (⬇).
