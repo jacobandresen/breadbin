@@ -42,6 +42,11 @@ install_arch() {
 
     log "Refreshing package databases and installing Rust, VICE and WezTerm..."
     sudo pacman -Syu --needed --noconfirm rust vice wezterm
+
+    log "Installing fonts for the TUI's box-drawing and symbol glyphs..."
+    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠ and U+2B07 (⬇).
+    # DejaVu covers most; Noto Sans Symbols 2 (in noto-fonts) provides ⬇.
+    sudo pacman -S --needed --noconfirm ttf-dejavu noto-fonts
 }
 
 install_ubuntu() {
@@ -57,6 +62,13 @@ install_ubuntu() {
 
     log "Installing VICE..."
     sudo apt-get install -y vice
+
+    log "Installing fonts for the TUI's box-drawing and symbol glyphs..."
+    # breadbin's TUI draws arrows, triangles, blocks, ★/♪/⚠ and U+2B07 (⬇).
+    # DejaVu/Noto cover most glyphs; fonts-symbola is the catch-all that
+    # guarantees U+2B07 (⬇), which stock Ubuntu fonts are missing.
+    sudo apt-get install -y fonts-dejavu-core fonts-noto-core fonts-noto-mono fonts-symbola
+    fc-cache -f || true
 
     log "Installing WezTerm..."
     # WezTerm is not in the default Ubuntu repositories, so use the
@@ -118,4 +130,4 @@ detect_and_install() {
 }
 
 detect_and_install
-log "Done. Rust, VICE and WezTerm are installed."
+log "Done. Rust, VICE, WezTerm and TUI fonts are installed."
