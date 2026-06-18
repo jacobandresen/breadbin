@@ -9,13 +9,15 @@
 // driven by the live SID voices dances in time with the music.
 //
 //   · arrows move, Enter plays the focused tune, esc backs out / quits, q quits
-//   · while playing: space pauses, n next tune, esc/left back to the list
+//   · while playing: space pauses, n next tune, v cycles visuals, esc/left back
+//   · r starts "radio": random tunes with random visuals, looping forever
+//     (n skips to the next random tune; r or esc leaves radio)
 //
 // Scene data is cached on disk under the breadbin data dir (tunes_index.tsv +
 // sids/), so after the first build it works offline. Re-fetch with
 // `breadbin tunes --refresh`.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -53,6 +55,7 @@ c64tunes - play the best C64 SID music of the demoscene, grouped by party.
 
 Usage:
   c64tunes                 open the tune jukebox
+  c64tunes --radio         launch straight into radio: random tunes + visuals, looping
   c64tunes --refresh       re-fetch the ranked tune list from CSDb
   c64tunes --limit N       how many top tunes to scan when building (default 600)
 
@@ -74,16 +77,8 @@ const MIN_PER_PARTY: usize = 2;
 const TOP_PER_PARTY: usize = 30;
 
 // ---- C64 / demoscene palette (Pepto colours) -------------------------------
-const SCREEN: Color = Color::Rgb(0x40, 0x31, 0x8D);
-const LIGHTBLUE: Color = Color::Rgb(0x70, 0x6D, 0xEB);
-const WHITE: Color = Color::Rgb(0xFF, 0xFF, 0xFF);
-const YELLOW: Color = Color::Rgb(0xED, 0xF1, 0x71);
-const CYAN: Color = Color::Rgb(0x75, 0xCE, 0xC8);
-const GREEN: Color = Color::Rgb(0x56, 0xAC, 0x4D);
-const RED: Color = Color::Rgb(0x88, 0x39, 0x32);
-const PURPLE: Color = Color::Rgb(0x8E, 0x3C, 0x97);
-/// Raster-bar accent colours cycled across composer title bars / visuals.
-const BARS: &[Color] = &[RED, Color::Rgb(0x8E, 0x50, 0x29), YELLOW, GREEN, CYAN, LIGHTBLUE, PURPLE];
+// Shared across breadbin's UIs; see core::palette.
+use crate::core::palette::{BARS, CYAN, GREEN, LIGHTBLUE, ORANGE, RED, SCREEN, WHITE, YELLOW};
 
 /// One ranked tune from CSDb.
 #[derive(Clone)]
@@ -516,6 +511,70 @@ enum Row {
     Tune(usize, usize), // (group index, slot within group)
 }
 
+/// Which visualiser the player screen is showing. Cycle with `v`.
+#[derive(Clone, Copy, PartialEq)]
+enum VisMode {
+    Scope,
+    Fireball,
+    Cubes,
+}
+
+impl VisMode {
+    fn next(self) -> VisMode {
+        match self {
+            VisMode::Scope => VisMode::Fireball,
+            VisMode::Fireball => VisMode::Cubes,
+            VisMode::Cubes => VisMode::Scope,
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            VisMode::Scope => "scope",
+            VisMode::Fireball => "fireball",
+            VisMode::Cubes => "cubes",
+        }
+    }
+    /// Pick a visualiser at random (used by radio mode).
+    fn random(rng: &mut Rng) -> VisMode {
+        match rng.below(3) {
+            0 => VisMode::Scope,
+            1 => VisMode::Fireball,
+            _ => VisMode::Cubes,
+        }
+    }
+}
+
+/// Tiny xorshift64 RNG - the crate tree has no `rand`, and radio mode only needs
+/// cheap, unbiased-enough picks for which tune and visual to show next.
+struct Rng(u64);
+
+impl Rng {
+    fn new() -> Rng {
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0x9e3779b97f4a7c15);
+        Rng(seed | 1) // never seed with 0 (xorshift would stick there)
+    }
+    fn next_u64(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+    /// A value in 0..n (n must be > 0).
+    fn below(&mut self, n: usize) -> usize {
+        (self.next_u64() % n as u64) as usize
+    }
+}
+
+/// How long radio lingers on one tune (in seconds of playback) before it picks
+/// a fresh random tune and visual. SID tunes generally loop forever, so radio
+/// advances on a timer rather than waiting for an end that never comes.
+const RADIO_SECS: u64 = 90;
+
 struct TunesState {
     all: Vec<Tune>,
     groups: Vec<(String, Vec<usize>)>,
@@ -526,7 +585,11 @@ struct TunesState {
 
     audio: Option<Audio>,
     now: Option<usize>, // index into `all` of the playing tune
+    mode: VisMode,
     status: String,
+
+    radio: bool, // auto-advancing "radio" mode: random tunes + random visuals
+    rng: Rng,
 }
 
 impl TunesState {
@@ -548,7 +611,10 @@ impl TunesState {
             rects: Vec::new(),
             audio: None,
             now: None,
+            mode: VisMode::Scope,
             status: String::new(),
+            radio: false,
+            rng: Rng::new(),
         }
     }
 
@@ -595,6 +661,44 @@ impl TunesState {
         }
     }
 
+    /// Move the browser selection onto the row showing tune `idx`, if it has one
+    /// (a randomly picked tune may fall outside the truncated party lists).
+    fn select_tune(&mut self, idx: usize) {
+        if let Some(p) = self
+            .rows
+            .iter()
+            .position(|r| matches!(r, Row::Tune(gi, j) if self.groups[*gi].1[*j] == idx))
+        {
+            self.sel = p;
+        }
+    }
+
+    /// Radio: pick a random tune and a random visual and play it. Tries a few
+    /// tunes so a single bad download doesn't stall the stream; if nothing plays
+    /// it drops out of radio with a message.
+    fn radio_next(&mut self) {
+        self.mode = VisMode::random(&mut self.rng);
+        for _ in 0..12 {
+            let idx = self.rng.below(self.all.len());
+            self.play(idx);
+            if self.now.is_some() {
+                self.select_tune(idx);
+                return;
+            }
+        }
+        self.radio = false;
+        self.status = "Radio: could not find a playable tune".to_string();
+    }
+
+    /// True once the current radio tune has played long enough to move on (or if
+    /// playback has stopped), so the event loop should pick the next one.
+    fn radio_should_advance(&self) -> bool {
+        match self.audio.as_ref() {
+            Some(a) => a.snapshot().frame / 50 >= RADIO_SECS,
+            None => true,
+        }
+    }
+
     fn visible_rows(&self, area: Rect) -> usize {
         area.height.saturating_sub(2) as usize
     }
@@ -625,7 +729,7 @@ impl TunesState {
             ),
             Span::styled(
                 format!(
-                    "   top C64 SID music by party · {} parties · Enter to play · q quit",
+                    "   top C64 SID music by party · {} parties · Enter to play · r radio · q quit",
                     self.groups.len()
                 ),
                 Style::default().fg(LIGHTBLUE),
@@ -705,14 +809,16 @@ impl TunesState {
         let secs = vis.frame / 50;
         let by = if t.composer.is_empty() { t.group.as_str() } else { t.composer.as_str() };
         let title = format!(
-            "  \u{266a} {}   by {}   ({} '{:02})   {:02}:{:02}{}",
+            "  {} {}   by {}   ({} '{:02})   {:02}:{:02}   [{}]{}",
+            if self.radio { "\u{1f4fb}" } else { "\u{266a}" },
             t.name,
             by,
             t.group,
             t.year % 100,
             secs / 60,
             secs % 60,
-            if paused { "   [PAUSED]" } else { "" },
+            self.mode.label(),
+            if paused { "   [PAUSED]" } else if self.radio { "   [RADIO]" } else { "" },
         );
         f.render_widget(
             Paragraph::new(Line::from(title)).style(Style::default().fg(WHITE).bg(bg).add_modifier(Modifier::BOLD)),
@@ -724,7 +830,12 @@ impl TunesState {
         let voices_h = 4u16;
         let body_h = area.height.saturating_sub(body_y + voices_h + 1);
         if body_h >= 3 {
-            self.draw_scope(f, Rect::new(1, body_y, area.width.saturating_sub(2), body_h), &scope, phase);
+            let body = Rect::new(1, body_y, area.width.saturating_sub(2), body_h);
+            match self.mode {
+                VisMode::Scope => self.draw_scope(f, body, &scope, phase),
+                VisMode::Fireball => self.draw_fireball(f, body, &vis, &scope),
+                VisMode::Cubes => self.draw_cubes(f, body, &vis, &scope),
+            }
         }
         self.draw_voices(
             f,
@@ -733,7 +844,7 @@ impl TunesState {
         );
 
         let help = Paragraph::new(Span::styled(
-            "space pause · n next · \u{2190}/esc back to list · q quit",
+            "space pause · n next · v visual · r radio · \u{2190}/esc back to list · q quit",
             Style::default().fg(LIGHTBLUE),
         ))
         .alignment(Alignment::Center);
@@ -745,6 +856,7 @@ impl TunesState {
         let col = BARS[(phase / 3) % BARS.len()];
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_set(crate::core::PETSCII_BORDER)
             .border_style(Style::default().fg(LIGHTBLUE))
             .title(Span::styled(" oscilloscope ", Style::default().fg(CYAN)));
         let inner = block.inner(area);
@@ -809,6 +921,200 @@ impl TunesState {
             );
         }
     }
+
+    /// A pulsing fireball: a turbulent radial flame whose size breathes with the
+    /// master volume and whose edge flickers with the live audio energy. Cells
+    /// are coloured along a black→red→orange→yellow→white heat ramp.
+    fn draw_fireball(&self, f: &mut Frame, area: Rect, vis: &Vis, scope: &[i16]) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_set(crate::core::PETSCII_BORDER)
+            .border_style(Style::default().fg(RED))
+            .title(Span::styled(" fireball ", Style::default().fg(ORANGE)));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        if inner.width < 4 || inner.height < 3 {
+            return;
+        }
+        // Square the aspect: terminal cells are ~twice as tall as wide.
+        let asp = inner.width as f64 / (inner.height as f64 * 2.0);
+        let t = vis.frame as f64 * 0.05;
+        let energy = scope_energy(scope) as f64;
+        let vol = vis.volume() as f64 / 15.0;
+        // Ball radius breathes with volume + a slow idle pulse.
+        let pulse = 0.42 + 0.16 * energy + 0.18 * vol + 0.05 * (t * 0.7).sin();
+
+        // Sample at the braille sub-cell resolution, capped for big terminals.
+        let nx = ((inner.width as usize) * 2).min(180);
+        let ny = ((inner.height as usize) * 4).min(140);
+        const NB: usize = 14; // heat buckets (one Points draw each)
+        let mut buckets: BTreeMap<usize, Vec<(f64, f64)>> = BTreeMap::new();
+        for iy in 0..ny {
+            let y = -1.0 + 2.0 * iy as f64 / ny as f64;
+            for ix in 0..nx {
+                let x = -asp + 2.0 * asp * ix as f64 / nx as f64;
+                let r = (x * x + y * y).sqrt();
+                let ang = y.atan2(x);
+                // Layered sine turbulence licks the flame's edge.
+                let turb = 0.16 * (ang * 5.0 + t * 1.3).sin() * (r * 7.0 - t * 1.7).sin()
+                    + 0.10 * (ang * 3.0 - t * 0.9).sin()
+                    + 0.06 * (ang * 9.0 + t * 2.1).sin();
+                let edge = pulse + turb * (0.5 + energy);
+                let mut heat = (edge - r) / edge.max(0.05);
+                if heat <= 0.0 {
+                    continue;
+                }
+                heat = (heat * (0.85 + 0.35 * vol)).powf(0.8);
+                let key = (heat.clamp(0.0, 1.0) * (NB as f64 - 1.0)).round() as usize;
+                buckets.entry(key).or_default().push((x, y));
+            }
+        }
+
+        let canvas = Canvas::default()
+            .x_bounds([-asp, asp])
+            .y_bounds([-1.0, 1.0])
+            .marker(ratatui::symbols::Marker::Braille)
+            .paint(move |ctx| {
+                // Ascending key => brighter cells drawn last, on top.
+                for (k, pts) in &buckets {
+                    let col = heat_color((*k as f32 + 0.5) / NB as f32);
+                    ctx.draw(&Points { coords: pts, color: col });
+                }
+            });
+        f.render_widget(canvas, inner);
+    }
+
+    /// "Marching cubes": a grid of small wireframe cubes laid on a plane, their
+    /// heights riding a travelling wave that marches outward and swells with the
+    /// audio, the whole scene slowly tumbling in 3D. Colour tracks height.
+    fn draw_cubes(&self, f: &mut Frame, area: Rect, vis: &Vis, scope: &[i16]) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_set(crate::core::PETSCII_BORDER)
+            .border_style(Style::default().fg(LIGHTBLUE))
+            .title(Span::styled(" marching cubes ", Style::default().fg(CYAN)));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+        if inner.width < 4 || inner.height < 3 {
+            return;
+        }
+        let asp = inner.width as f64 / (inner.height as f64 * 2.0);
+        let t = vis.frame as f64;
+        let energy = scope_energy(scope) as f64;
+
+        // Global tumble; the tilt wobbles gently so the field reads as 3D.
+        let ay = t * 0.012;
+        let ax = 0.55 + 0.12 * (t * 0.02).sin();
+
+        // Unit cube corners and its 12 edges.
+        const V: [[f64; 3]; 8] = [
+            [-1.0, -1.0, -1.0], [1.0, -1.0, -1.0], [1.0, 1.0, -1.0], [-1.0, 1.0, -1.0],
+            [-1.0, -1.0, 1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0], [-1.0, 1.0, 1.0],
+        ];
+        const E: [(usize, usize); 12] = [
+            (0, 1), (1, 2), (2, 3), (3, 0), // back face
+            (4, 5), (5, 6), (6, 7), (7, 4), // front face
+            (0, 4), (1, 5), (2, 6), (3, 7), // connectors
+        ];
+        const GRID: usize = 5;
+        const HALF: f64 = 0.12; // cube half-size
+        const SCALE: f64 = 0.55; // fit the projected scene into the bounds
+
+        let mut buckets: BTreeMap<usize, Vec<(f64, f64)>> = BTreeMap::new();
+        for gz in 0..GRID {
+            for gx in 0..GRID {
+                let fx = (gx as f64 / (GRID - 1) as f64 - 0.5) * 1.7;
+                let fz = (gz as f64 / (GRID - 1) as f64 - 0.5) * 1.7;
+                let dist = (fx * fx + fz * fz).sqrt();
+                // The marching wave: a ripple travelling out from the centre.
+                let wave = 0.5 + 0.5 * (dist * 4.0 - t * 0.08).sin();
+                let h = wave * (0.45 + 0.9 * energy);
+                let center = [fx, h - 0.3, fz];
+
+                let mut proj = [(0.0f64, 0.0f64); 8];
+                for (k, v) in V.iter().enumerate() {
+                    let p = [
+                        center[0] + v[0] * HALF,
+                        center[1] + v[1] * HALF,
+                        center[2] + v[2] * HALF,
+                    ];
+                    let (sx, sy) = project(rot3(p, ax, ay));
+                    proj[k] = (sx * SCALE, sy * SCALE);
+                }
+
+                let key = (wave * 6.0).round() as usize;
+                let entry = buckets.entry(key).or_default();
+                for &(a, b) in E.iter() {
+                    let (x0, y0) = proj[a];
+                    let (x1, y1) = proj[b];
+                    let steps = 14;
+                    for s in 0..=steps {
+                        let tt = s as f64 / steps as f64;
+                        entry.push((x0 + (x1 - x0) * tt, y0 + (y1 - y0) * tt));
+                    }
+                }
+            }
+        }
+
+        let canvas = Canvas::default()
+            .x_bounds([-asp, asp])
+            .y_bounds([-1.0, 1.0])
+            .marker(ratatui::symbols::Marker::Braille)
+            .paint(move |ctx| {
+                for (k, pts) in &buckets {
+                    let col = BARS[k % BARS.len()];
+                    ctx.draw(&Points { coords: pts, color: col });
+                }
+            });
+        f.render_widget(canvas, inner);
+    }
+}
+
+/// Peak amplitude of the live scope buffer as a 0.0..1.0 energy level.
+fn scope_energy(scope: &[i16]) -> f32 {
+    let peak = scope.iter().map(|&s| (s as f32).abs()).fold(0.0, f32::max);
+    (peak / 32768.0).clamp(0.0, 1.0)
+}
+
+/// Rotate a 3D point around the Y axis then the X axis.
+fn rot3(p: [f64; 3], ax: f64, ay: f64) -> [f64; 3] {
+    let (sy, cy) = ay.sin_cos();
+    let (x, z) = (p[0] * cy + p[2] * sy, -p[0] * sy + p[2] * cy);
+    let (sx, cx) = ax.sin_cos();
+    let (y, z2) = (p[1] * cx - z * sx, p[1] * sx + z * cx);
+    [x, y, z2]
+}
+
+/// Perspective-project a rotated 3D point to 2D screen coordinates.
+fn project(p: [f64; 3]) -> (f64, f64) {
+    const FOCAL: f64 = 3.5;
+    let f = FOCAL / (FOCAL - p[2]);
+    (p[0] * f, p[1] * f)
+}
+
+/// Map a 0..1 heat value to a fire-gradient colour
+/// (ember → red → orange → yellow → white).
+fn heat_color(i: f32) -> Color {
+    const STOPS: [(f32, [f32; 3]); 5] = [
+        (0.0, [24.0, 0.0, 36.0]),      // dark ember
+        (0.35, [0x88 as f32, 0x39 as f32, 0x32 as f32]), // RED
+        (0.6, [0x8E as f32, 0x50 as f32, 0x29 as f32]),  // ORANGE
+        (0.82, [0xED as f32, 0xF1 as f32, 0x71 as f32]), // YELLOW
+        (1.0, [255.0, 255.0, 255.0]),  // WHITE
+    ];
+    let i = i.clamp(0.0, 1.0);
+    let (mut a, mut b) = (STOPS[0], STOPS[STOPS.len() - 1]);
+    for w in STOPS.windows(2) {
+        if i >= w[0].0 && i <= w[1].0 {
+            a = w[0];
+            b = w[1];
+            break;
+        }
+    }
+    let span = (b.0 - a.0).max(1e-6);
+    let tt = (i - a.0) / span;
+    let c = |k: usize| (a.1[k] + (b.1[k] - a.1[k]) * tt) as u8;
+    Color::Rgb(c(0), c(1), c(2))
 }
 
 fn wave_color(wave: u8) -> Color {
@@ -872,6 +1178,10 @@ fn handle_browse_key(state: &mut TunesState, code: KeyCode) -> u8 {
                 state.play(idx);
             }
         }
+        KeyCode::Char('r') => {
+            state.radio = true;
+            state.radio_next();
+        }
         _ => {}
     }
     0
@@ -886,7 +1196,20 @@ fn handle_player_key(state: &mut TunesState, code: KeyCode) -> u8 {
                 a.toggle_pause();
             }
         }
-        KeyCode::Char('n') => state.play_next(),
+        KeyCode::Char('n') => {
+            if state.radio {
+                state.radio_next();
+            } else {
+                state.play_next();
+            }
+        }
+        KeyCode::Char('r') => {
+            state.radio = !state.radio;
+            if state.radio {
+                state.radio_next();
+            }
+        }
+        KeyCode::Char('v') | KeyCode::Tab | KeyCode::Right => state.mode = state.mode.next(),
         _ => {}
     }
     0
@@ -918,6 +1241,12 @@ fn event_loop(state: &mut TunesState, term: &mut Terminal<CrosstermBackend<std::
             term.draw(|f| state.render_browse(f))?;
         }
 
+        // Radio auto-advances to a fresh random tune + visual once the current
+        // one has played long enough (or stopped).
+        if state.radio && state.radio_should_advance() {
+            state.radio_next();
+        }
+
         // Poll so the visualiser keeps animating even without input.
         if !event::poll(Duration::from_millis(33))? {
             continue;
@@ -934,6 +1263,7 @@ fn event_loop(state: &mut TunesState, term: &mut Terminal<CrosstermBackend<std::
                     BACK => {
                         state.audio = None;
                         state.now = None;
+                        state.radio = false;
                     }
                     _ => {}
                 }
@@ -948,7 +1278,7 @@ fn event_loop(state: &mut TunesState, term: &mut Terminal<CrosstermBackend<std::
     }
 }
 
-fn run_loop(all: Vec<Tune>) -> std::io::Result<()> {
+fn run_loop(all: Vec<Tune>, start_radio: bool) -> std::io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -957,6 +1287,10 @@ fn run_loop(all: Vec<Tune>) -> std::io::Result<()> {
     term.hide_cursor()?;
 
     let mut state = TunesState::new(all);
+    if start_radio {
+        state.radio = true;
+        state.radio_next();
+    }
     let result = event_loop(&mut state, &mut term);
     drop(state.audio.take()); // stop audio before leaving raw mode
 
@@ -1006,11 +1340,13 @@ pub fn main(argv: Vec<String>) -> ExitCode {
     }
 
     let mut refresh = false;
+    let mut radio = false;
     let mut limit = DEFAULT_LIMIT;
     let mut i = 0;
     while i < argv.len() {
         match argv[i].as_str() {
             "--refresh" => refresh = true,
+            "--radio" => radio = true,
             "--limit" => {
                 i += 1;
                 limit = argv.get(i).and_then(|s| s.parse().ok()).unwrap_or(DEFAULT_LIMIT);
@@ -1052,7 +1388,7 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    match run_loop(all) {
+    match run_loop(all, radio) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("c64tunes: terminal error: {e}");

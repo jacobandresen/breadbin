@@ -30,7 +30,7 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame, Terminal,
@@ -79,21 +79,8 @@ const OV_SECTION: u16 = 16; // overview rows per party section
 const TITLE_H: u16 = 3; // clickable party bar height
 
 // ---- C64 / demoscene palette (Pepto colours) -------------------------------
-const SCREEN: Color = Color::Rgb(0x40, 0x31, 0x8D); // classic screen blue (bg)
-const LIGHTBLUE: Color = Color::Rgb(0x70, 0x6D, 0xEB); // light blue text/border
-const WHITE: Color = Color::Rgb(0xFF, 0xFF, 0xFF);
-const YELLOW: Color = Color::Rgb(0xED, 0xF1, 0x71);
-const CYAN: Color = Color::Rgb(0x75, 0xCE, 0xC8);
-/// Raster-bar accent colours cycled across party title bars.
-const BARS: &[Color] = &[
-    Color::Rgb(0x88, 0x39, 0x32), // red
-    Color::Rgb(0x8E, 0x50, 0x29), // orange
-    Color::Rgb(0xED, 0xF1, 0x71), // yellow
-    Color::Rgb(0x56, 0xAC, 0x4D), // green
-    Color::Rgb(0x75, 0xCE, 0xC8), // cyan
-    Color::Rgb(0x70, 0x6D, 0xEB), // light blue
-    Color::Rgb(0x8E, 0x3C, 0x97), // purple
-];
+// Shared across breadbin's UIs; see core::palette.
+use crate::core::palette::{BARS, CYAN, LIGHTBLUE, RED, SCREEN, WHITE, YELLOW};
 
 /// One ranked demo from CSDb.
 #[derive(Clone)]
@@ -610,6 +597,7 @@ impl DemoState {
         let border_col = if focused { YELLOW } else { LIGHTBLUE };
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_set(crate::core::PETSCII_BORDER)
             .border_style(
                 Style::default()
                     .fg(border_col)
@@ -980,7 +968,8 @@ fn error_dialog(
         let rect = Rect::new(x, y, w, h);
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(0x88, 0x39, 0x32)).add_modifier(Modifier::BOLD))
+            .border_set(crate::core::PETSCII_BORDER)
+            .border_style(Style::default().fg(RED).add_modifier(Modifier::BOLD))
             .title(Line::from(format!(" {title} ")));
         let mut body = vec![Line::from("")];
         body.extend(detail.lines().map(|l| Line::from(l.to_string())));

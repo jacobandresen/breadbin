@@ -9,6 +9,43 @@ use regex::{Captures, Regex};
 
 const UA: &str = "breadbin/1.0";
 
+/// The Commodore 64 colour palette (Pepto values), shared across breadbin's
+/// terminal UIs so the kiosk, menu, tunes jukebox and demo browser all render in
+/// the same authentic hues. These are the RGBs the C64's VIC-II produces; the
+/// default text-mode look is [`palette::LIGHTBLUE`] text on a [`palette::SCREEN`]
+/// background.
+pub mod palette {
+    use ratatui::style::Color;
+
+    /// Dark "screen" blue — the C64's default background colour.
+    pub const SCREEN: Color = Color::Rgb(0x40, 0x31, 0x8D);
+    /// Light blue — the default text/border colour.
+    pub const LIGHTBLUE: Color = Color::Rgb(0x70, 0x6D, 0xEB);
+    pub const WHITE: Color = Color::Rgb(0xFF, 0xFF, 0xFF);
+    pub const RED: Color = Color::Rgb(0x88, 0x39, 0x32);
+    pub const ORANGE: Color = Color::Rgb(0x8E, 0x50, 0x29);
+    pub const YELLOW: Color = Color::Rgb(0xED, 0xF1, 0x71);
+    pub const GREEN: Color = Color::Rgb(0x56, 0xAC, 0x4D);
+    pub const LIGHTGREEN: Color = Color::Rgb(0x9F, 0xD8, 0x6B);
+    pub const CYAN: Color = Color::Rgb(0x75, 0xCE, 0xC8);
+    pub const PURPLE: Color = Color::Rgb(0x8E, 0x3C, 0x97);
+
+    /// Raster-bar accent colours, cycled across title bars and visualisers.
+    pub const BARS: &[Color] = &[RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, PURPLE];
+
+    /// A stable raster-bar colour for a label (genre, party, …) so each header
+    /// keeps the same C64 colour-bar chip from one redraw to the next.
+    pub fn bar_for(key: &str) -> Color {
+        let h = key.bytes().fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
+        BARS[h as usize % BARS.len()]
+    }
+}
+
+/// PETSCII-style window chrome: thin lines with rounded corners, echoing the
+/// C64's keyboard line-drawing graphics. Shared by every framed box so the
+/// kiosk, tunes jukebox and demo browser wear one consistent retro frame.
+pub const PETSCII_BORDER: ratatui::symbols::border::Set = ratatui::symbols::border::ROUNDED;
+
 /// Directory holding breadbin's data files (c64_index.tsv, gb64.sqlitedb,
 /// covers/, …). A published, standalone binary owns this directory: on first run
 /// it downloads/builds every file it needs here, so no repo or bundled assets are

@@ -23,8 +23,8 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Rect},
-    style::{Color, Modifier, Style},
-    text::Line,
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame, Terminal,
 };
@@ -34,6 +34,7 @@ use ratatui_image::{
     Resize, StatefulImage,
 };
 
+use crate::core::palette::{LIGHTGREEN, RED, SCREEN, WHITE, YELLOW};
 use crate::tui::{self, Row};
 
 const HELP: &str = "\
@@ -277,7 +278,8 @@ impl KioskState {
         if focused {
             let block = Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::LightYellow).add_modifier(Modifier::BOLD));
+                .border_set(crate::core::PETSCII_BORDER)
+                .border_style(Style::default().fg(YELLOW).add_modifier(Modifier::BOLD));
             f.render_widget(block, area);
         }
         let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
@@ -307,15 +309,17 @@ impl KioskState {
     }
 
     fn title_bar(&self, f: &mut Frame, area: Rect, genre: &str, count: usize, focused: bool, hint: &str) {
-        let mut style = Style::default().fg(Color::White).bg(Color::Blue).add_modifier(Modifier::BOLD);
+        let mut style = Style::default().fg(WHITE).bg(SCREEN).add_modifier(Modifier::BOLD);
         if focused {
             style = style.add_modifier(Modifier::REVERSED);
         }
-        let txt = format!("  {} ({count})   {hint}", spaced_upper(genre));
+        let txt = format!(" {} ({count})   {hint}", spaced_upper(genre));
+        // A PETSCII colour-bar chip, keyed to the genre, leads the header.
+        let chip = Span::styled("██", Style::default().fg(crate::core::palette::bar_for(genre)));
         // Center the label vertically in the (TITLE_H-row) bar so it reads as a
         // fuller, more prominent header rather than a thin top strip.
         let mut lines = vec![Line::from("")];
-        lines.push(Line::from(txt));
+        lines.push(Line::from(vec![chip, Span::raw(txt)]));
         lines.push(Line::from(""));
         let para = Paragraph::new(lines).style(style);
         f.render_widget(para, area);
@@ -451,7 +455,7 @@ impl KioskState {
             spaced_upper(&self.groups[self.genre].0)
         );
         let para = Paragraph::new(Line::from(title))
-            .style(Style::default().fg(Color::White).bg(Color::Blue).add_modifier(Modifier::BOLD));
+            .style(Style::default().fg(WHITE).bg(SCREEN).add_modifier(Modifier::BOLD));
         f.render_widget(para, bar);
 
         self.grid_rects.clear();
@@ -656,17 +660,6 @@ fn point_in_poly(px: f32, py: f32, pts: &[(f32, f32)]) -> bool {
     inside
 }
 
-/// Centered one-line banner (used while a game loads).
-fn banner(term: &mut Terminal<CrosstermBackend<std::io::Stdout>>, msg: &str) -> std::io::Result<()> {
-    term.draw(|f| {
-        let area = f.area();
-        let y = area.height / 2;
-        let para = Paragraph::new(msg).alignment(Alignment::Center);
-        f.render_widget(para, Rect::new(0, y, area.width, 1));
-    })?;
-    Ok(())
-}
-
 /// Draw a centered modal error dialog over the current screen and block until the
 /// user presses a key (or clicks). Used when a game fails to launch so the reason
 /// (e.g. "no VICE found", "?DEVICE NOT PRESENT") is shown instead of silently
@@ -695,7 +688,8 @@ fn error_dialog(
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+            .border_set(crate::core::PETSCII_BORDER)
+            .border_style(Style::default().fg(RED).add_modifier(Modifier::BOLD))
             .title(Line::from(format!(" {title} ")));
 
         let mut body = vec![Line::from("")];
@@ -746,7 +740,8 @@ fn controls_dialog(
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD))
+            .border_set(crate::core::PETSCII_BORDER)
+            .border_style(Style::default().fg(LIGHTGREEN).add_modifier(Modifier::BOLD))
             .title(Line::from(format!(" Controls — {game} ")));
 
         let mut body = vec![Line::from("")];
@@ -863,6 +858,7 @@ fn run_loop(
     .unwrap_or_else(|_| Picker::halfblocks());
     let mut state = KioskState::new(rows, cidx, runopts, picker, topn, curation);
 
+    crate::boot::boot_screen(&mut term);
     let result = event_loop(&mut state, &mut term);
 
     disable_raw_mode()?;
@@ -909,8 +905,11 @@ fn launch(
     row_idx: usize,
 ) -> std::io::Result<()> {
     let row = state.all[row_idx].clone();
-    banner(term, &format!("Loading  {} ...", row.title))?;
-    match tui::resolve(&row, true) {
+    let resolved = crate::boot::loading(term, &row.title, {
+        let row = row.clone();
+        move || tui::resolve(&row, true)
+    })?;
+    match resolved {
         Some(path) => {
             // Describe the controls and let the player start or back out.
             if !controls_dialog(term, &row.title)? {

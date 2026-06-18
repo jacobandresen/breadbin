@@ -5,6 +5,7 @@
 // through a symlink of that name — busybox-style argv[0] dispatch. The umbrella's
 // first argument selects the subcommand (default: kiosk).
 
+mod boot;
 mod build_index;
 mod core;
 mod cover;

@@ -24,13 +24,14 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     Frame, Terminal,
 };
 use ratatui_image::{protocol::StatefulProtocol, picker::Picker, Resize, StatefulImage};
 use rusqlite::Connection;
 
+use crate::core::palette::{GREEN, LIGHTBLUE, SCREEN, WHITE, YELLOW};
 use crate::{info, tui};
 use crate::tui::Row;
 
@@ -222,29 +223,39 @@ impl MenuState {
     }
 
     fn group_line(genre: &str, count: usize, expanded: bool, width: u16, selected: bool) -> Line<'static> {
-        // A full-width colored bar (white-on-blue, bold, UPPERCASE) so genre headers
-        // stand out clearly from the game rows beneath them.
+        // A full-width colored bar (C64 light-blue-on-screen-blue, bold, UPPERCASE)
+        // so genre headers stand out clearly from the game rows beneath them.
         let caret = if expanded { "▾" } else { "▸" };
-        let name = trunc(genre, width.saturating_sub(14) as usize).to_uppercase();
+        let name = trunc(genre, width.saturating_sub(16) as usize).to_uppercase();
+        // A two-cell PETSCII colour-bar chip, keyed to the genre, leads the header.
+        let chip = "██";
         let text = format!(" {caret} {name}  ({count}) ");
-        let pad = (width as usize).saturating_sub(text.chars().count());
+        let pad = (width as usize).saturating_sub(text.chars().count() + chip.chars().count());
         let mut style = Style::default()
-            .fg(Color::White)
-            .bg(Color::Blue)
+            .fg(WHITE)
+            .bg(SCREEN)
+            .add_modifier(Modifier::BOLD);
+        let mut chip_style = Style::default()
+            .fg(crate::core::palette::bar_for(genre))
+            .bg(SCREEN)
             .add_modifier(Modifier::BOLD);
         if selected {
             style = style.add_modifier(Modifier::REVERSED);
+            chip_style = chip_style.add_modifier(Modifier::REVERSED);
         }
-        Line::from(Span::styled(format!("{text}{}", " ".repeat(pad)), style))
+        Line::from(vec![
+            Span::styled(chip, chip_style),
+            Span::styled(format!("{text}{}", " ".repeat(pad)), style),
+        ])
     }
 
     fn game_line(row: &Row, width: u16, selected: bool, caret_down: bool) -> Line<'static> {
         let marker = if row.is_local() { "●" } else { "⬇" };
         let caret = if caret_down { "▾" } else { " " };
         let (btn_txt, btn_color) = if row.is_local() {
-            ("↵ Play", Color::Green)
+            ("↵ Play", GREEN)
         } else {
-            ("↵ Get ", Color::Yellow)
+            ("↵ Get ", YELLOW)
         };
         let left_fixed = format!("    {caret}{marker} ");
         let left_w = left_fixed.chars().count();
@@ -396,6 +407,23 @@ impl MenuState {
                     y += card_h;
                 }
             }
+        }
+
+        // C64 idle screen: a READY. prompt with a block cursor when the filter
+        // matches nothing — a typed query gets the authentic ?FILE NOT FOUND ERROR.
+        if self.view.is_empty() {
+            let c64 = Style::default().fg(LIGHTBLUE);
+            let mut yy = body_top + 1;
+            f.buffer_mut().set_line(2, yy, &Line::styled("READY.", c64), cols);
+            yy += 2;
+            if !self.filter.is_empty() {
+                let q = self.filter.to_uppercase();
+                f.buffer_mut().set_line(2, yy, &Line::styled(format!("LOAD\"{q}\",8,1"), c64), cols);
+                f.buffer_mut().set_line(2, yy + 1, &Line::styled("?FILE NOT FOUND  ERROR", c64), cols);
+                f.buffer_mut().set_line(2, yy + 2, &Line::styled("READY.", c64), cols);
+                yy += 3;
+            }
+            f.buffer_mut().set_line(2, yy, &Line::styled("█", c64), cols);
         }
 
         // Footer.
@@ -624,6 +652,7 @@ fn run_loop(state: &mut MenuState) -> std::io::Result<Option<usize>> {
     let mut term = Terminal::new(backend)?;
     term.hide_cursor()?;
 
+    crate::boot::boot_screen(&mut term);
     let result = (|| -> std::io::Result<Option<usize>> {
         loop {
             term.draw(|f| state.render(f))?;
