@@ -11,6 +11,7 @@ mod core;
 mod cover;
 mod disk;
 mod get;
+mod grid;
 mod info;
 mod run;
 mod tosec;

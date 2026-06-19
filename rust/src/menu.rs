@@ -518,12 +518,10 @@ impl MenuState {
                     self.set_filter(f);
                 }
             }
-            KeyCode::Char(c) => {
-                if !c.is_control() {
-                    let mut f = self.filter.clone();
-                    f.push(c);
-                    self.set_filter(f);
-                }
+            KeyCode::Char(c) if !c.is_control() => {
+                let mut f = self.filter.clone();
+                f.push(c);
+                self.set_filter(f);
             }
             _ => {}
         }

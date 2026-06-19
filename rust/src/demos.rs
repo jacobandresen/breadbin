@@ -20,10 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use crossterm::{
-    event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseButton, MouseEvent,
-        MouseEventKind,
-    },
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -32,7 +29,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph},
     Frame, Terminal,
 };
 use ratatui_image::{
@@ -57,9 +54,6 @@ Data comes from CSDb (https://csdb.dk) and is cached locally so it works offline
 
 // CSDb endpoints.
 const TOPLIST: &str = "https://csdb.dk/toplist.php?type=release&subtype=(1)";
-fn release_ws(id: u32, depth: u8) -> String {
-    format!("https://csdb.dk/webservice/?type=release&id={id}&depth={depth}")
-}
 fn event_ws(id: u32) -> String {
     format!("https://csdb.dk/webservice/?type=event&id={id}&depth=1")
 }
@@ -80,7 +74,7 @@ const TITLE_H: u16 = 3; // clickable party bar height
 
 // ---- C64 / demoscene palette (Pepto colours) -------------------------------
 // Shared across breadbin's UIs; see core::palette.
-use crate::core::palette::{BARS, CYAN, LIGHTBLUE, RED, SCREEN, WHITE, YELLOW};
+use crate::core::palette::{BARS, CYAN, LIGHTBLUE, SCREEN, WHITE, YELLOW};
 
 /// One ranked demo from CSDb.
 #[derive(Clone)]
@@ -112,110 +106,26 @@ fn downloads_dir() -> PathBuf {
     core::user_data_dir().join("demos")
 }
 
-/// Bucket every party instance ("X'2026", "Datastorm 2020", "Mekka & Symposium
-/// 2001") into its party series ("X", "Datastorm", "Mekka & Symposium") by
-/// stripping the trailing edition year ('YY, 'YYYY, or " YYYY").
-fn party_series(event: &str) -> String {
-    let e = event.trim();
-    // strip a trailing year token introduced by a space, apostrophe or backtick.
-    let bytes = e.as_bytes();
-    // find the start of a trailing run of digits
-    let mut i = bytes.len();
-    while i > 0 && bytes[i - 1].is_ascii_digit() {
-        i -= 1;
-    }
-    let digits = bytes.len() - i;
-    if (2..=4).contains(&digits) && i > 0 {
-        let sep = bytes[i - 1];
-        if sep == b' ' || sep == b'\'' || sep == b'`' {
-            return e[..i - 1].trim().to_string();
-        }
-    }
-    e.to_string()
-}
-
-/// Sanitize a field for single-line TSV storage.
-fn clean(s: &str) -> String {
-    s.replace(['\t', '\n', '\r'], " ").trim().to_string()
-}
-
-/// Strip the HTML anchor tags out of a toplist "group" cell, leaving the group
-/// (or scener) names joined with ", ".
-fn names_from_cell(cell: &str) -> String {
-    let mut names: Vec<String> = Vec::new();
-    let mut rest = cell;
-    while let Some(open) = rest.find("<a ") {
-        let after = &rest[open..];
-        let Some(gt) = after.find('>') else { break };
-        let tail = &after[gt + 1..];
-        let Some(end) = tail.find("</a>") else { break };
-        names.push(core::html_unescape(&tail[..end]));
-        rest = &tail[end + 4..];
-    }
-    if names.is_empty() {
-        core::html_unescape(cell.trim())
-    } else {
-        names.join(", ")
-    }
-}
-
-/// The substring of `s` between the first `open` and the next following `close`.
-fn between<'a>(s: &'a str, open: &str, close: &str) -> Option<&'a str> {
-    let i = s.find(open)? + open.len();
-    let j = s[i..].find(close)? + i;
-    Some(&s[i..j])
-}
-
-/// Parse the CSDb top-demos toplist HTML into (release id, name, group, rating)
-/// rows, in ranked order.
-fn parse_toplist(html: &str) -> Vec<(u32, String, String, f32)> {
-    let mut out = Vec::new();
-    // Each ranked row is a <tr> carrying a /release/?id= link, the name, the
-    // group cell, then the rating in a <font size=1> cell.
-    for tr in html.split("<tr>") {
-        let Some(idpart) = between(tr, "/release/?id=", "\"") else { continue };
-        let Ok(id) = idpart.parse::<u32>() else { continue };
-        // name: first anchor text after the release link
-        let after_id = match tr.find("/release/?id=") {
-            Some(p) => &tr[p..],
-            None => continue,
-        };
-        let Some(name_raw) = between(after_id, "\">", "</a>") else { continue };
-        let name = core::html_unescape(name_raw);
-        // group cell: between "</a> by " and "</td>"
-        let group = between(tr, "</a> by ", "</td>")
-            .map(names_from_cell)
-            .unwrap_or_default();
-        let rating = between(tr, "<font size=1>", "</font>")
-            .and_then(|r| r.trim().parse::<f32>().ok())
-            .unwrap_or(0.0);
-        if !name.is_empty() {
-            out.push((id, name, group, rating));
-        }
-    }
-    out
-}
-
 /// Pull the party event id, name, year, place and screenshot URL out of a
 /// depth-1 release webservice XML document. The event id (0 if none) lets us
 /// look the party venue up via the event webservice.
 fn parse_release_xml(xml: &str) -> (u32, String, u32, u32, String) {
-    let released_at = between(xml, "<ReleasedAt>", "</ReleasedAt>");
+    let released_at = core::between(xml, "<ReleasedAt>", "</ReleasedAt>");
     let event_id = released_at
-        .and_then(|b| between(b, "<ID>", "</ID>"))
+        .and_then(|b| core::between(b, "<ID>", "</ID>"))
         .and_then(|i| i.trim().parse::<u32>().ok())
         .unwrap_or(0);
     let party = released_at
-        .and_then(|b| between(b, "<Name>", "</Name>"))
-        .map(|n| core::html_unescape(n))
+        .and_then(|b| core::between(b, "<Name>", "</Name>"))
+        .map(core::html_unescape)
         .unwrap_or_default();
-    let year = between(xml, "<ReleaseYear>", "</ReleaseYear>")
+    let year = core::between(xml, "<ReleaseYear>", "</ReleaseYear>")
         .and_then(|y| y.trim().parse::<u32>().ok())
         .unwrap_or(0);
-    let place = between(xml, "<Place>", "</Place>")
+    let place = core::between(xml, "<Place>", "</Place>")
         .and_then(|p| p.trim().parse::<u32>().ok())
         .unwrap_or(0);
-    let shot = between(xml, "<ScreenShot>", "</ScreenShot>")
+    let shot = core::between(xml, "<ScreenShot>", "</ScreenShot>")
         .map(|s| core::html_unescape(s.trim()))
         .unwrap_or_default();
     (event_id, party, year, place, shot)
@@ -225,7 +135,7 @@ fn parse_release_xml(xml: &str) -> (u32, String, u32, u32, String) {
 /// event webservice XML document.
 fn parse_event_xml(xml: &str) -> (String, String, String, String) {
     let field = |tag_open: &str, tag_close: &str| {
-        between(xml, tag_open, tag_close)
+        core::between(xml, tag_open, tag_close)
             .map(|s| core::html_unescape(s.trim()))
             .unwrap_or_default()
     };
@@ -244,7 +154,7 @@ fn build_index(limit: usize) -> Result<(), String> {
     eprintln!("Fetching the CSDb top demos list ...");
     let body = core::fetch(TOPLIST, &[])?;
     let html = String::from_utf8_lossy(&body);
-    let ranked = parse_toplist(&html);
+    let ranked = core::parse_toplist(&html);
     if ranked.is_empty() {
         return Err("could not parse the CSDb top demos list".to_string());
     }
@@ -256,7 +166,7 @@ fn build_index(limit: usize) -> Result<(), String> {
     let mut venues: HashMap<u32, (String, String, String, String)> = HashMap::new();
     for (n, (id, name, group, rating)) in ranked.iter().take(take).enumerate() {
         prog.set(n as u64 + 1);
-        let (event_id, party, year, place, shot) = match core::fetch(&release_ws(*id, 1), &[]) {
+        let (event_id, party, year, place, shot) = match core::fetch(&core::release_ws(*id, 1), &[]) {
             Ok(b) => parse_release_xml(&String::from_utf8_lossy(&b)),
             Err(_) => (0, String::new(), 0, 0, String::new()),
         };
@@ -271,18 +181,18 @@ fn build_index(limit: usize) -> Result<(), String> {
                 })
                 .clone()
         };
-        let series = party_series(&party);
+        let series = core::party_series(&party);
         out.push_str(&format!(
             "{id}\t{}\t{}\t{:.2}\t{}\t{year}\t{place}\t{}\t{}\t{}\t{}\t{}\n",
-            clean(name),
-            clean(group),
+            core::clean(name),
+            core::clean(group),
             rating,
-            clean(&series),
-            clean(&shot),
-            clean(&event_type),
-            clean(&city),
-            clean(&country),
-            clean(&website),
+            core::clean(&series),
+            core::clean(&shot),
+            core::clean(&event_type),
+            core::clean(&city),
+            core::clean(&country),
+            core::clean(&website),
         ));
     }
     prog.finish();
@@ -326,38 +236,17 @@ fn load_demos() -> Vec<Demo> {
 /// Parties with fewer than `MIN_PER_PARTY` top demos are folded into a trailing
 /// "Released Outside Parties" catch-all. Parties are ordered by how many top
 /// demos they hosted, then by their best rating.
+/// Group demos by party, biggest sections first (the demo kiosk leads with the
+/// parties that hosted the most ranked demos). See [`core::group_by_party`].
 fn group_by_party(all: &[Demo]) -> Vec<(String, Vec<usize>)> {
-    let mut map: HashMap<String, Vec<usize>> = HashMap::new();
-    let mut loners: Vec<usize> = Vec::new();
-    for (i, d) in all.iter().enumerate() {
-        if d.party.is_empty() {
-            loners.push(i);
-        } else {
-            map.entry(d.party.clone()).or_default().push(i);
-        }
-    }
-    let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
-    for (party, mut idxs) in map {
-        if idxs.len() < MIN_PER_PARTY {
-            loners.append(&mut idxs);
-            continue;
-        }
-        idxs.sort_by(|&a, &b| all[b].rating.total_cmp(&all[a].rating));
-        idxs.truncate(TOP_PER_PARTY);
-        groups.push((party, idxs));
-    }
-    // best parties first: most top demos, then highest top rating.
-    groups.sort_by(|a, b| {
-        b.1.len()
-            .cmp(&a.1.len())
-            .then_with(|| all[b.1[0]].rating.total_cmp(&all[a.1[0]].rating))
-    });
-    if !loners.is_empty() {
-        loners.sort_by(|&a, &b| all[b].rating.total_cmp(&all[a].rating));
-        loners.truncate(TOP_PER_PARTY);
-        groups.push(("Released Outside Parties".to_string(), loners));
-    }
-    groups
+    core::group_by_party(
+        all,
+        |d| d.party.as_str(),
+        |d| d.rating,
+        MIN_PER_PARTY,
+        TOP_PER_PARTY,
+        false,
+    )
 }
 
 /// Cached screenshot path for a demo (downloading once), or None.
@@ -404,12 +293,12 @@ fn fetch_and_prepare(d: &Demo) -> Result<PathBuf, String> {
             }
         }
     }
-    let body = core::fetch(&release_ws(d.id, 2), &[])?;
+    let body = core::fetch(&core::release_ws(d.id, 2), &[])?;
     let xml = String::from_utf8_lossy(&body);
     // Collect candidate download links; prefer http(s) over ftp (ureq has no ftp).
     let mut links: Vec<String> = Vec::new();
     let mut rest = xml.as_ref();
-    while let Some(link) = between(rest, "<Link>", "</Link>") {
+    while let Some(link) = core::between(rest, "<Link>", "</Link>") {
         links.push(core::html_unescape(link.trim()));
         let adv = rest.find("</Link>").map(|p| p + 7).unwrap_or(rest.len());
         rest = &rest[adv..];
@@ -467,18 +356,9 @@ fn fetch_and_prepare(d: &Demo) -> Result<PathBuf, String> {
 }
 
 // ---- UI --------------------------------------------------------------------
+// The overview/grid navigation is shared with the game kiosk; see crate::grid.
 
-#[derive(Clone, Copy)]
-enum OFocus {
-    Title(usize),
-    Demo(usize, usize),
-}
-
-#[derive(PartialEq)]
-enum Mode {
-    Overview,
-    Party,
-}
+use crate::grid::{self, Action, Metrics, Mode};
 
 struct DemoState {
     all: Vec<Demo>,
@@ -489,56 +369,15 @@ struct DemoState {
     shot_cache: HashMap<usize, Option<PathBuf>>,
     proto_cache: HashMap<PathBuf, StatefulProtocol>,
 
-    mode: Mode,
-    ofocus: Vec<OFocus>,
-    osel: usize,
-    otop: usize,
-    topn: usize,
-
-    party: usize,
-    sel: usize,
-    top: usize,
-
-    rects: Vec<(Rect, usize)>,
-    grid_rects: Vec<(Rect, usize)>,
+    nav: grid::Nav,
 }
 
-fn hit(rects: &[(Rect, usize)], col: u16, row: u16) -> Option<usize> {
-    for (r, idx) in rects {
-        if col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height {
-            return Some(*idx);
-        }
-    }
-    None
-}
-
-fn spaced_upper(s: &str) -> String {
-    s.to_uppercase()
-        .chars()
-        .map(|c| c.to_string())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Truncate `s` to at most `max` columns, marking a cut with an ellipsis.
-fn ellipsize(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        return s.to_string();
-    }
-    let cut: String = s.chars().take(max.saturating_sub(1)).collect();
-    format!("{cut}\u{2026}")
-}
+const METRICS: Metrics = Metrics { ov_section: OV_SECTION, title_h: TITLE_H, target_cw: TARGET_CW };
 
 impl DemoState {
     fn new(all: Vec<Demo>, runopts: Vec<String>, picker: Picker, topn: usize) -> Self {
         let groups = group_by_party(&all);
-        let mut ofocus = Vec::new();
-        for (gi, (_, idxs)) in groups.iter().enumerate() {
-            ofocus.push(OFocus::Title(gi));
-            for j in 0..topn.min(idxs.len()) {
-                ofocus.push(OFocus::Demo(gi, j));
-            }
-        }
+        let nav = grid::Nav::new(&groups, topn, METRICS);
         Self {
             all,
             groups,
@@ -546,22 +385,7 @@ impl DemoState {
             picker,
             shot_cache: HashMap::new(),
             proto_cache: HashMap::new(),
-            mode: Mode::Overview,
-            ofocus,
-            osel: 0,
-            otop: 0,
-            topn,
-            party: 0,
-            sel: 0,
-            top: 0,
-            rects: Vec::new(),
-            grid_rects: Vec::new(),
-        }
-    }
-
-    fn focused_party(&self) -> usize {
-        match self.ofocus[self.osel] {
-            OFocus::Title(gi) | OFocus::Demo(gi, _) => gi,
+            nav,
         }
     }
 
@@ -660,52 +484,19 @@ impl DemoState {
         if focused {
             style = style.add_modifier(Modifier::REVERSED);
         }
-        let txt = format!("  {}   ({count} demos)   {hint}", spaced_upper(&self.groups[gi].0));
+        let txt = format!("  {}   ({count} demos)   {hint}", core::spaced_upper(&self.groups[gi].0));
         let lines = vec![Line::from(""), Line::from(txt), Line::from("")];
         f.render_widget(Paragraph::new(lines).style(style), area);
-    }
-
-    fn overview_geometry(&self, area: Rect) -> (usize, u16, u16, u16) {
-        let body = area.height.saturating_sub(1);
-        let vis_g = ((body / OV_SECTION).max(1) as usize).min(self.groups.len()).max(1);
-        let sec_h = body / vis_g as u16;
-        let card_h = sec_h.saturating_sub(TITLE_H + 1).max(1);
-        let card_w = (area.width / self.topn.max(1) as u16).max(1);
-        (vis_g, sec_h, card_h, card_w)
-    }
-
-    fn scroll_overview(&mut self, area: Rect) {
-        let (vis_g, _, _, _) = self.overview_geometry(area);
-        let fgi = self.focused_party();
-        if fgi < self.otop {
-            self.otop = fgi;
-        } else if fgi >= self.otop + vis_g {
-            self.otop = fgi + 1 - vis_g;
-        }
-        let max_top = self.groups.len().saturating_sub(vis_g);
-        if self.otop > max_top {
-            self.otop = max_top;
-        }
-    }
-
-    fn ofocus_index_of_title(&self, gi: usize) -> usize {
-        let mut idx = 0;
-        for (g, idxs) in self.groups.iter().enumerate() {
-            if g == gi {
-                return idx;
-            }
-            idx += 1 + self.topn.min(idxs.1.len());
-        }
-        idx
     }
 
     fn render_overview(&mut self, f: &mut Frame) {
         let area = f.area();
         f.render_widget(Clear, area);
         f.buffer_mut().set_style(area, Style::default().bg(SCREEN));
-        let (vis_g, sec_h, card_h, card_w) = self.overview_geometry(area);
-        self.scroll_overview(area);
-        self.rects.clear();
+        let n_groups = self.groups.len();
+        let (vis_g, sec_h, card_h, card_w) = self.nav.overview_geometry(area, n_groups);
+        self.nav.scroll_overview(area, n_groups);
+        self.nav.rects.clear();
 
         let header = Line::from(vec![
             Span::styled("\u{25b2} BREADBIN DEMOS \u{25b2}", Style::default().fg(YELLOW).add_modifier(Modifier::BOLD)),
@@ -720,23 +511,23 @@ impl DemoState {
         f.buffer_mut().set_line(0, 0, &header, area.width);
 
         for vi in 0..vis_g {
-            let gi = self.otop + vi;
+            let gi = self.nav.otop + vi;
             if gi >= self.groups.len() {
                 break;
             }
             let idxs = self.groups[gi].1.clone();
             let base = 1 + vi as u16 * sec_h;
-            let title_focus = self.ofocus_index_of_title(gi);
+            let title_focus = self.nav.ofocus_index_of_title(gi, &self.groups);
             let bar = Rect::new(0, base, area.width, TITLE_H.min(area.height.saturating_sub(base)));
-            self.title_bar(f, bar, gi, idxs.len(), self.osel == title_focus, "click / \u{23ce} to open");
-            self.rects.push((bar, title_focus));
+            self.title_bar(f, bar, gi, idxs.len(), self.nav.osel == title_focus, "click / \u{23ce} to open");
+            self.nav.rects.push((bar, title_focus));
 
             let cards_y = base + TITLE_H;
             if cards_y >= area.height {
                 continue;
             }
             let ch = card_h.min(area.height - cards_y);
-            for j in 0..self.topn.min(idxs.len()) {
+            for j in 0..self.nav.topn.min(idxs.len()) {
                 let x = j as u16 * card_w;
                 if x >= area.width {
                     break;
@@ -744,22 +535,9 @@ impl DemoState {
                 let w = card_w.min(area.width - x);
                 let rect = Rect::new(x, cards_y, w, ch);
                 let foc_idx = title_focus + 1 + j;
-                self.draw_card(f, rect, idxs[j], self.osel == foc_idx);
-                self.rects.push((rect, foc_idx));
+                self.draw_card(f, rect, idxs[j], self.nav.osel == foc_idx);
+                self.nav.rects.push((rect, foc_idx));
             }
-        }
-    }
-
-    fn activate_overview(&mut self) -> Option<usize> {
-        match self.ofocus[self.osel] {
-            OFocus::Title(gi) => {
-                self.mode = Mode::Party;
-                self.party = gi;
-                self.sel = 0;
-                self.top = 0;
-                None
-            }
-            OFocus::Demo(gi, j) => Some(self.groups[gi].1[j]),
         }
     }
 
@@ -838,13 +616,13 @@ impl DemoState {
     /// are skipped, so the "Released Outside Parties" catch-all shrinks to just
     /// its group list.
     fn render_party_info(&self, f: &mut Frame, area: Rect, y: u16) -> u16 {
-        let (headline, website, groups) = self.party_summary(self.party);
+        let (headline, website, groups) = self.party_summary(self.nav.section);
         let pad = 2u16; // line up with the title bar's leading spaces
         let inner_w = area.width.saturating_sub(pad * 2) as usize;
         let mut lines: Vec<Line> = Vec::new();
         if !headline.is_empty() {
             lines.push(Line::from(Span::styled(
-                ellipsize(&headline, inner_w),
+                core::ellipsize(&headline, inner_w),
                 Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
             )));
         }
@@ -852,7 +630,7 @@ impl DemoState {
             lines.push(Line::from(vec![
                 Span::styled("Groups: ", Style::default().fg(LIGHTBLUE)),
                 Span::styled(
-                    ellipsize(&groups.join(", "), inner_w.saturating_sub(8)),
+                    core::ellipsize(&groups.join(", "), inner_w.saturating_sub(8)),
                     Style::default().fg(WHITE),
                 ),
             ]));
@@ -860,7 +638,7 @@ impl DemoState {
         if !website.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("Web: ", Style::default().fg(LIGHTBLUE)),
-                Span::styled(ellipsize(&website, inner_w.saturating_sub(5)), Style::default().fg(YELLOW)),
+                Span::styled(core::ellipsize(&website, inner_w.saturating_sub(5)), Style::default().fg(YELLOW)),
             ]));
         }
         if lines.is_empty() {
@@ -876,13 +654,13 @@ impl DemoState {
         let area = f.area();
         f.render_widget(Clear, area);
         f.buffer_mut().set_style(area, Style::default().bg(SCREEN));
-        let idxs = self.groups[self.party].1.clone();
+        let idxs = self.groups[self.nav.section].1.clone();
         let n = idxs.len();
 
-        let bg = BARS[self.party % BARS.len()];
+        let bg = BARS[self.nav.section % BARS.len()];
         let title = format!(
             "  {}    (top {n})   click a cover to run · esc back · q quit",
-            spaced_upper(&self.groups[self.party].0)
+            core::spaced_upper(&self.groups[self.nav.section].0)
         );
         f.render_widget(
             Paragraph::new(Line::from(title)).style(
@@ -897,17 +675,17 @@ impl DemoState {
         let grid = Rect::new(0, grid_y, area.width, area.height.saturating_sub(grid_y));
         let (cols, vis_rows, card_w, card_h) = self.grid_geometry(grid);
 
-        let sel_row = self.sel / cols;
-        if sel_row < self.top {
-            self.top = sel_row;
-        } else if sel_row >= self.top + vis_rows {
-            self.top = sel_row + 1 - vis_rows;
+        let sel_row = self.nav.sel / cols;
+        if sel_row < self.nav.top {
+            self.nav.top = sel_row;
+        } else if sel_row >= self.nav.top + vis_rows {
+            self.nav.top = sel_row + 1 - vis_rows;
         }
 
-        self.grid_rects.clear();
+        self.nav.grid_rects.clear();
         for r in 0..vis_rows {
             for c in 0..cols {
-                let idx = (self.top + r) * cols + c;
+                let idx = (self.nav.top + r) * cols + c;
                 if idx >= n {
                     continue;
                 }
@@ -918,21 +696,19 @@ impl DemoState {
                 }
                 let w = card_w.min(area.width - x);
                 let h = card_h.min(area.height - y);
-                self.draw_card(f, Rect::new(x, y, w, h), idxs[idx], idx == self.sel);
-                self.grid_rects.push((Rect::new(x, y, w, h), idx));
+                self.draw_card(f, Rect::new(x, y, w, h), idxs[idx], idx == self.nav.sel);
+                self.nav.grid_rects.push((Rect::new(x, y, w, h), idx));
             }
         }
     }
 
     fn render(&mut self, f: &mut Frame) {
-        match self.mode {
+        match self.nav.mode {
             Mode::Overview => self.render_overview(f),
-            Mode::Party => self.render_party(f),
+            Mode::Section => self.render_party(f),
         }
     }
 }
-
-const QUIT: usize = usize::MAX;
 
 /// Centered one-line banner over the screen blue, used while a demo loads.
 fn banner(term: &mut Terminal<CrosstermBackend<std::io::Stdout>>, msg: &str) -> std::io::Result<()> {
@@ -947,50 +723,6 @@ fn banner(term: &mut Terminal<CrosstermBackend<std::io::Stdout>>, msg: &str) -> 
     Ok(())
 }
 
-fn error_dialog(
-    term: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-    title: &str,
-    detail: &str,
-) -> std::io::Result<()> {
-    term.draw(|f| {
-        let area = f.area();
-        let w = area.width.saturating_mul(3) / 5;
-        let w = w.clamp(30.min(area.width), area.width.saturating_sub(2)).max(1);
-        let inner_w = w.saturating_sub(4).max(1) as usize;
-        let detail_rows: u16 = detail
-            .lines()
-            .map(|l| (l.chars().count() / inner_w + 1).max(1) as u16)
-            .sum::<u16>()
-            .max(1);
-        let h = (detail_rows + 4).min(area.height);
-        let x = (area.width.saturating_sub(w)) / 2;
-        let y = (area.height.saturating_sub(h)) / 2;
-        let rect = Rect::new(x, y, w, h);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_set(crate::core::PETSCII_BORDER)
-            .border_style(Style::default().fg(RED).add_modifier(Modifier::BOLD))
-            .title(Line::from(format!(" {title} ")));
-        let mut body = vec![Line::from("")];
-        body.extend(detail.lines().map(|l| Line::from(l.to_string())));
-        body.push(Line::from(""));
-        body.push(Line::styled("press any key to continue", Style::default().add_modifier(Modifier::DIM)));
-        f.render_widget(Clear, rect);
-        f.render_widget(
-            Paragraph::new(body).block(block).alignment(Alignment::Center).wrap(Wrap { trim: true }),
-            rect,
-        );
-    })?;
-    loop {
-        match event::read()? {
-            Event::Key(k) if k.kind == event::KeyEventKind::Press => break,
-            Event::Mouse(m) if matches!(m.kind, MouseEventKind::Down(_)) => break,
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
 fn launch(
     state: &mut DemoState,
     term: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
@@ -1002,74 +734,14 @@ fn launch(
         Ok(path) => {
             banner(term, &format!("Loading  {} ...", d.name))?;
             if let Err(e) = crate::tui::launch_inplace(&path.to_string_lossy(), &state.runopts) {
-                error_dialog(term, &format!("Could not run {}", d.name), &e)?;
+                grid::error_dialog(term, &format!("Could not run {}", d.name), &e)?;
             }
         }
         Err(e) => {
-            error_dialog(term, &format!("Could not load {}", d.name), &e)?;
+            grid::error_dialog(term, &format!("Could not load {}", d.name), &e)?;
         }
     }
     Ok(())
-}
-
-fn handle_overview_key(state: &mut DemoState, code: KeyCode) -> Option<usize> {
-    let last = state.ofocus.len().saturating_sub(1);
-    match code {
-        KeyCode::Char('q') | KeyCode::Esc => return Some(QUIT),
-        KeyCode::Right | KeyCode::Down | KeyCode::Tab => state.osel = (state.osel + 1).min(last),
-        KeyCode::Left | KeyCode::Up => state.osel = state.osel.saturating_sub(1),
-        KeyCode::Enter => return state.activate_overview(),
-        _ => {}
-    }
-    None
-}
-
-fn handle_overview_mouse(state: &mut DemoState, m: MouseEvent) -> Option<usize> {
-    let last = state.ofocus.len().saturating_sub(1);
-    match m.kind {
-        MouseEventKind::ScrollUp => state.osel = state.osel.saturating_sub(1),
-        MouseEventKind::ScrollDown => state.osel = (state.osel + 1).min(last),
-        MouseEventKind::Down(MouseButton::Left) => {
-            if let Some(idx) = hit(&state.rects, m.column, m.row) {
-                state.osel = idx;
-                return state.activate_overview();
-            }
-        }
-        _ => {}
-    }
-    None
-}
-
-fn handle_party_key(state: &mut DemoState, code: KeyCode) -> Option<usize> {
-    let n = state.groups[state.party].1.len();
-    let cols = (crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80) / TARGET_CW).max(1) as usize;
-    match code {
-        KeyCode::Char('q') => return Some(QUIT),
-        KeyCode::Esc => state.mode = Mode::Overview,
-        KeyCode::Right => state.sel = (state.sel + 1).min(n.saturating_sub(1)),
-        KeyCode::Left => state.sel = state.sel.saturating_sub(1),
-        KeyCode::Down => state.sel = (state.sel + cols).min(n.saturating_sub(1)),
-        KeyCode::Up => state.sel = state.sel.saturating_sub(cols),
-        KeyCode::Enter => return Some(state.groups[state.party].1[state.sel]),
-        _ => {}
-    }
-    None
-}
-
-fn handle_party_mouse(state: &mut DemoState, m: MouseEvent) -> Option<usize> {
-    let n = state.groups[state.party].1.len();
-    let cols = (crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80) / TARGET_CW).max(1) as usize;
-    match m.kind {
-        MouseEventKind::ScrollUp => state.sel = state.sel.saturating_sub(cols),
-        MouseEventKind::ScrollDown => state.sel = (state.sel + cols).min(n.saturating_sub(1)),
-        MouseEventKind::Down(MouseButton::Left) => {
-            if let Some(idx) = hit(&state.grid_rects, m.column, m.row) {
-                return Some(state.groups[state.party].1[idx]);
-            }
-        }
-        _ => {}
-    }
-    None
 }
 
 fn event_loop(
@@ -1078,25 +750,32 @@ fn event_loop(
 ) -> std::io::Result<()> {
     loop {
         term.draw(|f| state.render(f))?;
-        let chosen: Option<usize> = match event::read()? {
+        let term_cols = crossterm::terminal::size().map(|(c, _)| c).unwrap_or(80);
+        let action = match event::read()? {
             Event::Key(k)
                 if k.kind == event::KeyEventKind::Press || k.kind == event::KeyEventKind::Repeat =>
             {
-                match state.mode {
-                    Mode::Overview => handle_overview_key(state, k.code),
-                    Mode::Party => handle_party_key(state, k.code),
+                match state.nav.mode {
+                    Mode::Overview => state.nav.overview_key(k.code, &state.groups),
+                    Mode::Section => {
+                        let items = state.groups[state.nav.section].1.clone();
+                        state.nav.section_key(k.code, &items, term_cols)
+                    }
                 }
             }
-            Event::Mouse(m) => match state.mode {
-                Mode::Overview => handle_overview_mouse(state, m),
-                Mode::Party => handle_party_mouse(state, m),
+            Event::Mouse(m) => match state.nav.mode {
+                Mode::Overview => state.nav.overview_mouse(m, &state.groups),
+                Mode::Section => {
+                    let items = state.groups[state.nav.section].1.clone();
+                    state.nav.section_mouse(m, &items, term_cols)
+                }
             },
-            _ => None,
+            _ => Action::None,
         };
-        match chosen {
-            Some(QUIT) => return Ok(()),
-            Some(idx) => launch(state, term, idx)?,
-            None => {}
+        match action {
+            Action::Quit => return Ok(()),
+            Action::Launch(idx) => launch(state, term, idx)?,
+            Action::None => {}
         }
     }
 }

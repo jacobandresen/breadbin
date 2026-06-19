@@ -260,8 +260,7 @@ pub fn resolve(row: &Row, quiet: bool) -> Option<PathBuf> {
             let s = String::from_utf8_lossy(&out.stdout);
             path = s
                 .lines()
-                .filter(|l| !l.trim().is_empty())
-                .last()
+                .rfind(|l| !l.trim().is_empty())
                 .unwrap_or("")
                 .to_string();
         }

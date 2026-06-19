@@ -17,7 +17,7 @@
 // sids/), so after the first build it works offline. Re-fetch with
 // `breadbin tunes --refresh`.
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -66,9 +66,6 @@ is cached locally so it works offline.
 
 // CSDb: subtype (7) of the release toplist is "C64 Music", ranked by rating.
 const TOPLIST: &str = "https://csdb.dk/toplist.php?type=release&subtype=(7)";
-fn release_ws(id: u32, depth: u8) -> String {
-    format!("https://csdb.dk/webservice/?type=release&id={id}&depth={depth}")
-}
 
 const DEFAULT_LIMIT: usize = 600;
 /// A party needs at least this many top tunes to earn its own section.
@@ -93,25 +90,6 @@ struct Tune {
     sid_url: String,
 }
 
-/// Bucket a party instance ("Fjälldata 2026", "X'2024") into its series name
-/// ("Fjälldata", "X") by stripping a trailing edition year.
-fn party_series(event: &str) -> String {
-    let e = event.trim();
-    let bytes = e.as_bytes();
-    let mut i = bytes.len();
-    while i > 0 && bytes[i - 1].is_ascii_digit() {
-        i -= 1;
-    }
-    let digits = bytes.len() - i;
-    if (2..=4).contains(&digits) && i > 0 {
-        let sep = bytes[i - 1];
-        if sep == b' ' || sep == b'\'' || sep == b'`' {
-            return e[..i - 1].trim().to_string();
-        }
-    }
-    e.to_string()
-}
-
 fn tunes_index_path() -> PathBuf {
     core::data_path("tunes_index.tsv")
 }
@@ -119,80 +97,24 @@ fn sids_dir() -> PathBuf {
     core::user_data_dir().join("sids")
 }
 
-fn clean(s: &str) -> String {
-    s.replace(['\t', '\n', '\r'], " ").trim().to_string()
-}
-
-/// The substring of `s` between the first `open` and the next following `close`.
-fn between<'a>(s: &'a str, open: &str, close: &str) -> Option<&'a str> {
-    let i = s.find(open)? + open.len();
-    let j = s[i..].find(close)? + i;
-    Some(&s[i..j])
-}
-
-/// Strip anchor tags from a toplist "group" cell, leaving names joined with ", ".
-fn names_from_cell(cell: &str) -> String {
-    let mut names: Vec<String> = Vec::new();
-    let mut rest = cell;
-    while let Some(open) = rest.find("<a ") {
-        let after = &rest[open..];
-        let Some(gt) = after.find('>') else { break };
-        let tail = &after[gt + 1..];
-        let Some(end) = tail.find("</a>") else { break };
-        names.push(core::html_unescape(&tail[..end]));
-        rest = &tail[end + 4..];
-    }
-    if names.is_empty() {
-        core::html_unescape(cell.trim())
-    } else {
-        names.join(", ")
-    }
-}
-
-/// Parse the CSDb release toplist HTML into (id, name, group, rating) rows in
-/// ranked order. Identical row shape to the demos toplist.
-fn parse_toplist(html: &str) -> Vec<(u32, String, String, f32)> {
-    let mut out = Vec::new();
-    for tr in html.split("<tr>") {
-        let Some(idpart) = between(tr, "/release/?id=", "\"") else { continue };
-        let Ok(id) = idpart.parse::<u32>() else { continue };
-        let after_id = match tr.find("/release/?id=") {
-            Some(p) => &tr[p..],
-            None => continue,
-        };
-        let Some(name_raw) = between(after_id, "\">", "</a>") else { continue };
-        let name = core::html_unescape(name_raw);
-        let group = between(tr, "</a> by ", "</td>")
-            .map(names_from_cell)
-            .unwrap_or_default();
-        let rating = between(tr, "<font size=1>", "</font>")
-            .and_then(|r| r.trim().parse::<f32>().ok())
-            .unwrap_or(0.0);
-        if !name.is_empty() {
-            out.push((id, name, group, rating));
-        }
-    }
-    out
-}
-
 /// Pull (composer, party, year, sid download URL) out of a depth-2 release
 /// webservice XML document. The composer is the handle credited with "Music";
 /// the party is the event it was released at; the SID URL is the first .sid link.
 fn parse_release_xml(xml: &str) -> (String, String, u32, String) {
-    let year = between(xml, "<ReleaseYear>", "</ReleaseYear>")
+    let year = core::between(xml, "<ReleaseYear>", "</ReleaseYear>")
         .and_then(|y| y.trim().parse::<u32>().ok())
         .unwrap_or(0);
 
     // The party: the event name under <ReleasedAt>, with its edition year stripped.
-    let party = between(xml, "<ReleasedAt>", "</ReleasedAt>")
-        .and_then(|b| between(b, "<Name>", "</Name>"))
-        .map(|n| party_series(&core::html_unescape(n)))
+    let party = core::between(xml, "<ReleasedAt>", "</ReleasedAt>")
+        .and_then(|b| core::between(b, "<Name>", "</Name>"))
+        .map(|n| core::party_series(&core::html_unescape(n)))
         .unwrap_or_default();
 
     // The .sid download link.
     let mut sid_url = String::new();
     let mut rest = xml;
-    while let Some(link) = between(rest, "<Link>", "</Link>") {
+    while let Some(link) = core::between(rest, "<Link>", "</Link>") {
         let url = core::html_unescape(link.trim());
         if url.starts_with("http") && url.to_lowercase().ends_with(".sid") {
             sid_url = url;
@@ -215,7 +137,7 @@ fn parse_release_xml(xml: &str) -> (String, String, u32, String) {
             // Walk every <Handle> opener and take the first *leaf* one - content
             // with no nested tag - which is the credited handle's display name.
             let mut hrest = block;
-            while let Some(h) = between(hrest, "<Handle>", "</Handle>") {
+            while let Some(h) = core::between(hrest, "<Handle>", "</Handle>") {
                 let trimmed = h.trim();
                 if !trimmed.is_empty() && !trimmed.contains('<') {
                     composer = core::html_unescape(trimmed);
@@ -239,7 +161,7 @@ fn build_index(limit: usize) -> Result<(), String> {
     eprintln!("Fetching the CSDb top C64 Music list ...");
     let body = core::fetch(TOPLIST, &[])?;
     let html = String::from_utf8_lossy(&body);
-    let ranked = parse_toplist(&html);
+    let ranked = core::parse_toplist(&html);
     if ranked.is_empty() {
         return Err("could not parse the CSDb top music list".to_string());
     }
@@ -248,7 +170,7 @@ fn build_index(limit: usize) -> Result<(), String> {
     let mut out = String::new();
     for (n, (id, name, group, rating)) in ranked.iter().take(take).enumerate() {
         prog.set(n as u64 + 1);
-        let (composer, party, year, sid_url) = match core::fetch(&release_ws(*id, 2), &[]) {
+        let (composer, party, year, sid_url) = match core::fetch(&core::release_ws(*id, 2), &[]) {
             Ok(b) => parse_release_xml(&String::from_utf8_lossy(&b)),
             Err(_) => (String::new(), String::new(), 0, String::new()),
         };
@@ -258,12 +180,12 @@ fn build_index(limit: usize) -> Result<(), String> {
         }
         out.push_str(&format!(
             "{id}\t{}\t{}\t{}\t{:.2}\t{year}\t{}\t{}\n",
-            clean(name),
-            clean(&composer),
-            clean(group),
+            core::clean(name),
+            core::clean(&composer),
+            core::clean(group),
             rating,
-            clean(&sid_url),
-            clean(&party),
+            core::clean(&sid_url),
+            core::clean(&party),
         ));
     }
     prog.finish();
@@ -301,39 +223,17 @@ fn load_tunes() -> Vec<Tune> {
 /// Parties" catch-all. Top ranking first: within a party tunes are sorted by
 /// rating, and parties are ordered by their best tune's rating (so the party
 /// hosting the #1 tune leads), then by how many top tunes they have.
+/// Group tunes by party, highest-rated section first (the jukebox leads with the
+/// party hosting the #1 tune). See [`core::group_by_party`].
 fn group_by_party(all: &[Tune]) -> Vec<(String, Vec<usize>)> {
-    let mut map: HashMap<String, Vec<usize>> = HashMap::new();
-    let mut loners: Vec<usize> = Vec::new();
-    for (i, t) in all.iter().enumerate() {
-        if t.party.is_empty() {
-            loners.push(i);
-        } else {
-            map.entry(t.party.clone()).or_default().push(i);
-        }
-    }
-    let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
-    for (party, mut idxs) in map {
-        if idxs.len() < MIN_PER_PARTY {
-            loners.append(&mut idxs);
-            continue;
-        }
-        idxs.sort_by(|&a, &b| all[b].rating.total_cmp(&all[a].rating));
-        idxs.truncate(TOP_PER_PARTY);
-        groups.push((party, idxs));
-    }
-    // top ranking first: best rating leads, ties broken by section size.
-    groups.sort_by(|a, b| {
-        all[b.1[0]]
-            .rating
-            .total_cmp(&all[a.1[0]].rating)
-            .then_with(|| b.1.len().cmp(&a.1.len()))
-    });
-    if !loners.is_empty() {
-        loners.sort_by(|&a, &b| all[b].rating.total_cmp(&all[a].rating));
-        loners.truncate(TOP_PER_PARTY);
-        groups.push(("Released Outside Parties".to_string(), loners));
-    }
-    groups
+    core::group_by_party(
+        all,
+        |t| t.party.as_str(),
+        |t| t.rating,
+        MIN_PER_PARTY,
+        TOP_PER_PARTY,
+        true,
+    )
 }
 
 /// Download a tune's .sid (caching it under sids/) and return the bytes.
@@ -767,9 +667,9 @@ impl TunesState {
                     let star = if t.rating >= 9.5 { "\u{2605}" } else { " " };
                     let meta = format!(
                         "{marker}{star} {:<34} {:>5.2}  {}  '{:02}",
-                        ellipsize(&t.name, 34),
+                        core::ellipsize(&t.name, 34),
                         t.rating,
-                        ellipsize(&t.group, 18),
+                        core::ellipsize(&t.group, 18),
                         t.year % 100
                     );
                     let mut st = Style::default().fg(if playing { YELLOW } else { WHITE });
@@ -896,7 +796,7 @@ impl TunesState {
             let color = wave_color(wave);
             let level = if gate { vis.voice_sustain(v) } else { 0 };
             let cells = (level as usize * barw) / 15;
-            let bar: String = std::iter::repeat('█').take(cells).collect();
+            let bar: String = "█".repeat(cells);
             let x = area.x + v as u16 * cw;
 
             let label = format!("V{}: {}", v + 1, wave_name(wave));
@@ -1144,24 +1044,6 @@ fn wave_name(wave: u8) -> &'static str {
     }
 }
 
-/// Truncate `s` to at most `max` columns, marking a cut with an ellipsis.
-fn ellipsize(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        return s.to_string();
-    }
-    let cut: String = s.chars().take(max.saturating_sub(1)).collect();
-    format!("{cut}\u{2026}")
-}
-
-fn hit(rects: &[(Rect, usize)], col: u16, row: u16) -> Option<usize> {
-    for (r, idx) in rects {
-        if col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height {
-            return Some(*idx);
-        }
-    }
-    None
-}
-
 // ---- event loop ------------------------------------------------------------
 
 const QUIT: u8 = 1;
@@ -1221,7 +1103,7 @@ fn handle_browse_mouse(state: &mut TunesState, m: MouseEvent) {
         MouseEventKind::ScrollUp => state.sel = state.sel.saturating_sub(1),
         MouseEventKind::ScrollDown => state.sel = (state.sel + 1).min(last),
         MouseEventKind::Down(MouseButton::Left) => {
-            if let Some(ri) = hit(&state.rects, m.column, m.row) {
+            if let Some(ri) = core::hit(&state.rects, m.column, m.row) {
                 state.sel = ri;
                 if let Some(idx) = state.tune_at(ri) {
                     state.play(idx);
@@ -1268,10 +1150,8 @@ fn event_loop(state: &mut TunesState, term: &mut Terminal<CrosstermBackend<std::
                     _ => {}
                 }
             }
-            Event::Mouse(m) => {
-                if state.now.is_none() {
-                    handle_browse_mouse(state, m);
-                }
+            Event::Mouse(m) if state.now.is_none() => {
+                handle_browse_mouse(state, m);
             }
             _ => {}
         }

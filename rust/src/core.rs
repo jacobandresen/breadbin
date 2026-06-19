@@ -174,6 +174,95 @@ pub fn command_exists(cmd: &str) -> bool {
     which::which(cmd).is_ok()
 }
 
+/// Sanitize a field for single-line TSV storage: tabs/newlines to spaces, trimmed.
+pub fn clean(s: &str) -> String {
+    s.replace(['\t', '\n', '\r'], " ").trim().to_string()
+}
+
+/// Truncate `s` to at most `max` columns, marking a cut with an ellipsis.
+pub fn ellipsize(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let cut: String = s.chars().take(max.saturating_sub(1)).collect();
+    format!("{cut}\u{2026}")
+}
+
+/// Uppercase `s` with a space between every character, for letter-spaced headings.
+pub fn spaced_upper(s: &str) -> String {
+    s.to_uppercase()
+        .chars()
+        .map(|c| c.to_string())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Hit-test click coordinates against a list of (rect, index) hot zones, returning
+/// the index of the first rect containing the point. Shared by the mouse-driven
+/// terminal UIs (kiosk, tunes, demos).
+pub fn hit(rects: &[(ratatui::layout::Rect, usize)], col: u16, row: u16) -> Option<usize> {
+    for (r, idx) in rects {
+        if col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height {
+            return Some(*idx);
+        }
+    }
+    None
+}
+
+/// Group item indices by their party series, returning `(party, indices)` sections
+/// with each party's best `top_per_party` items (ranked by `rating_of`, highest
+/// first). Items whose `party_of` is empty, and parties with fewer than
+/// `min_per_party` qualifying items, fold into a trailing "Released Outside
+/// Parties" catch-all. Sections are ordered best-first: with `rating_first` the
+/// party hosting the highest-rated item leads (ties broken by section size),
+/// otherwise the largest section leads (ties broken by best rating). Shared by the
+/// tunes jukebox and demo kiosk, which rank the same CSDb releases by party.
+pub fn group_by_party<T>(
+    all: &[T],
+    party_of: impl Fn(&T) -> &str,
+    rating_of: impl Fn(&T) -> f32,
+    min_per_party: usize,
+    top_per_party: usize,
+    rating_first: bool,
+) -> Vec<(String, Vec<usize>)> {
+    use std::collections::HashMap;
+    let mut map: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut loners: Vec<usize> = Vec::new();
+    for (i, item) in all.iter().enumerate() {
+        let party = party_of(item);
+        if party.is_empty() {
+            loners.push(i);
+        } else {
+            map.entry(party.to_string()).or_default().push(i);
+        }
+    }
+    let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
+    for (party, mut idxs) in map {
+        if idxs.len() < min_per_party {
+            loners.append(&mut idxs);
+            continue;
+        }
+        idxs.sort_by(|&a, &b| rating_of(&all[b]).total_cmp(&rating_of(&all[a])));
+        idxs.truncate(top_per_party);
+        groups.push((party, idxs));
+    }
+    groups.sort_by(|a, b| {
+        let by_size = b.1.len().cmp(&a.1.len());
+        let by_rating = rating_of(&all[b.1[0]]).total_cmp(&rating_of(&all[a.1[0]]));
+        if rating_first {
+            by_rating.then(by_size)
+        } else {
+            by_size.then(by_rating)
+        }
+    });
+    if !loners.is_empty() {
+        loners.sort_by(|&a, &b| rating_of(&all[b]).total_cmp(&rating_of(&all[a])));
+        loners.truncate(top_per_party);
+        groups.push(("Released Outside Parties".to_string(), loners));
+    }
+    groups
+}
+
 /// Decode the handful of HTML entities that appear in the archive directory
 /// listings we scrape (Internet Archive / UTA file names).
 pub fn html_unescape(s: &str) -> String {
@@ -182,6 +271,90 @@ pub fn html_unescape(s: &str) -> String {
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+}
+
+// ---- CSDb (Commodore Scene Database) scraping ------------------------------
+// Shared by the demoscene browsers (tunes jukebox, demo kiosk), which both rank
+// releases off the same toplist HTML and webservice XML.
+
+/// CSDb webservice URL for a release, crawled to the given `depth`.
+pub fn release_ws(id: u32, depth: u8) -> String {
+    format!("https://csdb.dk/webservice/?type=release&id={id}&depth={depth}")
+}
+
+/// The substring of `s` between the first `open` and the next following `close`.
+pub fn between<'a>(s: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let i = s.find(open)? + open.len();
+    let j = s[i..].find(close)? + i;
+    Some(&s[i..j])
+}
+
+/// Bucket a party instance ("Fjälldata 2026", "X'2024", "Mekka & Symposium 2001")
+/// into its series name ("Fjälldata", "X", "Mekka & Symposium") by stripping a
+/// trailing edition year introduced by a space, apostrophe or backtick.
+pub fn party_series(event: &str) -> String {
+    let e = event.trim();
+    let bytes = e.as_bytes();
+    // find the start of a trailing run of digits
+    let mut i = bytes.len();
+    while i > 0 && bytes[i - 1].is_ascii_digit() {
+        i -= 1;
+    }
+    let digits = bytes.len() - i;
+    if (2..=4).contains(&digits) && i > 0 {
+        let sep = bytes[i - 1];
+        if sep == b' ' || sep == b'\'' || sep == b'`' {
+            return e[..i - 1].trim().to_string();
+        }
+    }
+    e.to_string()
+}
+
+/// Strip the HTML anchor tags out of a toplist "group" cell, leaving the group
+/// (or scener) names joined with ", ".
+pub fn names_from_cell(cell: &str) -> String {
+    let mut names: Vec<String> = Vec::new();
+    let mut rest = cell;
+    while let Some(open) = rest.find("<a ") {
+        let after = &rest[open..];
+        let Some(gt) = after.find('>') else { break };
+        let tail = &after[gt + 1..];
+        let Some(end) = tail.find("</a>") else { break };
+        names.push(html_unescape(&tail[..end]));
+        rest = &tail[end + 4..];
+    }
+    if names.is_empty() {
+        html_unescape(cell.trim())
+    } else {
+        names.join(", ")
+    }
+}
+
+/// Parse a CSDb release toplist HTML page into (release id, name, group, rating)
+/// rows, in ranked order. Each ranked `<tr>` carries a /release/?id= link, the
+/// name, the group cell, then the rating in a `<font size=1>` cell.
+pub fn parse_toplist(html: &str) -> Vec<(u32, String, String, f32)> {
+    let mut out = Vec::new();
+    for tr in html.split("<tr>") {
+        let Some(idpart) = between(tr, "/release/?id=", "\"") else { continue };
+        let Ok(id) = idpart.parse::<u32>() else { continue };
+        let after_id = match tr.find("/release/?id=") {
+            Some(p) => &tr[p..],
+            None => continue,
+        };
+        let Some(name_raw) = between(after_id, "\">", "</a>") else { continue };
+        let name = html_unescape(name_raw);
+        let group = between(tr, "</a> by ", "</td>")
+            .map(names_from_cell)
+            .unwrap_or_default();
+        let rating = between(tr, "<font size=1>", "</font>")
+            .and_then(|r| r.trim().parse::<f32>().ok())
+            .unwrap_or(0.0);
+        if !name.is_empty() {
+            out.push((id, name, group, rating));
+        }
+    }
+    out
 }
 
 /// HTTP GET returning the body bytes. Sends a polite User-Agent unless overridden.
@@ -208,9 +381,9 @@ pub fn fetch(url: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>, String> {
 
 /// A single-line stderr progress bar for long scans/downloads. It no-ops unless
 /// stderr is a terminal, so piped or redirected output stays clean (the tools
-/// already print machine-readable data to stdout). Call [`set`](Self::set) /
-/// [`inc`](Self::inc) as work proceeds; [`finish`](Self::finish) prints the
-/// closing newline so later messages start on their own line.
+/// already print machine-readable data to stdout). Call [`set`](Self::set) as
+/// work proceeds; [`finish`](Self::finish) prints the closing newline so later
+/// messages start on their own line.
 pub struct Progress {
     label: String,
     total: u64,
@@ -239,12 +412,6 @@ impl Progress {
     pub fn set(&mut self, current: u64) {
         self.current = if self.total > 0 { current.min(self.total) } else { current };
         self.draw();
-    }
-
-    /// Advance progress by `n` units and redraw.
-    #[allow(dead_code)]
-    pub fn inc(&mut self, n: u64) {
-        self.set(self.current + n);
     }
 
     fn draw(&self) {
