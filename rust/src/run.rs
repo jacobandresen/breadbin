@@ -348,7 +348,7 @@ pub fn joystick_present() -> bool {
 pub fn controls_description(joystick: bool) -> Vec<String> {
     if joystick {
         vec![
-            "Player 1   Joystick".to_string(),
+            format!("Player 1   {}   {}", controller_name(), controller_icon()),
             "Player 2   Keyboard — W A S D move, Space = fire".to_string(),
         ]
     } else {
@@ -368,7 +368,8 @@ pub fn controls_description(joystick: bool) -> Vec<String> {
 /// written.
 fn write_controls_config() -> Option<std::path::PathBuf> {
     // w=119 a=97 s=115 d=100 space=32 ; arrows 65361-65364 ; Shift_R=65506
-    let body = "\
+    let mut body = String::from(
+        "\
 KeySetEnable=1
 KeySet1North=119
 KeySet1South=115
@@ -380,11 +381,199 @@ KeySet2South=65364
 KeySet2West=65361
 KeySet2East=65363
 KeySet2Fire=65506
-";
+",
+    );
+    // VICE 3.10's joystick subsystem opens a host pad but loads no default mapping
+    // for it, so e.g. a DualSense is dead in-game (sticks/buttons bind to nothing).
+    // Point the JoyMapFile resource at a per-device .vjm to actually wire it up.
+    // C64_JOYMAP=<path> forces a specific map; otherwise we auto-supply the bundled
+    // DualSense map when a PS5 pad is detected (see write_joymap). The map binds
+    // host joystick 0, i.e. VICE's "Analog joystick 0" / -joydev 4.
+    #[cfg(target_os = "linux")]
+    if let Some(p) = joymap_path() {
+        body.push_str(&format!("JoyMapFile={}\n", p.to_string_lossy()));
+    }
     // x64sc reads the [C64SC] section, x64 reads [C64]; include both so either works.
     let ini = format!("[C64SC]\n{body}\n[C64]\n{body}");
     let path = crate::core::data_path("vice-controls.ini");
     std::fs::write(&path, ini).ok().map(|_| path)
+}
+
+/// Path to the VICE joystick mapping (.vjm) to load, or None to leave VICE on its
+/// (mapping-less) default. C64_JOYMAP=<path> wins; otherwise, when a Sony DualSense
+/// (PS5) pad is connected, write and use the bundled DualSense map.
+#[cfg(target_os = "linux")]
+fn joymap_path() -> Option<std::path::PathBuf> {
+    if let Some(p) = std::env::var_os("C64_JOYMAP").map(std::path::PathBuf::from) {
+        return p.is_file().then_some(p);
+    }
+    if dualsense_present() {
+        return write_dualsense_joymap();
+    }
+    None
+}
+
+/// Lower-cased names of the connected input devices, gathered from udev's stable
+/// by-id symlinks (which carry the model name over USB, e.g.
+/// `usb-Sony_..._DualSense_...`) and from each evdev device's `name` (which carries
+/// it over Bluetooth too, where by-id names don't), used to recognise specific
+/// controllers by name.
+#[cfg(target_os = "linux")]
+fn input_device_names() -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir("/dev/input/by-id")
+        .map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().to_ascii_lowercase()).collect())
+        .unwrap_or_default();
+    if let Ok(rd) = std::fs::read_dir("/sys/class/input") {
+        for e in rd.flatten() {
+            if let Ok(n) = std::fs::read_to_string(e.path().join("name")) {
+                names.push(n.trim().to_ascii_lowercase());
+            }
+        }
+    }
+    names
+}
+
+/// True if a Sony DualSense (PS5) controller is among the connected input devices.
+/// The .vjm map below is keyed to this pad's exact axis/button layout, so we only
+/// apply it when one is actually present — loading it for a different controller
+/// would mis-map its inputs.
+#[cfg(target_os = "linux")]
+fn dualsense_present() -> bool {
+    input_device_names().iter().any(|n| n.contains("dualsense"))
+}
+
+/// Which game controller is plugged in, for the launch banner's label and icon. On
+/// non-Linux hosts we can't read the device names, so everything is Generic.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ControllerKind {
+    PlayStation, // Sony DualSense (PS5)
+    TheC64,      // Retro Games Ltd THEC64 / THEVIC20 joystick
+    Generic,
+}
+
+fn controller_kind() -> ControllerKind {
+    #[cfg(target_os = "linux")]
+    {
+        let names = input_device_names();
+        let has = |needle: &str| names.iter().any(|n| n.contains(needle));
+        if has("dualsense") || has("playstation") {
+            return ControllerKind::PlayStation;
+        }
+        // THEC64 / THEVIC20 joystick (Retro Games Ltd) reports e.g. "THEC64 Joystick".
+        if has("thec64") {
+            return ControllerKind::TheC64;
+        }
+    }
+    ControllerKind::Generic
+}
+
+/// A friendly name for the connected controller, for the controls banner: the
+/// specific model when we recognise it, otherwise a plain "Joystick".
+fn controller_name() -> String {
+    match controller_kind() {
+        ControllerKind::PlayStation => "PlayStation Controller",
+        ControllerKind::TheC64 => "TheC64",
+        ControllerKind::Generic => "Joystick",
+    }
+    .to_string()
+}
+
+/// A little controller icon for the controls report, themed by what's plugged in:
+/// the THEC64 stick gets a sparkle-wreathed glowing halo; the DualSense gets a plain,
+/// unglamorous pad. Plain Unicode (no ANSI) so it renders both in c64run's banner and
+/// in the kiosk's ratatui controls dialog.
+fn controller_icon() -> String {
+    match controller_kind() {
+        ControllerKind::TheC64 => "·✦· 🕹 ·✦·".to_string(), // glowing halo
+        ControllerKind::PlayStation => "🎮".to_string(),     // boring: plain, unadorned
+        ControllerKind::Generic => "🕹".to_string(),
+    }
+}
+
+/// Write VICE's own DualSense mapping (data/joymaps/gtk3_joymap_ds5.vjm, embedded
+/// verbatim) to the data dir and return its path. The native x64sc and the
+/// net.sf.VICE flatpak are both GTK builds, so this gtk3 map fits either. The map
+/// targets host joystick 0; pins are 1/2/4/8/16/32/64 = up/down/left/right/fires.
+#[cfg(target_os = "linux")]
+fn write_dualsense_joymap() -> Option<std::path::PathBuf> {
+    const VJM: &str = "\
+# VICE joystick mapping file
+#
+# A joystick map is read in as patch to the current map.
+#
+# File format:
+# - comment lines start with '#'
+# - keyword lines start with '!keyword'
+# - normal line has 'joynum inputtype inputindex action'
+#
+# Keywords and their lines are:
+# '!CLEAR'    clear all mappings
+#
+# inputtype:
+# 0      axis
+# 1      button
+# 2      hat
+#
+# For buttons, inputindex is the zero-based index of the button.
+# For hats: hat 0 has inputindex 0,1,2,3 respectively for up, down, left and
+# right. Hat 1 has 5,6,7,8 etc.
+# For axes, and action 1 (joystick) and 2 (keyboard): axis 0 has inputindex
+# 0,1 respectively for positive and negative, axis 1 has 2,3 etc.
+# For axes, and action 6 (pot axis): inputindex is the zero-based index of the
+# axis.
+#
+# action [action_parameters]:
+# 0                none
+# 1 pin            joystick (pin: 1/2/4/8/16/32/64 = u/d/l/r/fire/fire2/fire3)
+# 2 row col flags  keyboard (flags: 1=shift)
+# 3                map
+# 4                UI activate
+# 5 action-name    UI function
+# 6 pot            potentiometer (1=pot x, 2=pot y)
+#
+
+!CLEAR
+
+# [054c:0ce6] \"Sony Interactive Entertainment DualSense Wireless Controller\" (8 axes, 13 buttons, 0 hats) Linux, GTK
+
+0 0 0 1 8
+0 0 1 1 4
+
+0 0 2 1 2
+0 0 3 1 1
+
+0 0 4 0
+0 0 5 0
+
+0 0 3 6 1
+
+0 0 4 6 2
+
+0 0 10 0
+0 0 11 0
+
+0 0 12 1 8
+0 0 13 1 4
+
+0 0 14 1 2
+0 0 15 1 1
+
+0 1 0 1 16
+0 1 1 1 64
+0 1 2 1 128
+0 1 3 1 32
+0 1 4 1 256
+0 1 5 1 512
+0 1 6 0
+0 1 7 0
+0 1 8 1 1024
+0 1 9 1 2048
+0 1 10 5 pause-toggle
+0 1 11 0
+0 1 12 0
+";
+    let path = crate::core::data_path("vice-joymap-ds5.vjm");
+    std::fs::write(&path, VJM).ok().map(|_| path)
 }
 
 /// VICE options wiring up the two control ports. The C64 reads single-player
