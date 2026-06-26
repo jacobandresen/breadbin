@@ -1,17 +1,6 @@
-# Rust build artifacts
-/rust/target/
-
-# macOS app packaging output (pack-macos.sh)
-/dist/
-
-# breadbin runtime data — downloaded, cached, or built at runtime.
-# The app keeps these in its data dir (~/.breadbin); never commit them.
-/covers/
-/*.sqlitedb
-/*.tsv
-/uta_index.html
-
-# editor / OS cruft
-.#*
-*~
-.DS_Store
+/target
+**/target
+*.tsv
+*.sqlitedb
+covers/
+__pycache__/

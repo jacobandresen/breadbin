@@ -1,0 +1,11 @@
+[package]
+name = "breadbin-gui"
+version = "0.2.0"
+edition = "2021"
+
+[[bin]]
+name = "breadbin"
+path = "src/main.rs"
+
+[dependencies]
+breadbin-core = { path = "../breadbin-core" }

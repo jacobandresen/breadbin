@@ -1,0 +1,36 @@
+[package]
+name = "breadbin-core"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Commodore 64 game library backend: catalogue, downloads, SID playback, VICE launching."
+authors = ["Jacob Andresen <jacob.andresen@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/jacobandresen/breadbin"
+
+[lib]
+name = "breadbin_core"
+path = "src/lib.rs"
+
+[dependencies]
+image = "0.25"
+which = "7"
+shlex = "1"
+regex = "1"
+# default-features off to disable ureq's automatic gzip/x-gzip response decoding:
+# the GameBase64 DB is served as a .gz with Content-Encoding: x-gzip, and we want
+# the raw bytes so we can decompress it ourselves (see info::ensure_db).
+ureq = { version = "2", default-features = false, features = ["tls"] }
+serde_json = "1"
+flate2 = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+encoding_rs = "0.8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Pure-Rust SID playback: resid-rs is the MOS6581/8580 chip emulator; breadbin
+# supplies its own 6502 + PSID driver (src/sid.rs) and streams the samples to the
+# audio device via cpal. No external SID player (sidplayfp/vice) is required.
+resid-rs = "1.1"
+cpal = "0.15"
+
+[dev-dependencies]
+uuid = { version = "1.10", features = ["v4"] }

@@ -15,36 +15,32 @@ const UA: &str = "breadbin/1.0";
 /// default text-mode look is [`palette::LIGHTBLUE`] text on a [`palette::SCREEN`]
 /// background.
 pub mod palette {
-    use ratatui::style::Color;
+    /// An RGB colour (toolkit-agnostic: the GUI converts to gdk::RGBA / CSS as needed).
+    pub type Rgb = [u8; 3];
 
     /// Dark "screen" blue — the C64's default background colour.
-    pub const SCREEN: Color = Color::Rgb(0x40, 0x31, 0x8D);
+    pub const SCREEN: Rgb = [0x40, 0x31, 0x8D];
     /// Light blue — the default text/border colour.
-    pub const LIGHTBLUE: Color = Color::Rgb(0x70, 0x6D, 0xEB);
-    pub const WHITE: Color = Color::Rgb(0xFF, 0xFF, 0xFF);
-    pub const RED: Color = Color::Rgb(0x88, 0x39, 0x32);
-    pub const ORANGE: Color = Color::Rgb(0x8E, 0x50, 0x29);
-    pub const YELLOW: Color = Color::Rgb(0xED, 0xF1, 0x71);
-    pub const GREEN: Color = Color::Rgb(0x56, 0xAC, 0x4D);
-    pub const LIGHTGREEN: Color = Color::Rgb(0x9F, 0xD8, 0x6B);
-    pub const CYAN: Color = Color::Rgb(0x75, 0xCE, 0xC8);
-    pub const PURPLE: Color = Color::Rgb(0x8E, 0x3C, 0x97);
+    pub const LIGHTBLUE: Rgb = [0x70, 0x6D, 0xEB];
+    pub const WHITE: Rgb = [0xFF, 0xFF, 0xFF];
+    pub const RED: Rgb = [0x88, 0x39, 0x32];
+    pub const ORANGE: Rgb = [0x8E, 0x50, 0x29];
+    pub const YELLOW: Rgb = [0xED, 0xF1, 0x71];
+    pub const GREEN: Rgb = [0x56, 0xAC, 0x4D];
+    pub const LIGHTGREEN: Rgb = [0x9F, 0xD8, 0x6B];
+    pub const CYAN: Rgb = [0x75, 0xCE, 0xC8];
+    pub const PURPLE: Rgb = [0x8E, 0x3C, 0x97];
 
     /// Raster-bar accent colours, cycled across title bars and visualisers.
-    pub const BARS: &[Color] = &[RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, PURPLE];
+    pub const BARS: &[Rgb] = &[RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, PURPLE];
 
     /// A stable raster-bar colour for a label (genre, party, …) so each header
     /// keeps the same C64 colour-bar chip from one redraw to the next.
-    pub fn bar_for(key: &str) -> Color {
+    pub fn bar_for(key: &str) -> Rgb {
         let h = key.bytes().fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
         BARS[h as usize % BARS.len()]
     }
 }
-
-/// PETSCII-style window chrome: thin lines with rounded corners, echoing the
-/// C64's keyboard line-drawing graphics. Shared by every framed box so the
-/// kiosk, tunes jukebox and demo browser wear one consistent retro frame.
-pub const PETSCII_BORDER: ratatui::symbols::border::Set = ratatui::symbols::border::ROUNDED;
 
 /// Directory holding breadbin's data files (c64_index.tsv, gb64.sqlitedb,
 /// covers/, …). A published, standalone binary owns this directory: on first run
@@ -197,17 +193,6 @@ pub fn spaced_upper(s: &str) -> String {
         .join(" ")
 }
 
-/// Hit-test click coordinates against a list of (rect, index) hot zones, returning
-/// the index of the first rect containing the point. Shared by the mouse-driven
-/// terminal UIs (kiosk, tunes, demos).
-pub fn hit(rects: &[(ratatui::layout::Rect, usize)], col: u16, row: u16) -> Option<usize> {
-    for (r, idx) in rects {
-        if col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height {
-            return Some(*idx);
-        }
-    }
-    None
-}
 
 /// Group item indices by their party series, returning `(party, indices)` sections
 /// with each party's best `top_per_party` items (ranked by `rating_of`, highest
