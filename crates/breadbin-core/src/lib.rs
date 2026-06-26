@@ -9,6 +9,7 @@ pub mod tosec;
 pub mod info;
 pub mod build_index;
 pub mod run;
+pub mod roms;
 pub mod sid;
 pub mod audio;
 pub mod tunes;

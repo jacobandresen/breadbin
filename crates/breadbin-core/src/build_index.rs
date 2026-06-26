@@ -101,6 +101,12 @@ fn has_image_ext(name: &str) -> bool {
     EXTS.iter().any(|e| lower.ends_with(e))
 }
 
+/// Rebuild c64_index.tsv from ia_index.tsv + the local library. Library entry point
+/// for the GUI (replaces re-exec'ing the `index` subcommand).
+pub fn build() {
+    let _ = main(Vec::new());
+}
+
 pub fn main(_argv: Vec<String>) -> ExitCode {
     let out_path = core::data_path("c64_index.tsv");
     let ia_index = core::data_path("ia_index.tsv");

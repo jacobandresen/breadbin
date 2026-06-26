@@ -616,7 +616,7 @@ fn gb64_meta() -> HashMap<String, (i64, String)> {
     out
 }
 
-fn build_ia_index() -> ExitCode {
+pub fn build_ia_index() -> ExitCode {
     eprintln!("loading GameBase64 ratings + genres ...");
     let meta = gb64_meta();
     eprintln!("games with details: {}  ·  scanning IA collection ({COLL}) ...", meta.len());
@@ -695,6 +695,28 @@ fn build_ia_index() -> ExitCode {
     }
     eprintln!("scanned {seen} IA items; {} games on IA with details -> {}", rows.len(), ia_path.display());
     ExitCode::SUCCESS
+}
+
+/// Download an exact Internet Archive item and return the boot disk path, recording
+/// it in downloaded.tsv. None on failure. Used by the GUI instead of re-exec'ing the
+/// `disk --id` subcommand.
+pub fn download_by_id(id: &str, dest: &Path) -> Option<std::path::PathBuf> {
+    let got = download_ia(id, id, dest, false);
+    let boot = dest.join(got.first()?);
+    record_download(id, &boot.to_string_lossy());
+    Some(boot)
+}
+
+/// Resolve a query against the given sources and download the best matching release,
+/// returning the saved disk-image paths. Library entry point for the GUI.
+pub fn download_query(query: &str, sources: &[String], dest: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for (handle, ti) in resolve_best(query, false, sources) {
+        for f in download(&handle, &ti, dest, false) {
+            out.push(dest.join(f));
+        }
+    }
+    out
 }
 
 pub fn main(argv: Vec<String>) -> ExitCode {

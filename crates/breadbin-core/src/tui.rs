@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::{core, cover, disk, info, run};
+use crate::{build_index, core, cover, disk, info, run};
 
 /// Genre bucket for rows that carry no genre.
 pub const GENRE_OTHER: &str = "Other";
@@ -227,64 +227,35 @@ pub fn recent_plays(limit: Option<usize>) -> Vec<String> {
 /// binary as `disk --ia-index` and `index`, mirroring c64menu.refresh(). This is
 /// also the first-run bootstrap that fills a fresh user data directory.
 pub fn refresh() -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let st = Command::new(&exe)
-        .arg("disk")
-        .arg("--ia-index")
-        .status()
-        .map_err(|e| e.to_string())?;
-    if !st.success() {
-        return Err("could not build the IA catalogue".to_string());
-    }
-    Command::new(&exe).arg("index").status().map_err(|e| e.to_string())?;
+    // build_ia_index reports its own errors to stderr and returns an ExitCode we can't
+    // introspect; run it then rebuild the ranked index.
+    let _ = disk::build_ia_index();
+    build_index::build();
     Ok(())
 }
 
 /// Resolve a local disk path for a row, downloading from the Internet Archive if
-/// needed. With `quiet`, child output is suppressed (the kiosk owns the screen).
-/// Returns None if the download produced no matching disk.
-pub fn resolve(row: &Row, quiet: bool) -> Option<PathBuf> {
+/// needed (direct library calls; no subprocess). Returns None if the download
+/// produced no matching disk.
+pub fn resolve(row: &Row, _quiet: bool) -> Option<PathBuf> {
     if row.is_local() {
         return Some(PathBuf::from(&row.target));
     }
-    let exe = std::env::current_exe().ok()?;
-    let mut path = String::new();
-    if !row.ident.is_empty() {
-        // exact IA item: c64disk prints the boot path on stdout.
-        let mut cmd = Command::new(&exe);
-        cmd.arg("disk").arg("--id").arg(&row.ident).stdout(Stdio::piped());
-        if quiet {
-            cmd.stderr(Stdio::null());
-        }
-        if let Ok(out) = cmd.output() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            path = s
-                .lines()
-                .rfind(|l| !l.trim().is_empty())
-                .unwrap_or("")
-                .to_string();
-        }
+    let dest = disk::dest_default();
+    let path: Option<PathBuf> = if !row.ident.is_empty() {
+        disk::download_by_id(&row.ident, &dest)
     } else {
-        let mut cmd = Command::new(&exe);
-        cmd.arg("disk").arg("--source").arg("ia").arg(&row.query);
-        if quiet {
-            cmd.stdout(Stdio::null()).stderr(Stdio::null());
-        }
-        let _ = cmd.status();
-    }
+        disk::download_query(&row.query, &["ia".to_string()], &dest)
+            .into_iter()
+            .next()
+    };
     // refresh local/available state
-    let mut bcmd = Command::new(&exe);
-    bcmd.arg("index");
-    if quiet {
-        bcmd.stdout(Stdio::null()).stderr(Stdio::null());
-    } else {
-        bcmd.stdout(Stdio::null());
-    }
-    let _ = bcmd.status();
+    build_index::build();
 
-    let p = PathBuf::from(&path);
-    if !path.is_empty() && p.exists() {
-        return Some(p);
+    if let Some(p) = path {
+        if p.exists() {
+            return Some(p);
+        }
     }
     // fallback: match by title against the rebuilt index
     for f in load_rows() {

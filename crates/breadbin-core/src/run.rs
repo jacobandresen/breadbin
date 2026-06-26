@@ -607,6 +607,99 @@ fn control_flags(joystick: bool) -> Vec<String> {
     opts
 }
 
+/// Options for launching a game/demo in VICE. Carries the C64 Forever install so the
+/// licensed ROMs are always used (see crate::roms).
+pub struct LaunchOpts {
+    pub warp: bool,
+    pub fullscreen: bool,
+    pub keyboard: bool,
+    pub drive_sound: Option<bool>,
+    pub forever: crate::roms::Forever,
+}
+
+impl Default for LaunchOpts {
+    fn default() -> Self {
+        LaunchOpts {
+            warp: true,
+            fullscreen: true,
+            keyboard: false,
+            drive_sound: None,
+            forever: crate::roms::Forever::RomDir(PathBuf::new()),
+        }
+    }
+}
+
+/// A native VICE command for the RomDir launch path (no Cloanto wine bundle).
+fn native_vice_cmd() -> Vec<String> {
+    for exe in ["x64sc", "x64"] {
+        if which::which(exe).is_ok() {
+            return vec![exe.to_string()];
+        }
+    }
+    if which::which("flatpak").is_ok() && flatpak_installed("net.sf.VICE") {
+        return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"].map(String::from).to_vec();
+    }
+    vec!["x64sc".to_string()]
+}
+
+/// Point native VICE at extracted C64 Forever ROMs. UNVERIFIED filenames — confirm
+/// against a real install before relying on this. Spellings probed from `-help`.
+fn rom_args(dir: &Path, help: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for (flag, file) in [("-kernal", "kernal"), ("-basic", "basic"), ("-chargen", "chargen")] {
+        let p = dir.join(file);
+        if help.contains(flag) && p.is_file() {
+            out.push(flag.to_string());
+            out.push(p.to_string_lossy().into_owned());
+        }
+    }
+    out
+}
+
+/// Spawn VICE as a child process (NEVER exec) so the GUI stays alive while a game runs.
+/// Returns the Child so the caller can watch for exit. The licensed ROMs come from the
+/// user's C64 Forever install in `opts.forever`.
+pub fn spawn(game: &Path, opts: &LaunchOpts) -> std::io::Result<std::process::Child> {
+    let (emu, mut rom, wine_prefix): (Vec<String>, Vec<String>, Option<PathBuf>) =
+        match &opts.forever {
+            crate::roms::Forever::BundledVice { x64_exe, wine_prefix } => (
+                vec!["wine".to_string(), x64_exe.to_string_lossy().into_owned()],
+                Vec::new(),
+                wine_prefix.clone(),
+            ),
+            crate::roms::Forever::RomDir(dir) => (native_vice_cmd(), Vec::new(), Some(dir.clone())),
+        };
+    let help = emu_help(&emu);
+    if let crate::roms::Forever::RomDir(dir) = &opts.forever {
+        rom = rom_args(dir, &help);
+    }
+
+    let mut args: Vec<String> = drive_flags(&help, false); // TDE always (licensed ROMs present)
+    args.extend(drive_sound_flags(&help, opts.drive_sound));
+    if opts.warp {
+        args.push("-autostart-warp".into());
+    }
+    if opts.fullscreen {
+        args.push("-VICIIfull".into());
+    }
+    let joystick = !opts.keyboard && joystick_present();
+    args.extend(control_flags(joystick));
+    args.extend(rom);
+
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("SDL_VIDEODRIVER").is_none() {
+        // SAFETY: setting a default env for the child; called before threads spawn here.
+        unsafe { std::env::set_var("SDL_VIDEODRIVER", "x11") };
+    }
+
+    let mut cmd = Command::new(&emu[0]);
+    cmd.args(&emu[1..]).args(&args).arg("-autostart").arg(game);
+    if let Some(pfx) = wine_prefix {
+        cmd.env("WINEPREFIX", pfx).env("WINEDEBUG", "-all");
+    }
+    cmd.spawn()
+}
+
 pub fn main(argv: Vec<String>) -> ExitCode {
     let (mut warp, mut fullscreen, mut list_only, mut keyboard) = (true, true, false, false);
     let mut drive_sound: Option<bool> = None; // None = env/default; Some = CLI override
