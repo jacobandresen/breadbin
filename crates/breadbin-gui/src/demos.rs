@@ -283,22 +283,30 @@ fn build_party_section(
     strip_scroll.set_child(Some(&strip_box));
     stack.add_named(&strip_scroll, Some("strip"));
 
-    // ── Grid page: loading header + FlowBox ──────────────────────────────────
+    // ── Grid page: first strip row (identical to strip) + overflow FlowBox ───
     let grid_vbox = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(8)
         .build();
 
+    // First row mirrors the strip exactly.
+    let grid_first_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .hexpand(true)
+        .build();
+
     let loading_header = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(4)
-        .margin_top(8)
+        .margin_top(4)
         .margin_bottom(4)
         .halign(gtk::Align::Center)
         .build();
 
+    let overflow_count = idxs.len().saturating_sub(STRIP_MAX);
     let loading_label = gtk::Label::builder()
-        .label(&format!("Loading covers — 0 / {}", idxs.len()))
+        .label(&format!("Loading covers — 0 / {overflow_count}"))
         .build();
     loading_label.add_css_class("caption");
 
@@ -315,9 +323,12 @@ fn build_party_section(
         .column_spacing(8)
         .row_spacing(8)
         .homogeneous(false)
+        .min_children_per_line(STRIP_MAX as u32)
+        .max_children_per_line(STRIP_MAX as u32)
         .selection_mode(gtk::SelectionMode::None)
         .build();
 
+    grid_vbox.append(&grid_first_row);
     grid_vbox.append(&loading_header);
     grid_vbox.append(&flow);
     stack.add_named(&grid_vbox, Some("grid"));
@@ -328,6 +339,7 @@ fn build_party_section(
     let launch_for_grid = launch_opts.clone();
 
     let stack_weak = stack.downgrade();
+    let first_row_weak = grid_first_row.downgrade();
     let flow_weak = flow.downgrade();
     let loading_header_weak = loading_header.downgrade();
     let loading_label_weak = loading_label.downgrade();
@@ -339,47 +351,60 @@ fn build_party_section(
         if s.visible_child_name().as_deref() == Some("strip") {
             if !grid_populated.get() {
                 grid_populated.set(true);
-                if let Some(flow) = flow_weak.upgrade() {
-                    let (tx, rx) = async_channel::bounded::<()>(total.max(1));
 
-                    if let Some(hdr) = loading_header_weak.upgrade() {
-                        hdr.set_visible(true);
+                // First row: same STRIP_MAX cards, same sizing as strip.
+                if let Some(first_row) = first_row_weak.upgrade() {
+                    for demo in grid_demos.iter().take(STRIP_MAX) {
+                        let card = build_demo_card(demo, launch_for_grid.clone(), false, None);
+                        first_row.append(&card);
                     }
-                    if let Some(lbl) = loading_label_weak.upgrade() {
-                        lbl.set_label(&format!("Loading covers — 0 / {total}"));
-                    }
-                    if let Some(bar) = loading_bar_weak.upgrade() {
-                        bar.set_fraction(0.0);
-                    }
+                }
 
-                    let lbl_weak2 = loading_label_weak.clone();
-                    let bar_weak2 = loading_bar_weak.clone();
-                    let hdr_weak2 = loading_header_weak.clone();
-                    glib::spawn_future_local(async move {
-                        let mut done = 0usize;
-                        while rx.recv().await.is_ok() {
-                            done += 1;
-                            let frac = done as f64 / total as f64;
-                            if let Some(b) = bar_weak2.upgrade() {
-                                b.set_fraction(frac);
-                            }
-                            if let Some(l) = lbl_weak2.upgrade() {
-                                l.set_label(&format!("Loading covers — {done} / {total}"));
-                            }
-                            if done >= total {
-                                if let Some(h) = hdr_weak2.upgrade() {
-                                    h.set_visible(false);
-                                }
-                                break;
-                            }
+                // Overflow items go into the FlowBox, tracked by the progress bar.
+                let overflow = total.saturating_sub(STRIP_MAX);
+                if overflow > 0 {
+                    if let Some(flow) = flow_weak.upgrade() {
+                        let (tx, rx) = async_channel::bounded::<()>(overflow);
+
+                        if let Some(hdr) = loading_header_weak.upgrade() {
+                            hdr.set_visible(true);
                         }
-                    });
+                        if let Some(lbl) = loading_label_weak.upgrade() {
+                            lbl.set_label(&format!("Loading covers — 0 / {overflow}"));
+                        }
+                        if let Some(bar) = loading_bar_weak.upgrade() {
+                            bar.set_fraction(0.0);
+                        }
 
-                    for demo in &grid_demos {
-                        let card = build_demo_card(demo, launch_for_grid.clone(), false, Some(tx.clone()));
-                        let fb_child = gtk::FlowBoxChild::new();
-                        fb_child.set_child(Some(&card));
-                        flow.append(&fb_child);
+                        let lbl_weak2 = loading_label_weak.clone();
+                        let bar_weak2 = loading_bar_weak.clone();
+                        let hdr_weak2 = loading_header_weak.clone();
+                        glib::spawn_future_local(async move {
+                            let mut done = 0usize;
+                            while rx.recv().await.is_ok() {
+                                done += 1;
+                                let frac = done as f64 / overflow as f64;
+                                if let Some(b) = bar_weak2.upgrade() {
+                                    b.set_fraction(frac);
+                                }
+                                if let Some(l) = lbl_weak2.upgrade() {
+                                    l.set_label(&format!("Loading covers — {done} / {overflow}"));
+                                }
+                                if done >= overflow {
+                                    if let Some(h) = hdr_weak2.upgrade() {
+                                        h.set_visible(false);
+                                    }
+                                    break;
+                                }
+                            }
+                        });
+
+                        for demo in grid_demos.iter().skip(STRIP_MAX) {
+                            let card = build_demo_card(demo, launch_for_grid.clone(), false, Some(tx.clone()));
+                            let fb_child = gtk::FlowBoxChild::new();
+                            fb_child.set_child(Some(&card));
+                            flow.append(&fb_child);
+                        }
                     }
                 }
             }
