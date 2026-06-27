@@ -1,9 +1,9 @@
 // c64run - boot a Commodore 64 game straight into the emulator, no launcher GUI.
 //
-// Auto-picks a VICE emulator, preferring a LICENSE-FREE one (no C64 Forever needed):
-//   1. native x64sc / x64 on PATH        (free VICE, its own bundled ROMs)
-//   2. the net.sf.VICE flatpak           (free VICE, bundled ROMs)
-//   3. Cloanto C64 Forever's x64.exe (wine, needs the license)  - fallback only
+// Auto-picks a VICE emulator, preferring C64 Forever for its extra GUI options:
+//   1. Cloanto C64 Forever's x64.exe (wine) — extra GUI, licensed ROMs
+//   2. native x64sc / x64 on PATH          — free VICE, its own bundled ROMs
+//   3. the net.sf.VICE flatpak             — free VICE, bundled ROMs
 // Override with  C64_EMU="..."  (e.g. C64_EMU='x64' or a full flatpak command).
 // VICE's -autostart is the emulator equivalent of typing  LOAD"*",8,1  then  RUN.
 
@@ -59,23 +59,13 @@ fn flatpak_installed(app_id: &str) -> bool {
     roots.iter().any(|r| Path::new(r).join(app_id).is_dir())
 }
 
-/// Return the emulator command as an argv list (license-free first).
+/// Return the emulator command as an argv list (C64 Forever first for its extra GUI options).
 fn pick_emulator() -> Vec<String> {
     if let Ok(env) = std::env::var("C64_EMU") {
         if let Some(parts) = shlex::split(&env) {
             return parts;
         }
         die("could not parse C64_EMU");
-    }
-    for exe in ["x64sc", "x64"] {
-        if which::which(exe).is_ok() {
-            return vec![exe.to_string()];
-        }
-    }
-    if which::which("flatpak").is_ok() && flatpak_installed("net.sf.VICE") {
-        return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"]
-            .map(String::from)
-            .to_vec();
     }
     if Path::new(WINE_X64).is_file() {
         // SAFETY: single-threaded at this point; just defaulting env for the child.
@@ -87,7 +77,17 @@ fn pick_emulator() -> Vec<String> {
         }
         return vec!["wine".to_string(), WINE_X64.to_string()];
     }
-    die("no VICE found - install 'vice', the net.sf.VICE flatpak, or C64 Forever");
+    for exe in ["x64sc", "x64"] {
+        if which::which(exe).is_ok() {
+            return vec![exe.to_string()];
+        }
+    }
+    if which::which("flatpak").is_ok() && flatpak_installed("net.sf.VICE") {
+        return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"]
+            .map(String::from)
+            .to_vec();
+    }
+    die("no VICE found - install C64 Forever, 'vice', or the net.sf.VICE flatpak");
 }
 
 fn has_image_ext(name: &str) -> bool {
@@ -687,6 +687,9 @@ pub fn spawn(game: &Path, opts: &LaunchOpts) -> std::io::Result<std::process::Ch
             args.push("-fullscreen".into());
         }
     }
+    if help.contains("-confirmexit") {
+        args.push("+confirmexit".into()); // close window quits immediately, no dialog
+    }
     let joystick = !opts.keyboard && joystick_present();
     args.extend(control_flags(joystick));
     args.extend(rom);
@@ -794,6 +797,9 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         } else if help.contains("-fullscreen") {
             opts.push("-fullscreen".into());
         } // VIC-II (C64) fullscreen
+    }
+    if help.contains("-confirmexit") {
+        opts.push("+confirmexit".into()); // close window quits immediately, no dialog
     }
     // Controls: a connected joystick is Player 1, the keyboard is Player 2; with no
     // joystick both players are on the keyboard. -k forces keyboard-only.

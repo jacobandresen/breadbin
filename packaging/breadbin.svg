@@ -148,19 +148,11 @@
   <polygon points="147,332 359,320 358,341 146,353" fill="#E2D49E" opacity="0.6"/>
 
   <!-- ── COMMODORE LOGO AREA ────────────────────────────────── -->
-  <!-- Chickenhead C= symbol (left of logo band) -->
-  <!-- C arc centred at (96, 178) r=14 -->
-  <path d="M 107,167 A 14,14 0 1 0 107,189"
-        fill="none" stroke="#4A78A8" stroke-width="5" stroke-linecap="round"/>
-  <line x1="82" y1="175" x2="110" y2="174" stroke="#4A78A8" stroke-width="3.5" stroke-linecap="round"/>
-  <line x1="82" y1="181" x2="110" y2="180" stroke="#4A78A8" stroke-width="3.5" stroke-linecap="round"/>
-
-  <!-- "commodore" in italic bold -->
-  <text x="285" y="175" font-family="sans-serif" font-size="19" font-weight="700"
+  <!-- "commodore" italic — centred in logo band -->
+  <text x="257" y="174" font-family="sans-serif" font-size="20" font-weight="700"
         font-style="italic" fill="#3A2010" text-anchor="middle" letter-spacing="1">commodore</text>
-
-  <!-- "64" in reddish-orange, distinct from the text above -->
-  <text x="285" y="196" font-family="sans-serif" font-size="16" font-weight="900"
+  <!-- "64" in red — centred below -->
+  <text x="257" y="196" font-family="sans-serif" font-size="17" font-weight="900"
         fill="#C03010" text-anchor="middle" letter-spacing="3">64</text>
 
   <!-- ── KEY LETTER LABELS ──────────────────────────────────── -->

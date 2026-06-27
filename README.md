@@ -1,10 +1,9 @@
 # Breadbin
 
-A native **GTK4 / libadwaita** Commodore 64 kiosk for Linux.
+A native Commodore 64 kiosk for Linux.
 
 Named after the "breadbin" — the classic beige C64 case shape.
 
-![Breadbin kiosk](./screenshot.png)
 
 ## What it does
 
