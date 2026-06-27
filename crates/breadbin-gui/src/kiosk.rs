@@ -9,6 +9,8 @@ use breadbin_core::{cover, library, run, tui};
 use crate::config::Settings;
 use crate::task::run_blocking;
 
+extern crate async_channel;
+
 const STRIP_MAX: usize = 8;
 
 // ── Cover texture ─────────────────────────────────────────────────────────────
@@ -270,6 +272,7 @@ fn build_game_card(
     top_rated: bool,
     launch_opts: Option<run::LaunchOpts>,
     hexpand: bool,
+    cover_done: Option<async_channel::Sender<()>>,
 ) -> gtk::Box {
     let is_local = row.is_local();
     let card = Card::new(&row.title, is_local, hexpand);
@@ -284,6 +287,9 @@ fn build_game_card(
             if let Some(texture) = texture_from_path(path, joystick, top_rated) {
                 pic.set_paintable(Some(&texture));
             }
+        }
+        if let Some(tx) = cover_done {
+            tx.send(()).await.ok();
         }
     });
 
@@ -343,6 +349,7 @@ fn build_genre_section(
     let stack = gtk::Stack::builder()
         .transition_type(gtk::StackTransitionType::SlideUpDown)
         .transition_duration(180)
+        .vhomogeneous(false)
         .build();
 
     // ── Strip page ────────────────────────────────────────────────────────────
@@ -363,22 +370,51 @@ fn build_genre_section(
         let top_rated = top_rated_canons.contains(&canon);
         // Cards expand to fill the strip when fewer than STRIP_MAX items
         let hexpand = row_indices.len() <= STRIP_MAX;
-        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand);
+        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand, None);
         strip_box.append(&card_widget);
     }
 
     strip_scroll.set_child(Some(&strip_box));
     stack.add_named(&strip_scroll, Some("strip"));
 
-    // ── Grid page (empty placeholder — populated lazily on first expand) ───────
+    // ── Grid page: loading header + FlowBox ──────────────────────────────────
+    let grid_vbox = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(8)
+        .build();
+
+    let loading_header = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(4)
+        .margin_top(8)
+        .margin_bottom(4)
+        .halign(gtk::Align::Center)
+        .build();
+
+    let loading_label = gtk::Label::builder()
+        .label(&format!("Loading covers — 0 / {}", row_indices.len()))
+        .build();
+    loading_label.add_css_class("caption");
+
+    let loading_bar = gtk::ProgressBar::builder()
+        .width_request(320)
+        .show_text(false)
+        .build();
+
+    loading_header.append(&loading_label);
+    loading_header.append(&loading_bar);
+    loading_header.set_visible(false);
+
     let flow = gtk::FlowBox::builder()
         .column_spacing(5)
         .row_spacing(5)
-        .homogeneous(true)
+        .homogeneous(false)
         .selection_mode(gtk::SelectionMode::None)
         .build();
 
-    stack.add_named(&flow, Some("grid"));
+    grid_vbox.append(&loading_header);
+    grid_vbox.append(&flow);
+    stack.add_named(&grid_vbox, Some("grid"));
     stack.set_visible_child_name("strip");
     section_box.append(&stack);
 
@@ -399,6 +435,9 @@ fn build_genre_section(
     // Wire up the toggle button — populate grid on first expand
     let stack_weak = stack.downgrade();
     let flow_weak = flow.downgrade();
+    let loading_header_weak = loading_header.downgrade();
+    let loading_label_weak = loading_label.downgrade();
+    let loading_bar_weak = loading_bar.downgrade();
     let total = row_indices.len();
     let grid_populated = std::rc::Rc::new(std::cell::Cell::new(false));
     toggle_btn.connect_clicked(move |btn| {
@@ -407,6 +446,41 @@ fn build_genre_section(
             if !grid_populated.get() {
                 grid_populated.set(true);
                 if let Some(flow) = flow_weak.upgrade() {
+                    let (tx, rx) = async_channel::bounded::<()>(total.max(1));
+
+                    if let Some(hdr) = loading_header_weak.upgrade() {
+                        hdr.set_visible(true);
+                    }
+                    if let Some(lbl) = loading_label_weak.upgrade() {
+                        lbl.set_label(&format!("Loading covers — 0 / {total}"));
+                    }
+                    if let Some(bar) = loading_bar_weak.upgrade() {
+                        bar.set_fraction(0.0);
+                    }
+
+                    let lbl_weak2 = loading_label_weak.clone();
+                    let bar_weak2 = loading_bar_weak.clone();
+                    let hdr_weak2 = loading_header_weak.clone();
+                    glib::spawn_future_local(async move {
+                        let mut done = 0usize;
+                        while rx.recv().await.is_ok() {
+                            done += 1;
+                            let frac = done as f64 / total as f64;
+                            if let Some(b) = bar_weak2.upgrade() {
+                                b.set_fraction(frac);
+                            }
+                            if let Some(l) = lbl_weak2.upgrade() {
+                                l.set_label(&format!("Loading covers — {done} / {total}"));
+                            }
+                            if done >= total {
+                                if let Some(h) = hdr_weak2.upgrade() {
+                                    h.set_visible(false);
+                                }
+                                break;
+                            }
+                        }
+                    });
+
                     for (row, joystick, top_rated) in &grid_rows {
                         let card = build_game_card(
                             row,
@@ -415,6 +489,7 @@ fn build_genre_section(
                             *top_rated,
                             launch_for_grid.clone(),
                             false,
+                            Some(tx.clone()),
                         );
                         let fb_child = gtk::FlowBoxChild::new();
                         fb_child.set_child(Some(&card));

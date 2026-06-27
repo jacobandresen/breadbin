@@ -166,6 +166,7 @@ fn build_demo_card(
     demo: &demos::Demo,
     launch_opts: Option<run::LaunchOpts>,
     hexpand: bool,
+    cover_done: Option<async_channel::Sender<()>>,
 ) -> gtk::Box {
     let picture = gtk::Picture::builder()
         .width_request(160)
@@ -204,6 +205,9 @@ fn build_demo_card(
             if let Some(texture) = texture_from_path(&path) {
                 pic.set_paintable(Some(&texture));
             }
+        }
+        if let Some(tx) = cover_done {
+            tx.send(()).await.ok();
         }
     });
 
@@ -256,6 +260,7 @@ fn build_party_section(
     let stack = gtk::Stack::builder()
         .transition_type(gtk::StackTransitionType::SlideUpDown)
         .transition_duration(180)
+        .vhomogeneous(false)
         .build();
 
     // ── Strip page ────────────────────────────────────────────────────────────
@@ -271,22 +276,51 @@ fn build_party_section(
 
     for &idx in idxs.iter().take(STRIP_MAX) {
         let hexpand = idxs.len() <= STRIP_MAX;
-        let card = build_demo_card(&all_demos[idx], launch_opts.clone(), hexpand);
+        let card = build_demo_card(&all_demos[idx], launch_opts.clone(), hexpand, None);
         strip_box.append(&card);
     }
 
     strip_scroll.set_child(Some(&strip_box));
     stack.add_named(&strip_scroll, Some("strip"));
 
-    // ── Grid page (empty — populated lazily on first expand) ─────────────────
+    // ── Grid page: loading header + FlowBox ──────────────────────────────────
+    let grid_vbox = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(8)
+        .build();
+
+    let loading_header = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(4)
+        .margin_top(8)
+        .margin_bottom(4)
+        .halign(gtk::Align::Center)
+        .build();
+
+    let loading_label = gtk::Label::builder()
+        .label(&format!("Loading covers — 0 / {}", idxs.len()))
+        .build();
+    loading_label.add_css_class("caption");
+
+    let loading_bar = gtk::ProgressBar::builder()
+        .width_request(320)
+        .show_text(false)
+        .build();
+
+    loading_header.append(&loading_label);
+    loading_header.append(&loading_bar);
+    loading_header.set_visible(false);
+
     let flow = gtk::FlowBox::builder()
         .column_spacing(8)
         .row_spacing(8)
-        .homogeneous(true)
+        .homogeneous(false)
         .selection_mode(gtk::SelectionMode::None)
         .build();
 
-    stack.add_named(&flow, Some("grid"));
+    grid_vbox.append(&loading_header);
+    grid_vbox.append(&flow);
+    stack.add_named(&grid_vbox, Some("grid"));
     stack.set_visible_child_name("strip");
     section_box.append(&stack);
 
@@ -295,6 +329,9 @@ fn build_party_section(
 
     let stack_weak = stack.downgrade();
     let flow_weak = flow.downgrade();
+    let loading_header_weak = loading_header.downgrade();
+    let loading_label_weak = loading_label.downgrade();
+    let loading_bar_weak = loading_bar.downgrade();
     let total = idxs.len();
     let grid_populated = std::rc::Rc::new(std::cell::Cell::new(false));
     toggle_btn.connect_clicked(move |btn| {
@@ -303,8 +340,43 @@ fn build_party_section(
             if !grid_populated.get() {
                 grid_populated.set(true);
                 if let Some(flow) = flow_weak.upgrade() {
+                    let (tx, rx) = async_channel::bounded::<()>(total.max(1));
+
+                    if let Some(hdr) = loading_header_weak.upgrade() {
+                        hdr.set_visible(true);
+                    }
+                    if let Some(lbl) = loading_label_weak.upgrade() {
+                        lbl.set_label(&format!("Loading covers — 0 / {total}"));
+                    }
+                    if let Some(bar) = loading_bar_weak.upgrade() {
+                        bar.set_fraction(0.0);
+                    }
+
+                    let lbl_weak2 = loading_label_weak.clone();
+                    let bar_weak2 = loading_bar_weak.clone();
+                    let hdr_weak2 = loading_header_weak.clone();
+                    glib::spawn_future_local(async move {
+                        let mut done = 0usize;
+                        while rx.recv().await.is_ok() {
+                            done += 1;
+                            let frac = done as f64 / total as f64;
+                            if let Some(b) = bar_weak2.upgrade() {
+                                b.set_fraction(frac);
+                            }
+                            if let Some(l) = lbl_weak2.upgrade() {
+                                l.set_label(&format!("Loading covers — {done} / {total}"));
+                            }
+                            if done >= total {
+                                if let Some(h) = hdr_weak2.upgrade() {
+                                    h.set_visible(false);
+                                }
+                                break;
+                            }
+                        }
+                    });
+
                     for demo in &grid_demos {
-                        let card = build_demo_card(demo, launch_for_grid.clone(), false);
+                        let card = build_demo_card(demo, launch_for_grid.clone(), false, Some(tx.clone()));
                         let fb_child = gtk::FlowBoxChild::new();
                         fb_child.set_child(Some(&card));
                         flow.append(&fb_child);
