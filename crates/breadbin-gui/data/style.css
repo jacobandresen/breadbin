@@ -1,0 +1,28 @@
+/* breadbin C64 skin. Colours mirror breadbin_core::core::palette (Pepto VIC-II).
+   GTK's CSS engine has no :root/var(); use @define-color and override libadwaita's
+   named colours so adw widgets follow the C64 look. */
+
+@define-color c64_screen    #40318D;
+@define-color c64_lightblue #706DEB;
+@define-color c64_yellow    #EDF171;
+@define-color c64_white     #FFFFFF;
+
+@define-color window_bg_color  @c64_screen;
+@define-color window_fg_color  @c64_lightblue;
+@define-color view_bg_color    @c64_screen;
+@define-color view_fg_color    @c64_lightblue;
+@define-color headerbar_bg_color @c64_screen;
+@define-color headerbar_fg_color @c64_white;
+@define-color accent_bg_color  @c64_yellow;
+@define-color accent_fg_color  @c64_screen;
+
+.c64-font { font-family: "unscii", monospace; }
+
+.cover-card {
+    border: 3px solid @c64_lightblue;
+    border-radius: 6px;
+}
+
+*:focus {
+    outline: 3px solid @c64_yellow;
+}

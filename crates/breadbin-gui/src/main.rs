@@ -1,7 +1,16 @@
-// breadbin-gui - the GTK4/libadwaita desktop app. M1+ builds the window here; for now
-// this is a stub that ensures the data dir exists (the GUI is added in milestone M1).
+// breadbin-gui - the GTK4/libadwaita desktop app. M1: window, view switcher (Games /
+// Tunes / Demos), and the C64 skin. The views are populated in later milestones.
 
-fn main() {
+mod app;
+
+use adw::prelude::*;
+
+pub const APP_ID: &str = "io.github.jacobandresen.Breadbin";
+
+fn main() -> glib::ExitCode {
     breadbin_core::core::ensure_user_data_dir();
-    eprintln!("breadbin GUI not yet implemented (milestone M1). Core library is ready.");
+    let application = adw::Application::builder().application_id(APP_ID).build();
+    application.connect_startup(|_| app::load_styles());
+    application.connect_activate(app::build_ui);
+    application.run()
 }

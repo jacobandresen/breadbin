@@ -8,4 +8,9 @@ name = "breadbin"
 path = "src/main.rs"
 
 [dependencies]
+adw = { version = "0.9.1", package = "libadwaita", features = ["v1_4"] }
+async-channel = "2.5.0"
 breadbin-core = { path = "../breadbin-core" }
+gdk = { version = "0.11.2", package = "gdk4" }
+glib = "0.22.7"
+gtk = { version = "0.11.3", package = "gtk4", features = ["v4_10"] }
