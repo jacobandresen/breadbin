@@ -1,51 +1,226 @@
-/* breadbin C64 skin. Colours mirror breadbin_core::core::palette (Pepto VIC-II).
-   GTK's CSS engine has no :root/var(); use @define-color and override libadwaita's
-   named colours so adw widgets follow the C64 look. */
+/* breadbin C64 skin — Pepto VIC-II palette, libadwaita overrides.
+   GTK CSS has no :root/var(); use @define-color throughout.        */
 
+/* ── Palette ──────────────────────────────────────────────────────── */
 @define-color c64_screen    #40318D;
+@define-color c64_border    #352879;
 @define-color c64_lightblue #706DEB;
 @define-color c64_yellow    #EDF171;
+@define-color c64_cyan      #70A4B2;
+@define-color c64_green     #588D43;
+@define-color c64_orange    #C46C35;
+@define-color c64_red       #883932;
 @define-color c64_white     #FFFFFF;
+@define-color c64_card      #2D2475;
 
-@define-color window_bg_color  @c64_screen;
-@define-color window_fg_color  @c64_lightblue;
-@define-color view_bg_color    @c64_screen;
-@define-color view_fg_color    @c64_lightblue;
-@define-color headerbar_bg_color @c64_screen;
-@define-color headerbar_fg_color @c64_white;
-@define-color accent_bg_color  @c64_yellow;
-@define-color accent_fg_color  @c64_screen;
+/* ── libadwaita palette overrides ────────────────────────────────── */
+@define-color window_bg_color     @c64_screen;
+@define-color window_fg_color     @c64_lightblue;
+@define-color view_bg_color       @c64_screen;
+@define-color view_fg_color       @c64_lightblue;
+@define-color headerbar_bg_color  @c64_border;
+@define-color headerbar_fg_color  @c64_white;
+@define-color accent_bg_color     @c64_yellow;
+@define-color accent_fg_color     @c64_screen;
+@define-color card_bg_color       @c64_card;
+@define-color card_fg_color       @c64_lightblue;
+@define-color popover_bg_color    @c64_border;
+@define-color popover_fg_color    @c64_white;
+@define-color dialog_bg_color     @c64_border;
+@define-color dialog_fg_color     @c64_white;
+@define-color sidebar_bg_color    @c64_border;
 
+/* ── Global typography ────────────────────────────────────────────── */
 .c64-font { font-family: "unscii", monospace; }
 
-.cover-card {
-    border: 3px solid @c64_lightblue;
+/* ── Header bar ───────────────────────────────────────────────────── */
+headerbar {
+    background-color: @c64_border;
+    border-bottom: 2px solid @c64_lightblue;
+}
+
+headerbar button {
+    color: @c64_lightblue;
+}
+
+headerbar button:hover {
+    background-color: alpha(@c64_lightblue, 0.15);
+}
+
+/* ViewSwitcher buttons */
+.view-switcher button {
+    color: alpha(@c64_lightblue, 0.7);
     border-radius: 6px;
+    transition: all 120ms ease;
 }
 
-*:focus {
-    outline: 3px solid @c64_yellow;
-}
-
-.section-header {
-    font-size: 1.1em;
-    font-weight: bold;
+.view-switcher button:checked {
     color: @c64_yellow;
-    margin-top: 8px;
-    margin-bottom: 4px;
+    border-bottom: 3px solid @c64_yellow;
+    background-color: alpha(@c64_yellow, 0.08);
+}
+
+/* ── Section headers (kiosk + demos) ──────────────────────────────── */
+.section-header {
+    font-size: 1.15em;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: @c64_yellow;
+}
+
+.section-chip {
+    min-width: 6px;
+    min-height: 28px;
+    border-radius: 2px;
+}
+
+.section-sep {
+    color: alpha(@c64_lightblue, 0.2);
+}
+
+/* ── Cover cards ──────────────────────────────────────────────────── */
+.cover-card {
+    background-color: @c64_card;
+    border: 2px solid alpha(@c64_lightblue, 0.35);
+    border-radius: 6px;
+    padding: 4px;
+    transition: border-color 100ms ease, background-color 100ms ease;
+}
+
+.cover-card:hover {
+    border-color: @c64_yellow;
+    background-color: alpha(@c64_yellow, 0.06);
 }
 
 .cover-picture {
-    background-color: #2a2060;
+    background-color: transparent;
+    border-radius: 4px;
 }
 
 .cover-title {
     color: @c64_lightblue;
-    font-size: 0.85em;
+    font-size: 0.8em;
+    margin-top: 4px;
 }
 
-.scope {
-    border: 2px solid @c64_lightblue;
+/* ── Focus ring ───────────────────────────────────────────────────── */
+*:focus {
+    outline: 2px solid @c64_yellow;
+    outline-offset: 2px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────── */
+button.suggested-action {
+    background-color: @c64_yellow;
+    color: @c64_screen;
+    font-weight: bold;
+    border-radius: 6px;
+}
+
+button.suggested-action:hover {
+    background-color: white;
+}
+
+button.pill {
+    border-radius: 999px;
+    padding: 4px 16px;
+    background-color: alpha(@c64_lightblue, 0.15);
+    color: @c64_lightblue;
+    border: 1px solid alpha(@c64_lightblue, 0.4);
+}
+
+button.pill:hover {
+    background-color: alpha(@c64_yellow, 0.2);
+    border-color: @c64_yellow;
+    color: @c64_yellow;
+}
+
+/* ── Progress bar ─────────────────────────────────────────────────── */
+progressbar trough {
+    background-color: alpha(@c64_lightblue, 0.2);
+    border-radius: 3px;
+    min-height: 6px;
+}
+
+progressbar progress {
+    background-color: @c64_yellow;
+    border-radius: 3px;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+scrollbar {
+    background-color: transparent;
+}
+
+scrollbar slider {
+    background-color: alpha(@c64_lightblue, 0.35);
     border-radius: 4px;
-    min-height: 80px;
+    min-width: 6px;
+    min-height: 6px;
+}
+
+scrollbar slider:hover {
+    background-color: @c64_yellow;
+}
+
+/* ── Tunes view ───────────────────────────────────────────────────── */
+.tunes-paned,
+.tunes-list-pane,
+.tunes-player-pane {
+    background-color: @c64_screen;
+    color: @c64_lightblue;
+}
+
+.tunes-list,
+.tunes-list row {
+    background-color: @c64_screen;
+    color: @c64_lightblue;
+    border: none;
+    box-shadow: none;
+}
+
+.tunes-list row {
+    border-bottom: 1px solid alpha(@c64_lightblue, 0.1);
+    transition: background-color 80ms ease;
+}
+
+.tunes-list row:hover {
+    background-color: alpha(@c64_lightblue, 0.1);
+}
+
+.tunes-party-header {
+    background-color: alpha(@c64_lightblue, 0.07);
+    color: @c64_yellow;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 7px 12px;
+    border-left: 5px solid @c64_yellow;
+    border-bottom: 1px solid alpha(@c64_lightblue, 0.15);
+}
+
+paned > separator {
+    background-color: alpha(@c64_lightblue, 0.25);
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* ── Oscilloscope / visualiser ────────────────────────────────────── */
+.scope {
+    border: 2px solid alpha(@c64_lightblue, 0.5);
+    border-radius: 6px;
+    background-color: #1a1050;
+    min-height: 100px;
+}
+
+/* ── Boot / loader labels ─────────────────────────────────────────── */
+.c64-boot-label {
+    font-family: "unscii", monospace;
+    font-size: 1.1em;
+    color: @c64_lightblue;
+    letter-spacing: 2px;
+}
+
+/* ── dim helper ───────────────────────────────────────────────────── */
+.dim-label {
+    color: alpha(@c64_lightblue, 0.55);
 }

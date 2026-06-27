@@ -1,0 +1,22 @@
+Source: breadbin
+Section: games
+Priority: optional
+Maintainer: Jacob Andresen <jacob.andresen@gmail.com>
+Build-Depends: debhelper-compat (= 13), cargo, pkg-config,
+               libgtk-4-dev, libadwaita-1-dev, libglib2.0-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/jacobandresen/breadbin
+Rules-Requires-Root: no
+
+Package: breadbin
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         libgtk-4-1, libadwaita-1-0
+Description: Commodore 64 game and demo kiosk with cover art
+ Breadbin is a GTK4/libadwaita frontend that presents your Commodore 64
+ game library as a kiosk with cover art organised by genre.  It also
+ includes a demoscene browser (grouped by demoparty) and a SID music
+ player, all styled with an authentic C64 colour palette.
+ .
+ Requires VICE (x64sc) to launch games/demos, and optionally C64 Forever
+ for ROM support.

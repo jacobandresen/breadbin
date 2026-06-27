@@ -1,185 +1,118 @@
-# breadbin
+# Breadbin
 
-A Commodore 64 game library for the terminal: **find · fetch · launch**.
+A native **GTK4 / libadwaita** Commodore 64 kiosk for Linux.
 
-Named after the "breadbin" — the classic beige C64 case.
+Named after the "breadbin" — the classic beige C64 case shape.
 
-Supported on **macOS**, **Arch Linux**, and **Ubuntu Linux**.
+![Breadbin kiosk](./screenshot.png)
 
-breadbin is a small command-line tool, written in Rust, that turns a folder of
-C64 disk/tape images into a browsable, rankable, instantly-playable library. It
-finds games (ranked by popularity, enriched with GameBase64 facts and box
-art), downloads the ones you don't own from public archives, and boots them
-straight into the VICE emulator — no launcher GUI, no C64 Forever license needed.
+## What it does
 
-## Quick start
+Breadbin turns your C64 collection into a cover-art kiosk organised by genre,
+with a demoscene browser and a SID music player — all styled with the authentic
+Pepto VIC-II colour palette.
 
-Build and install the `breadbin` binary (needs the [Rust toolchain](https://rustup.rs)):
+| Tab | What it shows |
+| --- | --- |
+| **Games** | One horizontal strip per genre; click a cover to see details and play. Genres with more than 8 entries get a **Show All** button that slides open a full grid. |
+| **Demos** | Same kiosk layout, grouped by demoparty (data from CSDb). |
+| **Tunes** | SID music jukebox with a live oscilloscope visualiser. |
 
-```sh
-cd rust && cargo install --path .
-```
+Click any card to open a detail dialog with the full box art, metadata, and
+**Play** / **Download** buttons.
 
-Then:
+## Requirements
 
-```sh
-breadbin              # default: opens the cover kiosk
-breadbin menu         # ranked master/detail list
-breadbin play barbarian
-breadbin info "bruce lee"
-```
+| Dependency | Purpose |
+| --- | --- |
+| [VICE](https://vice-emu.sourceforge.io/) (`x64sc`) | Launching games and demos |
+| GTK 4 + libadwaita | UI toolkit (usually pre-installed on modern desktops) |
 
-Point breadbin at your collection with the `C64_LIB` environment variable
+C64 Forever is optional — breadbin detects it automatically and uses it for ROM
+support when present. Without it, VICE's bundled free ROMs are used.
+
+Point breadbin at your game collection with the `C64_LIB` environment variable
 (default `~/Games/Commodore/C64`):
 
 ```sh
 export C64_LIB="/path/to/your/c64/games"
 ```
 
-### macOS app
+## Install
 
-To get a double-clickable **breadbin.app** (and a drag-to-Applications disk
-image), run the packager:
+### Arch Linux (recommended)
+
+Build and install system-wide (build runs as you; only the install step needs root):
 
 ```sh
-./pack-macos.sh            # builds dist/breadbin.app and dist/breadbin.dmg
+packaging/install.sh build   # cargo build --release (as your user)
+sudo packaging/install.sh    # copy files into /usr (as root)
 ```
 
-The app bundles the compiled binary and opens the cover-art **kiosk** in WezTerm
-(falling back to Terminal + the text menu if WezTerm isn't installed). Install it
-by dragging `breadbin.app` into `/Applications`, or open `breadbin.dmg`. Drop a
-`breadbin.icns` next to `pack-macos.sh` to give the app a custom icon.
+Then launch from your application menu or run `breadbin` in a terminal.
 
-## The `breadbin` command
+To build an AUR-style package instead:
 
-`breadbin` is a single binary that exposes its tools as subcommands.
+```sh
+cd packaging/arch
+makepkg -si
+```
 
-| Command | What it does |
+### Ubuntu / Debian
+
+```sh
+packaging/install.sh build
+sudo packaging/install.sh
+```
+
+Or build a `.deb`:
+
+```sh
+cp -r packaging/debian debian
+dpkg-buildpackage -us -uc -b
+sudo dpkg -i ../breadbin_*.deb
+```
+
+### From source (dev loop)
+
+```sh
+cargo build          # debug build — no --release needed
+./breadbin.sh        # sets GSETTINGS_SCHEMA_DIR and launches
+```
+
+`breadbin.sh` picks up `target/release/breadbin` if present, falls back to
+`target/debug/breadbin`.
+
+## How data is managed
+
+Breadbin stores everything in `~/.breadbin/` (override with `BREADBIN_HOME`).
+On first run it downloads and builds the indexes it needs — nothing is bundled
+in the binary or the package:
+
+| File / folder | Contents |
 | --- | --- |
-| `breadbin kiosk` | **(default)** grid of game cards (cover + details); play/fetch on Enter |
-| `breadbin menu` | browse ranked games; play the ones you own, fetch the rest |
-| `breadbin play <name>` | launch a game straight into the emulator (`LOAD"*",8,1 : RUN`) |
-| `breadbin info <name>` | show GameBase64 details (year, genre, author, …) |
-| `breadbin get <name>` | download a tape from the Ultimate Tape Archive |
-| `breadbin disk <name>` | download a disk from the Internet Archive / TOSEC |
-| `breadbin tosec` | browse the whole TOSEC catalogue; download + play on pick |
+| `c64_index.tsv` | Ranked game catalogue (GameBase64 + Internet Archive) |
+| `gb64.sqlitedb` | GameBase64 database (~17 MB, cached once) |
+| `covers/` + `covers_index.tsv` | Box-art thumbnails (Libretro set) |
+| `demos_index.json` | Demoscene index from CSDb |
+| `sids/` | SID music files |
 
-Add `--help` to any subcommand for its own options, e.g. `breadbin disk --help`.
+Use **Refresh catalogue** in Preferences to rebuild the game index.
 
-Running `breadbin` with no arguments opens the **kiosk**.
+## Configuration
 
-## The kiosk
+Open **Preferences** (the gear icon in the header bar) to set:
 
-![The breadbin kiosk](./screenshot.png)
-
-`breadbin kiosk` is a cover-art "kiosk" organised by genre, rendered right in the
-terminal using **WezTerm's inline image protocol**.
-
-- Opens on a genre overview: each genre shows its title bar and its top 3 covers,
-  plus a synthetic **"latest played"** section at the top.
-- **Click a cover** → download (if needed) and play that game.
-- **Click a genre title** → expand the genre into a full grid of its covers.
-- In an expanded genre, click any cover to play; **Esc** returns to the overview.
-- Arrow keys move the focus, **Enter** activates, **q** quits.
-
-Pass `-w` / `-f` / `-r` to forward `--warp` / `--fullscreen` / `--real` through to
-the emulator.
-
-> The kiosk requires WezTerm — it draws covers with `wezterm imgcat`. In other
-> terminals the cover art won't render. The text-based `breadbin menu` works
-> anywhere (and shows covers too when run inside WezTerm).
-
-## The menu
-
-`breadbin menu` is a keyboard-driven master/detail picker (no fzf):
-
-- Each game is one row: a marker, the title, and an action button.
-  - `o` — in your collection · Enter plays it.
-  - `v` — downloadable · Enter fetches it (via `breadbin disk`), then plays it.
-- Expand the selected row (`→` / `Tab`) to reveal a detail line with the box
-  cover and GameBase64 facts; `←` collapses.
-- Type to filter, `Backspace` to edit, `Esc` to clear the filter or quit, `q` to
-  quit.
-- `breadbin menu --refresh` re-pulls popularity scores, re-scans availability, and
-  rebuilds the index.
-
-## Dependencies
-
-breadbin runs on **macOS**, **Arch Linux**, and **Ubuntu Linux**. The bundled
-`setup-dependencies.sh` installs VICE and WezTerm for whichever of these
-platforms it detects (Homebrew on macOS, `pacman` on Arch, `apt` on Ubuntu):
-
-```sh
-./setup-dependencies.sh
-```
-
-### WezTerm (for cover art)
-
-The kiosk and the menu's cover previews draw images with **`wezterm imgcat`**, so
-they need [WezTerm](https://wezfurlong.org/wezterm/) and must run inside a WezTerm
-window. (The menu detects this via `TERM_PROGRAM=WezTerm`; without it, it falls
-back to text-only.)
-
-```sh
-brew install --cask wezterm
-```
-
-### VICE (for playing games)
-
-`breadbin play` boots games with the [VICE](https://vice-emu.sourceforge.io/) C64
-emulator, using `-autostart` (the equivalent of typing `LOAD"*",8,1` then `RUN`).
-It auto-picks an emulator, preferring a **license-free** one:
-
-1. native `x64sc` / `x64` on `PATH` (free VICE, bundled ROMs)
-2. the `net.sf.VICE` Flatpak (free VICE, bundled ROMs)
-3. Cloanto C64 Forever's `x64.exe` via wine (needs the license) — fallback only
-
-```sh
-brew install vice
-```
-
-Override the emulator with `C64_EMU` (e.g. `C64_EMU='x64'` or a full Flatpak
-command). Defaults are fullscreen, true-drive autostart, and warp fast-forwarding
-the load until the game has started.
-
-### Rust (to build)
-
-breadbin is a single Rust binary with no runtime dependencies beyond VICE (and
-WezTerm for cover art). Build and install it with the
-[Rust toolchain](https://rustup.rs):
-
-```sh
-cd rust && cargo install --path .
-```
-
-## How it works (data files)
-
-breadbin keeps its data in its own data directory — `~/.breadbin` by default, or
-`$BREADBIN_HOME` if set — and downloads/builds everything it needs there on first
-run (nothing is bundled in the repo):
-
-- `ia_index.tsv` — the ranked Internet Archive catalogue (GameBase64 rating + IA
-  downloads), built by `breadbin disk --ia-index`.
-- `breadbin index` — matches that catalogue against your collection and writes
-  `c64_index.tsv`, ordered by popularity, including games you've downloaded.
-- `gb64.sqlitedb` — the GameBase64 collection as SQLite (~17 MB, ~30k games),
-  downloaded and cached once; `breadbin info` reads it offline thereafter.
-- `covers/` + `covers_index.tsv` — cached box-art thumbnails (Libretro set).
-- `uta_index.html` — cached Ultimate Tape Archive listing.
-- `played.tsv` — a play log; powers the "latest played" kiosk section.
-- `downloaded.tsv` — maps downloaded archive items to their saved boot-disk path.
+- Path to your C64 game collection
+- C64 Forever ROM directory
+- Launch options: warp speed, fullscreen, drive sound
 
 ## Where games come from
 
-When you don't own a game, breadbin can fetch it from public preservation
-archives:
+When a game isn't in your collection, clicking **Download** in the detail dialog
+fetches it from public preservation archives:
 
-- **Ultimate Tape Archive** (`breadbin get`) — tape (`.tap`) preservation, one
-  folder per game.
-- **Internet Archive** (`breadbin disk`, default source `ia`) —
-  `softwarelibrary_c64`, cracked disk dumps.
-- **TOSEC** (`breadbin disk --source tosec`, or `breadbin tosec`) — the
-  comprehensive C64 set with full-title naming, served from the IA zip-of-zips
-  and unpacked locally.
+- **Internet Archive** — `softwarelibrary_c64` cracked disk dumps
+- **Ultimate Tape Archive** — tape preservation
 
-Downloads land in your collection, so a `breadbin menu --refresh` picks them up.
+Downloads land in your collection automatically.

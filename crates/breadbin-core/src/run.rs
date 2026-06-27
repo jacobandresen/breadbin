@@ -681,7 +681,11 @@ pub fn spawn(game: &Path, opts: &LaunchOpts) -> std::io::Result<std::process::Ch
         args.push("-autostart-warp".into());
     }
     if opts.fullscreen {
-        args.push("-VICIIfull".into());
+        if help.contains("-VICIIfull") {
+            args.push("-VICIIfull".into());
+        } else if help.contains("-fullscreen") {
+            args.push("-fullscreen".into());
+        }
     }
     let joystick = !opts.keyboard && joystick_present();
     args.extend(control_flags(joystick));
@@ -785,7 +789,11 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         opts.push("-autostart-warp".into()); // fast-forward loading, then normal speed
     }
     if fullscreen {
-        opts.push("-VICIIfull".into()); // VIC-II (C64) fullscreen
+        if help.contains("-VICIIfull") {
+            opts.push("-VICIIfull".into());
+        } else if help.contains("-fullscreen") {
+            opts.push("-fullscreen".into());
+        } // VIC-II (C64) fullscreen
     }
     // Controls: a connected joystick is Player 1, the keyboard is Player 2; with no
     // joystick both players are on the keyboard. -k forces keyboard-only.

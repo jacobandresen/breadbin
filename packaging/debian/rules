@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release --locked
+
+override_dh_auto_install:
+	install -Dm755 target/release/breadbin \
+		debian/breadbin/usr/bin/breadbin
+	install -Dm644 crates/breadbin-gui/data/io.github.jacobandresen.Breadbin.gschema.xml \
+		debian/breadbin/usr/share/glib-2.0/schemas/io.github.jacobandresen.Breadbin.gschema.xml
+	install -Dm644 packaging/breadbin.desktop \
+		debian/breadbin/usr/share/applications/breadbin.desktop
+	install -Dm644 packaging/breadbin.svg \
+		debian/breadbin/usr/share/icons/hicolor/scalable/apps/breadbin.svg
+
+override_dh_auto_test:
+	# no automated tests

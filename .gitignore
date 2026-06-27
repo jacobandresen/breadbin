@@ -4,3 +4,4 @@
 *.sqlitedb
 covers/
 __pycache__/
+gschemas.compiled

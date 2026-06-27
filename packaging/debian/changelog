@@ -1,0 +1,8 @@
+breadbin (0.2.0-1) unstable; urgency=low
+
+  * Initial Debian packaging.
+  * GTK4/libadwaita GUI with genre kiosk rows (expandable).
+  * Demoscene browser grouped by demoparty.
+  * SID music player with oscilloscope visualiser.
+
+ -- Jacob Andresen <jacob.andresen@gmail.com>  Fri, 27 Jun 2026 17:00:00 +0200

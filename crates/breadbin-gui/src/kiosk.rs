@@ -1,4 +1,4 @@
-// kiosk - the Games tab: scrollable grid of cover sections.
+// kiosk - the Games tab: one horizontal strip per genre, expandable to full grid.
 
 use std::path::PathBuf;
 
@@ -8,6 +8,8 @@ use breadbin_core::{cover, library, run, tui};
 
 use crate::config::Settings;
 use crate::task::run_blocking;
+
+const STRIP_MAX: usize = 8;
 
 // ── Cover texture ─────────────────────────────────────────────────────────────
 
@@ -43,17 +45,17 @@ struct Card {
 }
 
 impl Card {
-    fn new(title: &str, is_local: bool) -> Self {
+    fn new(title: &str, is_local: bool, hexpand: bool) -> Self {
         let picture = gtk::Picture::builder()
-            .width_request(160)
-            .height_request(200)
-            .content_fit(gtk::ContentFit::Cover)
+            .width_request(110)
+            .height_request(138)
+            .content_fit(gtk::ContentFit::Contain)
             .build();
         picture.add_css_class("cover-picture");
 
         let label = gtk::Label::builder()
             .label(title)
-            .max_width_chars(18)
+            .max_width_chars(14)
             .wrap(true)
             .lines(2)
             .ellipsize(gtk::pango::EllipsizeMode::End)
@@ -63,8 +65,8 @@ impl Card {
 
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(4)
-            .width_request(168)
+            .spacing(3)
+            .hexpand(hexpand)
             .build();
         root.add_css_class("cover-card");
         root.append(&picture);
@@ -82,15 +84,46 @@ impl Card {
     }
 }
 
-// ── Section row ───────────────────────────────────────────────────────────────
+// ── Section header ────────────────────────────────────────────────────────────
 
-fn section_header(title: &str) -> gtk::Label {
+/// A full-width section header with a C64 colour-bar chip on the left.
+pub fn section_header_widget(title: &str) -> gtk::Box {
+    let [r, g, b] = breadbin_core::core::palette::bar_for(title);
+    let color_css = format!("#{r:02X}{g:02X}{b:02X}");
+
+    let chip = gtk::Box::builder()
+        .width_request(8)
+        .height_request(32)
+        .build();
+    chip.add_css_class("section-chip");
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(&format!("box {{ background-color: {color_css}; border-radius: 2px; }}"));
+    chip.style_context()
+        .add_provider(&provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
     let label = gtk::Label::builder()
         .label(&title.to_uppercase())
         .xalign(0.0)
         .build();
     label.add_css_class("section-header");
-    label
+
+    let sep = gtk::Separator::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .hexpand(true)
+        .valign(gtk::Align::Center)
+        .build();
+    sep.add_css_class("section-sep");
+
+    let row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(10)
+        .margin_top(8)
+        .margin_bottom(4)
+        .build();
+    row.append(&chip);
+    row.append(&label);
+    row.append(&sep);
+    row
 }
 
 // ── Detail dialog ─────────────────────────────────────────────────────────────
@@ -116,7 +149,6 @@ fn show_detail(
         .margin_end(24)
         .build();
 
-    // Cover image
     if let Some(path) = &cover_path {
         if let Some(texture) = texture_from_path(path, joystick, top_rated) {
             let pic = gtk::Picture::builder()
@@ -128,7 +160,6 @@ fn show_detail(
         }
     }
 
-    // Info labels
     let title_lbl = gtk::Label::builder()
         .label(&row.title)
         .wrap(true)
@@ -146,14 +177,12 @@ fn show_detail(
         vbox.append(&genre_lbl);
     }
 
-    // Buttons row
     let btn_box = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(8)
         .halign(gtk::Align::End)
         .build();
 
-    // Download button (only when not local)
     if !row.is_local() {
         let dl_btn = gtk::Button::builder().label("Download").build();
         let row2 = row.clone();
@@ -168,7 +197,6 @@ fn show_detail(
         btn_box.append(&dl_btn);
     }
 
-    // Play button
     let play_btn = gtk::Button::builder().label("Play").build();
     play_btn.add_css_class("suggested-action");
     if let Some(opts) = launch_opts {
@@ -222,7 +250,6 @@ fn show_detail(
         play_btn.set_tooltip_text(Some("C64 Forever not detected — configure in Preferences"));
     }
     btn_box.append(&play_btn);
-
     vbox.append(&btn_box);
 
     let scroll = gtk::ScrolledWindow::builder()
@@ -232,6 +259,178 @@ fn show_detail(
 
     dialog.set_child(Some(&scroll));
     dialog.present(Some(parent));
+}
+
+// ── Card builder (shared between strip and grid) ──────────────────────────────
+
+fn build_game_card(
+    row: &tui::Row,
+    cidx: std::collections::HashMap<String, String>,
+    joystick: bool,
+    top_rated: bool,
+    launch_opts: Option<run::LaunchOpts>,
+    hexpand: bool,
+) -> gtk::Box {
+    let is_local = row.is_local();
+    let card = Card::new(&row.title, is_local, hexpand);
+
+    let cidx2 = cidx.clone();
+    let row_clone = row.clone();
+    let pic = card.picture.clone();
+    glib::spawn_future_local(async move {
+        let cover_path =
+            run_blocking(move || tui::cover_for(&row_clone, &cidx2)).await;
+        if let Some(path) = &cover_path {
+            if let Some(texture) = texture_from_path(path, joystick, top_rated) {
+                pic.set_paintable(Some(&texture));
+            }
+        }
+    });
+
+    let gesture = gtk::GestureClick::new();
+    let row_for_click = row.clone();
+    let cidx3 = cidx.clone();
+    let launch_for_click = launch_opts.clone();
+    gesture.connect_released(move |g, _, _, _| {
+        let Some(widget) = g.widget() else { return };
+        let Some(root) = widget.root() else { return };
+        let Some(win) = root.downcast_ref::<gtk::Window>() else { return };
+
+        let row_snap = row_for_click.clone();
+        let cidx_c = cidx3.clone();
+        let win_c = win.clone();
+        let launch = launch_for_click.clone();
+        glib::spawn_future_local(async move {
+            let row_snap2 = row_snap.clone();
+            let cidx_c2 = cidx_c.clone();
+            let cover_path =
+                run_blocking(move || tui::cover_for(&row_snap2, &cidx_c2)).await;
+            show_detail(&win_c, row_snap, cover_path, joystick, top_rated, launch);
+        });
+    });
+    card.root.add_controller(gesture);
+
+    card.root
+}
+
+// ── Kiosk genre section ───────────────────────────────────────────────────────
+
+fn build_genre_section(
+    section_name: &str,
+    row_indices: &[usize],
+    rows: &[tui::Row],
+    cidx: &std::collections::HashMap<String, String>,
+    joystick_canons: &std::collections::HashSet<String>,
+    top_rated_canons: &std::collections::HashSet<String>,
+    launch_opts: &Option<run::LaunchOpts>,
+) -> gtk::Box {
+    let section_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .build();
+
+    // Header row with optional expand button
+    let header_row = section_header_widget(section_name);
+    let has_overflow = row_indices.len() > STRIP_MAX;
+    let toggle_btn = gtk::Button::builder()
+        .label(&format!("Show All ({})", row_indices.len()))
+        .visible(has_overflow)
+        .build();
+    toggle_btn.add_css_class("pill");
+    header_row.append(&toggle_btn);
+    section_box.append(&header_row);
+
+    // Stack: "strip" (horizontal scroll row) vs "grid" (full FlowBox)
+    let stack = gtk::Stack::builder()
+        .transition_type(gtk::StackTransitionType::SlideUpDown)
+        .transition_duration(180)
+        .build();
+
+    // ── Strip page ────────────────────────────────────────────────────────────
+    let strip_scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Automatic)
+        .vscrollbar_policy(gtk::PolicyType::Never)
+        .build();
+    let strip_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(5)
+        .hexpand(true)
+        .build();
+
+    for &idx in row_indices.iter().take(STRIP_MAX) {
+        let row = &rows[idx];
+        let canon = tui::canon_of(row);
+        let joystick = joystick_canons.contains(&canon);
+        let top_rated = top_rated_canons.contains(&canon);
+        // Cards expand to fill the strip when fewer than STRIP_MAX items
+        let hexpand = row_indices.len() <= STRIP_MAX;
+        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand);
+        strip_box.append(&card_widget);
+    }
+
+    strip_scroll.set_child(Some(&strip_box));
+    stack.add_named(&strip_scroll, Some("strip"));
+
+    // ── Grid page (empty placeholder — populated lazily on first expand) ───────
+    let flow = gtk::FlowBox::builder()
+        .column_spacing(5)
+        .row_spacing(5)
+        .homogeneous(true)
+        .selection_mode(gtk::SelectionMode::None)
+        .build();
+
+    stack.add_named(&flow, Some("grid"));
+    stack.set_visible_child_name("strip");
+    section_box.append(&stack);
+
+    // Snapshot what the grid needs; owned data so the closure is 'static.
+    let grid_rows: Vec<(tui::Row, bool, bool)> = row_indices
+        .iter()
+        .map(|&idx| {
+            let row = rows[idx].clone();
+            let canon = tui::canon_of(&row);
+            let joystick = joystick_canons.contains(&canon);
+            let top_rated = top_rated_canons.contains(&canon);
+            (row, joystick, top_rated)
+        })
+        .collect();
+    let cidx_for_grid = cidx.clone();
+    let launch_for_grid = launch_opts.clone();
+
+    // Wire up the toggle button — populate grid on first expand
+    let stack_weak = stack.downgrade();
+    let flow_weak = flow.downgrade();
+    let total = row_indices.len();
+    let grid_populated = std::rc::Rc::new(std::cell::Cell::new(false));
+    toggle_btn.connect_clicked(move |btn| {
+        let Some(s) = stack_weak.upgrade() else { return };
+        if s.visible_child_name().as_deref() == Some("strip") {
+            if !grid_populated.get() {
+                grid_populated.set(true);
+                if let Some(flow) = flow_weak.upgrade() {
+                    for (row, joystick, top_rated) in &grid_rows {
+                        let card = build_game_card(
+                            row,
+                            cidx_for_grid.clone(),
+                            *joystick,
+                            *top_rated,
+                            launch_for_grid.clone(),
+                            false,
+                        );
+                        let fb_child = gtk::FlowBoxChild::new();
+                        fb_child.set_child(Some(&card));
+                        flow.append(&fb_child);
+                    }
+                }
+            }
+            s.set_visible_child_name("grid");
+            btn.set_label("Show Less");
+        } else {
+            s.set_visible_child_name("strip");
+            btn.set_label(&format!("Show All ({})", total));
+        }
+    });
+
+    section_box
 }
 
 // ── Main build function ───────────────────────────────────────────────────────
@@ -251,7 +450,6 @@ pub fn build(settings: &Settings) -> gtk::Widget {
 
     let outer_weak = outer.downgrade();
     glib::spawn_future_local(async move {
-        // Load everything on a worker thread.
         let (rows, cidx, sections, joystick_canons, top_rated_canons) =
             run_blocking(|| {
                 let rows = tui::load_rows();
@@ -267,7 +465,6 @@ pub fn build(settings: &Settings) -> gtk::Widget {
             return;
         };
 
-        // Remove spinner
         if let Some(child) = outer.first_child() {
             outer.remove(&child);
         }
@@ -289,86 +486,24 @@ pub fn build(settings: &Settings) -> gtk::Widget {
 
         let content = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(16)
-            .margin_top(16)
-            .margin_bottom(16)
-            .margin_start(16)
-            .margin_end(16)
+            .spacing(8)
+            .margin_top(10)
+            .margin_bottom(10)
+            .margin_start(10)
+            .margin_end(10)
             .build();
 
         for (section_name, row_indices) in &sections {
-            let header = section_header(section_name);
-            content.append(&header);
-
-            let flow = gtk::FlowBox::builder()
-                .column_spacing(8)
-                .row_spacing(8)
-                .homogeneous(true)
-                .selection_mode(gtk::SelectionMode::None)
-                .build();
-
-            for &idx in row_indices.iter().take(30) {
-                let row = &rows[idx];
-                let is_local = row.is_local();
-                let canon = tui::canon_of(row);
-                let joystick = joystick_canons.contains(&canon);
-                let top_rated = top_rated_canons.contains(&canon);
-
-                let card = Card::new(&row.title, is_local);
-
-                // Load cover asynchronously
-                let cidx2 = cidx.clone();
-                let row_clone = row.clone();
-                let pic = card.picture.clone();
-                glib::spawn_future_local(async move {
-                    let cover_path =
-                        run_blocking(move || tui::cover_for(&row_clone, &cidx2)).await;
-                    if let Some(path) = &cover_path {
-                        if let Some(texture) = texture_from_path(path, joystick, top_rated) {
-                            pic.set_paintable(Some(&texture));
-                        }
-                    }
-                });
-
-                // Click handler opens detail dialog
-                let gesture = gtk::GestureClick::new();
-                let row_for_click = row.clone();
-                let cidx3 = cidx.clone();
-                let launch_for_click = launch_opts.clone();
-                gesture.connect_released(move |g, _, _, _| {
-                    let Some(widget) = g.widget() else { return };
-                    let Some(root) = widget.root() else { return };
-                    let Some(win) = root.downcast_ref::<gtk::Window>() else { return };
-
-                    let row_snap = row_for_click.clone();
-                    let cidx_c = cidx3.clone();
-                    let win_c = win.clone();
-                    let joystick_c = joystick;
-                    let top_rated_c = top_rated;
-                    let launch = launch_for_click.clone();
-                    glib::spawn_future_local(async move {
-                        let row_snap2 = row_snap.clone();
-                        let cidx_c2 = cidx_c.clone();
-                        let cover_path =
-                            run_blocking(move || tui::cover_for(&row_snap2, &cidx_c2)).await;
-                        show_detail(
-                            &win_c,
-                            row_snap,
-                            cover_path,
-                            joystick_c,
-                            top_rated_c,
-                            launch,
-                        );
-                    });
-                });
-                card.root.add_controller(gesture);
-
-                let fb_child = gtk::FlowBoxChild::new();
-                fb_child.set_child(Some(&card.root));
-                flow.append(&fb_child);
-            }
-
-            content.append(&flow);
+            let section = build_genre_section(
+                section_name,
+                row_indices,
+                &rows,
+                &cidx,
+                &joystick_canons,
+                &top_rated_canons,
+                &launch_opts,
+            );
+            content.append(&section);
         }
 
         scrolled.set_child(Some(&content));

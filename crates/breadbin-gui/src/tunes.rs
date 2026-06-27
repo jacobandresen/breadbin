@@ -50,11 +50,13 @@ pub fn build() -> gtk::Widget {
         .orientation(gtk::Orientation::Horizontal)
         .wide_handle(true)
         .build();
+    hpaned.add_css_class("tunes-paned");
 
     // ── Left pane: tune list ──────────────────────────────────────────────────
     let left = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .build();
+    left.add_css_class("tunes-list-pane");
 
     let spinner = gtk::Spinner::new();
     spinner.start();
@@ -71,6 +73,7 @@ pub fn build() -> gtk::Widget {
         .margin_start(12)
         .margin_end(12)
         .build();
+    right.add_css_class("tunes-player-pane");
 
     let now_title = gtk::Label::builder()
         .label("—")
@@ -178,12 +181,14 @@ pub fn build() -> gtk::Widget {
         }
 
         if all_tunes.is_empty() {
-            let status = adw::StatusPage::builder()
-                .icon_name("audio-x-generic-symbolic")
-                .title("No tunes found")
-                .description("The SID index hasn't been built yet.")
+            let lbl = gtk::Label::builder()
+                .label("No tunes — run Refresh catalogue to build the SID index.")
+                .wrap(true)
+                .xalign(0.5)
+                .margin_top(60)
                 .build();
-            left.append(&status);
+            lbl.add_css_class("dim-label");
+            left.append(&lbl);
             return;
         }
 
@@ -191,7 +196,7 @@ pub fn build() -> gtk::Widget {
         let listbox = gtk::ListBox::builder()
             .selection_mode(gtk::SelectionMode::None)
             .build();
-        listbox.add_css_class("boxed-list");
+        listbox.add_css_class("tunes-list");
 
         let all_tunes = Rc::new(all_tunes);
 
@@ -199,31 +204,60 @@ pub fn build() -> gtk::Widget {
             // Party header row
             let header_row = gtk::ListBoxRow::new();
             header_row.set_activatable(false);
+            header_row.add_css_class("tunes-party-header");
             let header_label = gtk::Label::builder()
-                .label(party_name)
+                .label(&party_name.to_uppercase())
                 .xalign(0.0)
                 .build();
-            header_label.add_css_class("heading");
-            header_label.set_margin_top(8);
-            header_label.set_margin_bottom(4);
-            header_label.set_margin_start(8);
             header_row.set_child(Some(&header_label));
             listbox.append(&header_row);
 
             for &idx in idxs {
                 let tune = &all_tunes[idx];
-                let row = adw::ActionRow::builder()
-                    .title(glib::markup_escape_text(&tune.name).as_str())
-                    .subtitle(glib::markup_escape_text(&tune.composer).as_str())
-                    .activatable(true)
+
+                let name_lbl = gtk::Label::builder()
+                    .label(&tune.name)
+                    .xalign(0.0)
+                    .ellipsize(gtk::pango::EllipsizeMode::End)
+                    .hexpand(true)
                     .build();
 
-                // Rating badge
-                let rating_label = gtk::Label::builder()
-                    .label(&format!("{:.1}★", tune.rating))
+                let composer_lbl_row = gtk::Label::builder()
+                    .label(&tune.composer)
+                    .xalign(0.0)
+                    .ellipsize(gtk::pango::EllipsizeMode::End)
                     .build();
-                rating_label.add_css_class("caption");
-                row.add_suffix(&rating_label);
+                composer_lbl_row.add_css_class("dim-label");
+                composer_lbl_row.add_css_class("caption");
+
+                let meta = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Vertical)
+                    .spacing(2)
+                    .hexpand(true)
+                    .valign(gtk::Align::Center)
+                    .build();
+                meta.append(&name_lbl);
+                meta.append(&composer_lbl_row);
+
+                let rating_lbl = gtk::Label::builder()
+                    .label(&format!("{:.1}★", tune.rating))
+                    .valign(gtk::Align::Center)
+                    .build();
+                rating_lbl.add_css_class("caption");
+
+                let hbox = gtk::Box::builder()
+                    .orientation(gtk::Orientation::Horizontal)
+                    .spacing(8)
+                    .margin_top(6)
+                    .margin_bottom(6)
+                    .margin_start(12)
+                    .margin_end(12)
+                    .build();
+                hbox.append(&meta);
+                hbox.append(&rating_lbl);
+
+                let lb_row = gtk::ListBoxRow::builder().activatable(true).build();
+                lb_row.set_child(Some(&hbox));
 
                 let tune_for_click = all_tunes[idx].clone();
                 let audio_for_click = audio_for_load.clone();
@@ -231,7 +265,7 @@ pub fn build() -> gtk::Widget {
                 let composer_lbl = now_composer_load.clone();
                 let pp_btn = pp_btn_load.clone();
 
-                row.connect_activated(move |_| {
+                lb_row.connect_activate(move |_| {
                     let t = tune_for_click.clone();
                     let audio_rc = audio_for_click.clone();
                     let title_l = title_lbl.clone();
@@ -243,24 +277,21 @@ pub fn build() -> gtk::Widget {
                     glib::spawn_future_local(async move {
                         let result = run_blocking(move || tunes::ensure_sid(&t)).await;
                         match result {
-                            Ok(bytes) => {
-                                // Audio::start must run on the main thread (cpal::Stream is !Send)
-                                match Audio::start(bytes, 0) {
-                                    Ok(new_audio) => {
-                                        *audio_rc.borrow_mut() = Some(new_audio);
-                                        title_l.set_label(&name);
-                                        composer_l.set_label(&composer);
-                                        pp.set_label("Pause");
-                                    }
-                                    Err(e) => eprintln!("audio error: {e}"),
+                            Ok(bytes) => match Audio::start(bytes, 0) {
+                                Ok(new_audio) => {
+                                    *audio_rc.borrow_mut() = Some(new_audio);
+                                    title_l.set_label(&name);
+                                    composer_l.set_label(&composer);
+                                    pp.set_label("Pause");
                                 }
-                            }
+                                Err(e) => eprintln!("audio error: {e}"),
+                            },
                             Err(e) => eprintln!("SID fetch error: {e}"),
                         }
                     });
                 });
 
-                listbox.append(&row);
+                listbox.append(&lb_row);
             }
         }
 

@@ -1,0 +1,37 @@
+# Maintainer: Jacob Andresen <jacob.andresen@gmail.com>
+pkgname=breadbin
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Commodore 64 game and demo kiosk with cover art (GTK4/libadwaita)"
+arch=('x86_64')
+url="https://github.com/jacobandresen/breadbin"
+license=('MIT')
+depends=('gtk4' 'libadwaita' 'glib2')
+makedepends=('rust' 'cargo' 'pkg-config')
+install="$pkgname.install"
+source=("$pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/$pkgname"
+    cargo build --release --locked
+}
+
+package() {
+    cd "$srcdir/$pkgname"
+
+    install -Dm755 "target/release/breadbin" \
+        "$pkgdir/usr/bin/breadbin"
+
+    install -Dm644 "crates/breadbin-gui/data/io.github.jacobandresen.Breadbin.gschema.xml" \
+        "$pkgdir/usr/share/glib-2.0/schemas/io.github.jacobandresen.Breadbin.gschema.xml"
+
+    install -Dm644 "packaging/breadbin.desktop" \
+        "$pkgdir/usr/share/applications/breadbin.desktop"
+
+    install -Dm644 "packaging/breadbin.svg" \
+        "$pkgdir/usr/share/icons/hicolor/scalable/apps/breadbin.svg"
+
+    install -Dm644 "LICENSE" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE" 2>/dev/null || true
+}

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Breadbin
+GenericName=C64 Game Kiosk
+Comment=Browse and launch Commodore 64 games and demos with cover art
+Exec=breadbin
+Icon=breadbin
+Categories=Game;Emulator;
+Keywords=c64;commodore;emulator;games;demos;kiosk;
+StartupWMClass=breadbin
