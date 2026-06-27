@@ -1,8 +1,9 @@
-// app - top-level window: header bar, a Games/Tunes/Demos view switcher, and the C64
-// skin. Each page is a placeholder StatusPage for now; later milestones fill them in.
+// app - top-level window: header bar, a Games/Tunes/Demos view switcher, and C64 skin.
 
 use adw::prelude::*;
 use gtk::gio;
+
+use crate::config::Settings;
 
 /// Load the C64 stylesheet into the default display.
 pub fn load_styles() {
@@ -17,32 +18,24 @@ pub fn load_styles() {
     }
 }
 
-/// A placeholder page for a not-yet-built view.
-fn placeholder(icon: &str, title: &str, body: &str) -> gtk::Widget {
-    adw::StatusPage::builder()
-        .icon_name(icon)
-        .title(title)
-        .description(body)
-        .build()
-        .upcast()
-}
-
 pub fn build_ui(app: &adw::Application) {
+    let settings = Settings::new();
+
     let stack = adw::ViewStack::new();
     stack.add_titled_with_icon(
-        &placeholder("applications-games-symbolic", "Games", "The cover library lands in M2."),
+        &crate::kiosk::build(&settings),
         Some("kiosk"),
         "Games",
         "applications-games-symbolic",
     );
     stack.add_titled_with_icon(
-        &placeholder("audio-x-generic-symbolic", "Tunes", "The SID jukebox lands in M3."),
+        &crate::tunes::build(),
         Some("tunes"),
         "Tunes",
         "audio-x-generic-symbolic",
     );
     stack.add_titled_with_icon(
-        &placeholder("video-display-symbolic", "Demos", "The demoscene browser lands in M3b."),
+        &crate::demos::build(&settings),
         Some("demos"),
         "Demos",
         "video-display-symbolic",
@@ -79,5 +72,29 @@ pub fn build_ui(app: &adw::Application) {
         .content(&toolbar)
         .build();
     window.add_css_class("c64-font");
+
+    // App actions
+    let refresh_action = gio::SimpleAction::new("refresh", None);
+    refresh_action.connect_activate(|_, _| {
+        glib::spawn_future_local(async move {
+            crate::task::run_blocking(|| breadbin_core::tui::refresh()).await.ok();
+        });
+    });
+    app.add_action(&refresh_action);
+
+    let about_action = gio::SimpleAction::new("about", None);
+    let win_weak = window.downgrade();
+    about_action.connect_activate(move |_, _| {
+        let dialog = adw::AboutDialog::builder()
+            .application_name("breadbin")
+            .version("0.2.0")
+            .developer_name("Jacob Andresen")
+            .build();
+        if let Some(w) = win_weak.upgrade() {
+            dialog.present(Some(&w));
+        }
+    });
+    app.add_action(&about_action);
+
     window.present();
 }

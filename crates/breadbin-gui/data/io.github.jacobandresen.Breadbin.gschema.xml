@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="io.github.jacobandresen.Breadbin"
+          path="/io/github/jacobandresen/Breadbin/">
+    <key name="games-folder" type="s"><default>""</default></key>
+    <key name="c64forever-roms" type="s"><default>""</default></key>
+    <key name="warp" type="b"><default>true</default></key>
+    <key name="fullscreen-launch" type="b"><default>true</default></key>
+    <key name="drive-sound" type="b"><default>true</default></key>
+  </schema>
+</schemalist>

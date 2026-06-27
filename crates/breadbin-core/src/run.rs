@@ -609,6 +609,7 @@ fn control_flags(joystick: bool) -> Vec<String> {
 
 /// Options for launching a game/demo in VICE. Carries the C64 Forever install so the
 /// licensed ROMs are always used (see crate::roms).
+#[derive(Clone)]
 pub struct LaunchOpts {
     pub warp: bool,
     pub fullscreen: bool,

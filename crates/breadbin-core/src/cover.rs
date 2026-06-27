@@ -100,6 +100,147 @@ pub fn ensure_cover(canon: &str, idx: &HashMap<String, String>) -> Option<PathBu
     Some(cache)
 }
 
+// ── Cover badges ─────────────────────────────────────────────────────────────
+// These are ported verbatim from the old rust/src/kiosk.rs.
+
+fn fill_ellipse(img: &mut image::RgbaImage, cx: f32, cy: f32, rx: f32, ry: f32, c: image::Rgba<u8>) {
+    if rx <= 0.0 || ry <= 0.0 { return; }
+    let (w, h) = img.dimensions();
+    let x0 = (cx - rx).floor().max(0.0) as u32;
+    let x1 = (cx + rx).ceil().min(w as f32 - 1.0) as u32;
+    let y0 = (cy - ry).floor().max(0.0) as u32;
+    let y1 = (cy + ry).ceil().min(h as f32 - 1.0) as u32;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            if (dx / rx) * (dx / rx) + (dy / ry) * (dy / ry) <= 1.0 {
+                img.put_pixel(x, y, c);
+            }
+        }
+    }
+}
+
+fn fill_circle(img: &mut image::RgbaImage, cx: f32, cy: f32, r: f32, c: image::Rgba<u8>) {
+    fill_ellipse(img, cx, cy, r, r, c);
+}
+
+fn fill_disc_gradient(img: &mut image::RgbaImage, cx: f32, cy: f32, r: f32, inner: [u8; 3], outer: [u8; 3]) {
+    let (w, h) = img.dimensions();
+    let x0 = (cx - r).floor().max(0.0) as u32;
+    let x1 = (cx + r).ceil().min(w as f32 - 1.0) as u32;
+    let y0 = (cy - r).floor().max(0.0) as u32;
+    let y1 = (cy + r).ceil().min(h as f32 - 1.0) as u32;
+    let lerp = |a: u8, b: u8, t: f32| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let d = (dx * dx + dy * dy).sqrt();
+            if d <= r {
+                let t = d / r;
+                img.put_pixel(x, y, image::Rgba([
+                    lerp(inner[0], outer[0], t),
+                    lerp(inner[1], outer[1], t),
+                    lerp(inner[2], outer[2], t),
+                    255,
+                ]));
+            }
+        }
+    }
+}
+
+fn fill_rect(img: &mut image::RgbaImage, x: f32, y: f32, rw: f32, rh: f32, c: image::Rgba<u8>) {
+    let (w, h) = img.dimensions();
+    let x0 = x.max(0.0) as u32;
+    let y0 = y.max(0.0) as u32;
+    let x1 = (x + rw).clamp(0.0, w as f32) as u32;
+    let y1 = (y + rh).clamp(0.0, h as f32) as u32;
+    for yy in y0..y1 { for xx in x0..x1 { img.put_pixel(xx, yy, c); } }
+}
+
+fn point_in_poly(px: f32, py: f32, pts: &[(f32, f32)]) -> bool {
+    let mut inside = false;
+    let n = pts.len();
+    let mut j = n - 1;
+    for i in 0..n {
+        let (xi, yi) = pts[i];
+        let (xj, yj) = pts[j];
+        if (yi > py) != (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
+fn fill_polygon(img: &mut image::RgbaImage, pts: &[(f32, f32)], c: image::Rgba<u8>) {
+    let (w, h) = img.dimensions();
+    let minx = pts.iter().map(|p| p.0).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
+    let maxx = pts.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max).ceil().min(w as f32 - 1.0) as u32;
+    let miny = pts.iter().map(|p| p.1).fold(f32::INFINITY, f32::min).floor().max(0.0) as u32;
+    let maxy = pts.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max).ceil().min(h as f32 - 1.0) as u32;
+    for y in miny..=maxy {
+        for x in minx..=maxx {
+            if point_in_poly(x as f32 + 0.5, y as f32 + 0.5, pts) {
+                img.put_pixel(x, y, c);
+            }
+        }
+    }
+}
+
+fn fill_star(img: &mut image::RgbaImage, cx: f32, cy: f32, r_out: f32, r_in: f32, c: image::Rgba<u8>) {
+    let mut pts = [(0.0f32, 0.0f32); 10];
+    for (k, p) in pts.iter_mut().enumerate() {
+        let ang = -std::f32::consts::FRAC_PI_2 + k as f32 * std::f32::consts::PI / 5.0;
+        let rr = if k % 2 == 0 { r_out } else { r_in };
+        *p = (cx + rr * ang.cos(), cy + rr * ang.sin());
+    }
+    fill_polygon(img, &pts, c);
+}
+
+/// Composite a gold five-pointed star into the top-right of a cover bitmap (5/5 badge).
+pub fn draw_rating_badge(img: &mut image::RgbaImage) {
+    let (w, h) = img.dimensions();
+    if w < 16 || h < 16 { return; }
+    let r = (w.min(h) as f32) * 0.16;
+    let cx = w as f32 - r * 1.2;
+    let cy = r * 1.2;
+    let ir = 0.42;
+    fill_star(img, cx, cy, r * 1.15, r * 1.15 * ir, image::Rgba([92u8, 60, 0, 255]));
+    fill_star(img, cx, cy, r, r * ir, image::Rgba([255u8, 186, 10, 255]));
+    fill_star(img, cx, cy - r * 0.06, r * 0.5, r * 0.5 * ir, image::Rgba([255u8, 232, 150, 255]));
+}
+
+/// Composite a joystick badge into the bottom-right of a cover bitmap.
+pub fn draw_joystick_badge(img: &mut image::RgbaImage) {
+    let (w, h) = img.dimensions();
+    if w < 16 || h < 16 { return; }
+    let r = (w.min(h) as f32) * 0.15;
+    let cx = w as f32 - r * 1.35;
+    let cy = h as f32 - r * 1.35;
+    let rim = image::Rgba([18u8, 18, 22, 255]);
+    let base_dark = image::Rgba([28u8, 30, 36, 255]);
+    let base_lit = image::Rgba([78u8, 82, 96, 255]);
+    let shaft = image::Rgba([40u8, 42, 50, 255]);
+    let shaft_lit = image::Rgba([120u8, 124, 138, 255]);
+    let ball = image::Rgba([206u8, 38, 34, 255]);
+    let ball_shadow = image::Rgba([138u8, 20, 18, 255]);
+    let gloss = image::Rgba([255u8, 235, 230, 255]);
+    let red = image::Rgba([214u8, 44, 40, 255]);
+    fill_circle(img, cx, cy, r, rim);
+    fill_disc_gradient(img, cx, cy, r * 0.88, [255, 226, 132], [236, 158, 0]);
+    fill_ellipse(img, cx, cy + r * 0.42, r * 0.60, r * 0.26, base_dark);
+    fill_ellipse(img, cx, cy + r * 0.34, r * 0.46, r * 0.12, base_lit);
+    fill_circle(img, cx + r * 0.30, cy + r * 0.36, r * 0.085, red);
+    fill_circle(img, cx + r * 0.275, cy + r * 0.335, r * 0.03, gloss);
+    fill_rect(img, cx - r * 0.085, cy - r * 0.30, r * 0.17, r * 0.62, shaft);
+    fill_rect(img, cx - r * 0.085, cy - r * 0.30, r * 0.05, r * 0.62, shaft_lit);
+    fill_circle(img, cx, cy - r * 0.36, r * 0.27, ball_shadow);
+    fill_circle(img, cx - r * 0.02, cy - r * 0.38, r * 0.24, ball);
+    fill_circle(img, cx - r * 0.09, cy - r * 0.45, r * 0.085, gloss);
+}
+
 /// Fallback cover: the Internet Archive item's own image (services/img), cached.
 pub fn ia_cover(ident: &str) -> Option<PathBuf> {
     if ident.is_empty() {

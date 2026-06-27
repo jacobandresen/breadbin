@@ -15,3 +15,4 @@ pub mod audio;
 pub mod tunes;
 pub mod demos;
 pub mod tui;
+pub mod library;

@@ -26,3 +26,26 @@
 *:focus {
     outline: 3px solid @c64_yellow;
 }
+
+.section-header {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: @c64_yellow;
+    margin-top: 8px;
+    margin-bottom: 4px;
+}
+
+.cover-picture {
+    background-color: #2a2060;
+}
+
+.cover-title {
+    color: @c64_lightblue;
+    font-size: 0.85em;
+}
+
+.scope {
+    border: 2px solid @c64_lightblue;
+    border-radius: 4px;
+    min-height: 80px;
+}

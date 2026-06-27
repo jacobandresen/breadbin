@@ -250,6 +250,7 @@ dependencies = [
  "gdk4",
  "glib",
  "gtk4",
+ "image",
  "libadwaita",
 ]
 
