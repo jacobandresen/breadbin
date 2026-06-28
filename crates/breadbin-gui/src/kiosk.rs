@@ -5,6 +5,8 @@ use std::path::PathBuf;
 use adw::prelude::*;
 
 use breadbin_core::{cover, library, run, tui};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use crate::config::Settings;
 use crate::task::run_blocking;
@@ -137,6 +139,7 @@ fn show_detail(
     joystick: bool,
     top_rated: bool,
     launch_opts: Option<run::LaunchOpts>,
+    on_refresh: Rc<dyn Fn()>,
 ) {
     let dialog = adw::Dialog::new();
     dialog.set_title(&row.title);
@@ -184,6 +187,23 @@ fn show_detail(
         .spacing(8)
         .halign(gtk::Align::End)
         .build();
+
+    // Hide / Unhide button
+    let is_hidden = tui::load_hidden().contains(&row.display);
+    let hide_btn = gtk::Button::builder()
+        .label(if is_hidden { "Unhide" } else { "Hide" })
+        .build();
+    hide_btn.add_css_class("destructive-action");
+    let row_display = row.display.clone();
+    let dialog_for_hide = dialog.clone();
+    let on_refresh2 = on_refresh.clone();
+    hide_btn.connect_clicked(move |_| {
+        let currently_hidden = tui::load_hidden().contains(&row_display);
+        tui::set_hidden(&row_display, !currently_hidden);
+        dialog_for_hide.close();
+        on_refresh2();
+    });
+    btn_box.append(&hide_btn);
 
     if !row.is_local() {
         let dl_btn = gtk::Button::builder().label("Download").build();
@@ -273,6 +293,7 @@ fn build_game_card(
     launch_opts: Option<run::LaunchOpts>,
     hexpand: bool,
     cover_done: Option<async_channel::Sender<()>>,
+    on_refresh: Rc<dyn Fn()>,
 ) -> gtk::Box {
     let is_local = row.is_local();
     let card = Card::new(&row.title, is_local, hexpand);
@@ -297,6 +318,7 @@ fn build_game_card(
     let row_for_click = row.clone();
     let cidx3 = cidx.clone();
     let launch_for_click = launch_opts.clone();
+    let on_refresh3 = on_refresh.clone();
     gesture.connect_released(move |g, _, _, _| {
         let Some(widget) = g.widget() else { return };
         let Some(root) = widget.root() else { return };
@@ -306,12 +328,13 @@ fn build_game_card(
         let cidx_c = cidx3.clone();
         let win_c = win.clone();
         let launch = launch_for_click.clone();
+        let on_refresh4 = on_refresh3.clone();
         glib::spawn_future_local(async move {
             let row_snap2 = row_snap.clone();
             let cidx_c2 = cidx_c.clone();
             let cover_path =
                 run_blocking(move || tui::cover_for(&row_snap2, &cidx_c2)).await;
-            show_detail(&win_c, row_snap, cover_path, joystick, top_rated, launch);
+            show_detail(&win_c, row_snap, cover_path, joystick, top_rated, launch, on_refresh4);
         });
     });
     card.root.add_controller(gesture);
@@ -329,6 +352,7 @@ fn build_genre_section(
     joystick_canons: &std::collections::HashSet<String>,
     top_rated_canons: &std::collections::HashSet<String>,
     launch_opts: &Option<run::LaunchOpts>,
+    on_refresh: Rc<dyn Fn()>,
 ) -> gtk::Box {
     let section_box = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -370,7 +394,7 @@ fn build_genre_section(
         let top_rated = top_rated_canons.contains(&canon);
         // Cards expand to fill the strip when fewer than STRIP_MAX items
         let hexpand = row_indices.len() <= STRIP_MAX;
-        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand, None);
+        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand, None, on_refresh.clone());
         strip_box.append(&card_widget);
     }
 
@@ -442,6 +466,7 @@ fn build_genre_section(
         .collect();
     let cidx_for_grid = cidx.clone();
     let launch_for_grid = launch_opts.clone();
+    let on_refresh_for_grid = on_refresh.clone();
 
     // Wire up the toggle button — populate grid on first expand
     let stack_weak = stack.downgrade();
@@ -470,6 +495,7 @@ fn build_genre_section(
                             launch_for_grid.clone(),
                             false,
                             None,
+                            on_refresh_for_grid.clone(),
                         );
                         first_row.append(&card);
                     }
@@ -523,6 +549,7 @@ fn build_genre_section(
                                 launch_for_grid.clone(),
                                 false,
                                 Some(tx.clone()),
+                                on_refresh_for_grid.clone(),
                             );
                             let fb_child = gtk::FlowBoxChild::new();
                             fb_child.set_child(Some(&card));
@@ -544,13 +571,11 @@ fn build_genre_section(
 
 // ── Main build function ───────────────────────────────────────────────────────
 
-pub fn build(settings: &Settings) -> gtk::Widget {
-    let launch_opts = settings.launch_opts();
-
-    let outer = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .build();
-
+fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: Rc<dyn Fn()>) {
+    // Show a spinner while loading
+    while let Some(child) = outer.first_child() {
+        outer.remove(&child);
+    }
     let spinner = gtk::Spinner::new();
     spinner.start();
     spinner.set_margin_top(60);
@@ -561,7 +586,12 @@ pub fn build(settings: &Settings) -> gtk::Widget {
     glib::spawn_future_local(async move {
         let (rows, cidx, sections, joystick_canons, top_rated_canons) =
             run_blocking(|| {
-                let rows = tui::load_rows();
+                let all_rows = tui::load_rows();
+                let hidden = tui::load_hidden();
+                let rows: Vec<tui::Row> = all_rows
+                    .into_iter()
+                    .filter(|r| !hidden.contains(&r.display))
+                    .collect();
                 let cidx = cover::load_index();
                 let sections = library::sections(&rows);
                 let joystick_canons = tui::joystick_canons();
@@ -574,7 +604,7 @@ pub fn build(settings: &Settings) -> gtk::Widget {
             return;
         };
 
-        if let Some(child) = outer.first_child() {
+        while let Some(child) = outer.first_child() {
             outer.remove(&child);
         }
 
@@ -611,6 +641,7 @@ pub fn build(settings: &Settings) -> gtk::Widget {
                 &joystick_canons,
                 &top_rated_canons,
                 &launch_opts,
+                on_refresh.clone(),
             );
             content.append(&section);
         }
@@ -618,6 +649,98 @@ pub fn build(settings: &Settings) -> gtk::Widget {
         scrolled.set_child(Some(&content));
         outer.append(&scrolled);
     });
+}
 
-    outer.upcast()
+/// Returns the kiosk widget and a refresh callback (to rebuild after hide/unhide).
+pub fn build(settings: &Settings) -> (gtk::Widget, Rc<dyn Fn()>) {
+    let launch_opts = settings.launch_opts();
+
+    let outer = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .build();
+
+    // Break the self-referential cycle: store the real refresh fn in a RefCell.
+    let on_refresh_cell: Rc<RefCell<Rc<dyn Fn()>>> = Rc::new(RefCell::new(Rc::new(|| {})));
+    let outer_weak = outer.downgrade();
+    let launch_opts_clone = launch_opts.clone();
+    let cell_clone = on_refresh_cell.clone();
+    let real_refresh: Rc<dyn Fn()> = Rc::new(move || {
+        if let Some(o) = outer_weak.upgrade() {
+            let cb = cell_clone.borrow().clone();
+            populate(&o, launch_opts_clone.clone(), cb);
+        }
+    });
+    *on_refresh_cell.borrow_mut() = real_refresh.clone();
+
+    populate(&outer, launch_opts, real_refresh.clone());
+
+    (outer.upcast(), real_refresh)
+}
+
+/// Show a dialog listing all hidden games with an Unhide button for each.
+pub fn show_hidden_dialog(parent: &impl IsA<gtk::Widget>, on_refresh: Rc<dyn Fn()>) {
+    let hidden: Vec<String> = {
+        let mut v: Vec<String> = tui::load_hidden().into_iter().collect();
+        v.sort();
+        v
+    };
+
+    let dialog = adw::Dialog::new();
+    dialog.set_title("Hidden Games");
+    dialog.set_content_width(380);
+
+    let vbox = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(8)
+        .margin_top(20)
+        .margin_bottom(20)
+        .margin_start(20)
+        .margin_end(20)
+        .build();
+
+    if hidden.is_empty() {
+        let lbl = gtk::Label::builder()
+            .label("No hidden games.")
+            .xalign(0.0)
+            .build();
+        lbl.add_css_class("caption");
+        vbox.append(&lbl);
+    } else {
+        for display in &hidden {
+            let row_box = gtk::Box::builder()
+                .orientation(gtk::Orientation::Horizontal)
+                .spacing(8)
+                .build();
+
+            let lbl = gtk::Label::builder()
+                .label(display)
+                .hexpand(true)
+                .xalign(0.0)
+                .ellipsize(gtk::pango::EllipsizeMode::End)
+                .build();
+
+            let unhide_btn = gtk::Button::builder().label("Unhide").build();
+            let d = display.clone();
+            let dialog2 = dialog.clone();
+            let on_refresh2 = on_refresh.clone();
+            unhide_btn.connect_clicked(move |_| {
+                tui::set_hidden(&d, false);
+                dialog2.close();
+                on_refresh2();
+            });
+
+            row_box.append(&lbl);
+            row_box.append(&unhide_btn);
+            vbox.append(&row_box);
+        }
+    }
+
+    let scroll = gtk::ScrolledWindow::builder()
+        .child(&vbox)
+        .propagate_natural_height(true)
+        .max_content_height(480)
+        .build();
+
+    dialog.set_child(Some(&scroll));
+    dialog.present(Some(parent));
 }

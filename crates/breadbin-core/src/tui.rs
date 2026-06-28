@@ -50,6 +50,30 @@ pub fn index_path() -> PathBuf {
 pub fn played_path() -> PathBuf {
     core::data_path("played.tsv")
 }
+pub fn hidden_path() -> PathBuf {
+    core::data_path("hidden.tsv")
+}
+
+/// Load the set of display keys for games the user has hidden.
+pub fn load_hidden() -> HashSet<String> {
+    let Ok(text) = std::fs::read_to_string(hidden_path()) else {
+        return HashSet::new();
+    };
+    text.lines().filter(|l| !l.is_empty()).map(|l| l.to_string()).collect()
+}
+
+/// Add or remove a game from the hidden list, keyed by its display string.
+pub fn set_hidden(display: &str, hide: bool) {
+    let mut set = load_hidden();
+    if hide {
+        set.insert(display.to_string());
+    } else {
+        set.remove(display);
+    }
+    let content = set.into_iter().collect::<Vec<_>>().join("\n");
+    let content = if content.is_empty() { content } else { format!("{content}\n") };
+    let _ = std::fs::write(hidden_path(), content);
+}
 
 /// Load every ranked game from c64_index.tsv (rows with < 5 fields are skipped,
 /// mirroring c64menu.load_rows).

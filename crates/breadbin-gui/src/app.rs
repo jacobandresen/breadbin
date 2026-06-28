@@ -21,9 +21,11 @@ pub fn load_styles() {
 pub fn build_ui(app: &adw::Application) {
     let settings = Settings::new();
 
+    let (kiosk_widget, kiosk_refresh) = crate::kiosk::build(&settings);
+
     let stack = adw::ViewStack::new();
     stack.add_titled_with_icon(
-        &crate::kiosk::build(&settings),
+        &kiosk_widget,
         Some("kiosk"),
         "Games",
         "applications-games-symbolic",
@@ -48,6 +50,7 @@ pub fn build_ui(app: &adw::Application) {
 
     let menu = gio::Menu::new();
     menu.append(Some("Refresh catalogue"), Some("app.refresh"));
+    menu.append(Some("Hidden games"), Some("app.hidden-games"));
     menu.append(Some("About breadbin"), Some("app.about"));
     let menu_button = gtk::MenuButton::builder()
         .icon_name("open-menu-symbolic")
@@ -81,6 +84,16 @@ pub fn build_ui(app: &adw::Application) {
         });
     });
     app.add_action(&refresh_action);
+
+    let hidden_games_action = gio::SimpleAction::new("hidden-games", None);
+    let win_weak_hg = window.downgrade();
+    hidden_games_action.connect_activate(move |_, _| {
+        let refresh = kiosk_refresh.clone();
+        if let Some(w) = win_weak_hg.upgrade() {
+            crate::kiosk::show_hidden_dialog(&w, refresh);
+        }
+    });
+    app.add_action(&hidden_games_action);
 
     let about_action = gio::SimpleAction::new("about", None);
     let win_weak = window.downgrade();
