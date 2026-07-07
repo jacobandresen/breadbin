@@ -258,7 +258,7 @@ paned > separator {
     border: 2px solid alpha(@c64_lightblue, 0.5);
     border-radius: 6px;
     background-color: #1a1050;
-    min-height: 100px;
+    min-height: 200px;
 }
 
 /* ── Boot / loader labels ─────────────────────────────────────────── */

@@ -566,12 +566,15 @@ pub fn build() -> gtk::Widget {
     let hpaned = gtk::Paned::builder()
         .orientation(gtk::Orientation::Horizontal)
         .wide_handle(true)
+        .vexpand(true)
+        .hexpand(true)
         .build();
     hpaned.add_css_class("tunes-paned");
 
     // ── Left pane: tune list ──────────────────────────────────────────────────
     let left = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
+        .vexpand(true)
         .build();
     left.add_css_class("tunes-list-pane");
 
@@ -589,6 +592,7 @@ pub fn build() -> gtk::Widget {
         .margin_bottom(12)
         .margin_start(12)
         .margin_end(12)
+        .vexpand(true)
         .build();
     right.add_css_class("tunes-player-pane");
 
@@ -606,9 +610,8 @@ pub fn build() -> gtk::Widget {
     now_composer.add_css_class("caption");
 
     let scope = gtk::DrawingArea::builder()
-        .content_width(280)
-        .content_height(100)
         .vexpand(true)
+        .hexpand(true)
         .build();
     scope.add_css_class("scope");
 
@@ -838,9 +841,10 @@ pub fn build() -> gtk::Widget {
             return;
         }
 
-        let scrolled = gtk::ScrolledWindow::builder().vexpand(true).build();
+        let scrolled = gtk::ScrolledWindow::builder().vexpand(true).hexpand(true).build();
         let listbox = gtk::ListBox::builder()
             .selection_mode(gtk::SelectionMode::None)
+            .vexpand(true)
             .build();
         listbox.add_css_class("tunes-list");
 
