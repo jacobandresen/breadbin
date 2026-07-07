@@ -290,6 +290,37 @@ pub fn resolve(row: &Row, _quiet: bool) -> Option<PathBuf> {
     None
 }
 
+/// Resolve a local disk path for a row, downloading from the Internet Archive if
+/// needed (direct library calls; no subprocess). Unlike `resolve`, this does NOT
+/// rebuild the index afterwards, making it suitable for bulk downloads where the
+/// index should be rebuilt once after all downloads complete.
+pub fn resolve_no_rebuild(row: &Row) -> Option<PathBuf> {
+    if row.is_local() {
+        return Some(PathBuf::from(&row.target));
+    }
+    let dest = disk::dest_default();
+    let path: Option<PathBuf> = if !row.ident.is_empty() {
+        disk::download_by_id(&row.ident, &dest)
+    } else {
+        disk::download_query(&row.query, &["ia".to_string()], &dest)
+            .into_iter()
+            .next()
+    };
+
+    if let Some(p) = path {
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    // fallback: match by title against the current index
+    for f in load_rows() {
+        if f.title == row.title && f.is_local() {
+            return Some(PathBuf::from(f.target));
+        }
+    }
+    None
+}
+
 /// Launch a game in-place: spawn the emulator and wait for it to exit, keeping
 /// the caller on its alternate screen (used by the kiosk). C64_QUIET suppresses
 /// c64run's LOAD"*",8,1 banner. Returns Ok(()) when the emulator ran cleanly, or

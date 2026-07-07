@@ -2,13 +2,15 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::f64::consts::PI;
 use std::time::Duration;
 
+use rand::{Rng, SeedableRng};
 use adw::prelude::*;
-use gtk::prelude::*;
+
 use gtk::cairo;
 
-use breadbin_core::{audio::Audio, tunes};
+use breadbin_core::{audio::Audio, core::palette, tunes};
 
 use crate::task::run_blocking;
 
@@ -26,15 +28,22 @@ fn visualizer_draw(
     tune_description: &str,
     time: f64, // Time in seconds for animations
 ) {
-    // Background
-    cr.set_source_rgb(0.25, 0.19, 0.55);
+    // Use C64 SCREEN color as background (dark blue)
+    let bg_color = palette::SCREEN;
+    cr.set_source_rgb(
+        bg_color[0] as f64 / 255.0,
+        bg_color[1] as f64 / 255.0,
+        bg_color[2] as f64 / 255.0,
+    );
     let _ = cr.paint();
 
     match visualizer_type {
         0 => scope_draw(cr, w, h, samples), // Scope
-        1 => fireball_draw(cr, w, h, samples, time), // Fireball
-        2 => marching_cubes_draw(cr, w, h, samples, time), // Marching Cubes
-        3 => demo_scroller_draw(cr, w, h, samples, tune_description, time), // Demo Scroller
+        1 => plasma_draw(cr, w, h, samples, time), // C64 Plasma
+        2 => starfield_draw(cr, w, h, samples, time), // Starfield
+        3 => raster_bars_draw(cr, w, h, samples, time), // Raster Bars
+        4 => tunnel_draw(cr, w, h, samples, time), // 3D Tunnel
+        5 => demo_scroller_draw(cr, w, h, samples, tune_description, time), // Demo Scroller
         _ => scope_draw(cr, w, h, samples), // Default to scope
     }
 }
@@ -44,7 +53,13 @@ fn scope_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16]) {
         return;
     }
 
-    cr.set_source_rgb(0.93, 0.94, 0.44); // C64 yellow
+    // Use C64 yellow
+    let c64_yellow = palette::YELLOW;
+    cr.set_source_rgb(
+        c64_yellow[0] as f64 / 255.0,
+        c64_yellow[1] as f64 / 255.0,
+        c64_yellow[2] as f64 / 255.0,
+    );
     cr.set_line_width(1.5);
 
     let n = samples.len();
@@ -60,146 +75,491 @@ fn scope_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16]) {
     let _ = cr.stroke();
 }
 
-/// Fireball visualizer - animated fireball that reacts to audio
-fn fireball_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
-    use rand::Rng;
-    let center_x = w as f64 / 2.0;
-    let center_y = h as f64 / 2.0;
-    
-    // Fireball base color (orange-red)
-    let base_r = 0.9;
-    let base_g = 0.4;
-    let base_b = 0.2;
-    
-    // Audio reactive radius
-    let radius = 30.0 + samples.iter().map(|&s| s.abs() as f64 / 32768.0 * 20.0).sum::<f64>() / samples.len() as f64;
-    
-    // Pulsing effect based on time
-    let pulse = (time * 2.0).sin() * 0.1 + 1.0;
-    let final_radius = radius * pulse;
-    
-    // Draw fireball with gradient
-    let pattern = cairo::RadialGradient::new(center_x, center_y, 0.0, center_x, center_y, final_radius);
-    pattern.add_color_stop_rgba(0.0, base_r, base_g, base_b, 0.8);
-    pattern.add_color_stop_rgba(0.7, base_r * 0.8, base_g * 0.6, base_b * 0.4, 0.6);
-    pattern.add_color_stop_rgba(1.0, base_r * 0.4, base_g * 0.2, base_b * 0.1, 0.0);
-    
-    cr.set_source(pattern).ok();
-    cr.arc(center_x, center_y, final_radius, 0.0, std::f64::consts::PI * 2.0);
-    cr.fill().ok();
-    
-    // Inner glow
-    cr.set_source_rgba(base_r, base_g, base_b, 0.9);
-    cr.arc(center_x, center_y, final_radius * 0.6, 0.0, std::f64::consts::PI * 2.0);
-    cr.fill().ok();
-}
-
-/// Marching cubes visualizer - 3D cubes that march across the screen
-fn marching_cubes_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
-    let cube_size = 15.0;
-    let spacing = 20.0;
-    let speed = 30.0;
-    
-    cr.set_source_rgb(0.93, 0.94, 0.44); // C64 yellow
-    
-    let offset = (time * speed).rem_euclid(w as f64);
-    
-    // Audio reactive height
-    let audio_height = samples.iter().map(|&s| s.abs() as f64 / 32768.0 * h as f64 * 0.4).sum::<f64>() / samples.len() as f64;
-    
-    // Draw marching cubes
-    let mut x = 0.0;
-    while x < w as f64 {
-        let cube_x = (x - offset).rem_euclid(w as f64);
-        if cube_x < 0.0 || cube_x >= w as f64 {
-            x += spacing;
-            continue;
-        }
-        
-        let cube_height = cube_size + audio_height * 0.5;
-        let cube_y = h as f64 - cube_height;
-        
-        // Draw cube (simplified as rectangle with 3D effect)
-        cr.rectangle(cube_x, cube_y, cube_size, cube_height);
-        cr.fill().ok();
-        
-        // 3D effect - top edge
-        cr.set_source_rgba(1.0, 1.0, 1.0, 0.3);
-        cr.rectangle(cube_x, cube_y, cube_size, 2.0);
-        cr.fill().ok();
-        
-        // 3D effect - side edge  
-        cr.set_source_rgba(0.6, 0.6, 0.0, 0.3);
-        cr.rectangle(cube_x + cube_size - 2.0, cube_y, 2.0, cube_height);
-        cr.fill().ok();
-        
-        cr.set_source_rgb(0.93, 0.94, 0.44); // Reset color
-        x += spacing;
-    }
-}
 
 /// Demo scroller visualizer - oldschool C64 demo style text scroller
 fn demo_scroller_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], text: &str, time: f64) {
-    // Background
-    cr.set_source_rgb(0.1, 0.1, 0.2);
+    // Use C64 SCREEN color as background (dark blue)
+    let bg_color = palette::SCREEN;
+    cr.set_source_rgb(
+        bg_color[0] as f64 / 255.0,
+        bg_color[1] as f64 / 255.0,
+        bg_color[2] as f64 / 255.0,
+    );
     cr.paint().ok();
     
-    // Audio reactive stars/particles
-    let particle_count = 50;
+    // Audio energy for particle effects
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    // Audio reactive stars/particles - more of them
+    let particle_count = 100 + (audio_energy * 50.0) as usize;
     let mut rng = rand::thread_rng();
     
-    use rand::Rng;
+    // C64 colors for particles
+    let particle_colors = [palette::YELLOW, palette::WHITE, palette::CYAN, palette::LIGHTBLUE];
+    
     for i in 0..particle_count {
         let x = rng.gen_range(0.0..w as f64);
         let y = rng.gen_range(0.0..h as f64);
-        let size = 1.0 + samples.get(i % samples.len()).map(|&s| s.abs() as f64 / 32768.0 * 3.0).unwrap_or(0.0);
-        let brightness = 0.3 + samples.get(i % samples.len()).map(|&s| s.abs() as f64 / 32768.0 * 0.7).unwrap_or(0.0);
+        let size = 0.5 + samples.get(i % samples.len()).map(|&s| s.abs() as f64 / 32768.0 * 4.0).unwrap_or(0.0);
+        let brightness = 0.2 + samples.get(i % samples.len()).map(|&s| s.abs() as f64 / 32768.0 * 0.8).unwrap_or(0.0);
         
-        cr.set_source_rgba(0.93, 0.94, 0.44, brightness);
-        cr.arc(x, y, size, 0.0, std::f64::consts::PI * 2.0);
+        // Use C64 colors
+        let color_idx = i % particle_colors.len();
+        let color = particle_colors[color_idx];
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0,
+            color[1] as f64 / 255.0,
+            color[2] as f64 / 255.0,
+            brightness * brightness,
+        );
+        cr.arc(x, y, size, 0.0, PI * 2.0);
         cr.fill().ok();
     }
     
-    // Scrolling text
-    let scroll_speed = 40.0;
-    let scroll_x = (time * scroll_speed).rem_euclid(w as f64 + text.len() as f64 * 10.0);
-    
-    cr.set_source_rgb(0.93, 0.94, 0.44); // C64 yellow
+    // Scrolling text setup - use C64 yellow
+    let c64_yellow = palette::YELLOW;
+    cr.set_source_rgb(
+        c64_yellow[0] as f64 / 255.0,
+        c64_yellow[1] as f64 / 255.0,
+        c64_yellow[2] as f64 / 255.0,
+    );
     cr.select_font_face("monospace", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
-    cr.set_font_size(14.0);
+    cr.set_font_size(16.0);
     
-    let text_y = h as f64 / 2.0 + 10.0;
+    // Calculate text width approximately
+    let text_width = text.len() as f64 * 10.0;
+    let line_height = 20.0;
     
-    // Draw text at multiple positions for wrapping effect
-    // Calculate text width approximately (chars * font_size)
-    let text_width = text.len() as f64 * 8.0; // Approximate width
-    let start_x = -scroll_x;
-    cr.move_to(start_x, text_y);
-    cr.show_text(text).ok();
+    // Multiple scrolling text lines that cover the entire screen height
+    let scroll_speed = 30.0 + audio_energy * 10.0;
+    let scroll_x = (time * scroll_speed).rem_euclid(w as f64 + text_width);
     
-    // Draw text again to the right for seamless looping
-    cr.move_to(start_x + text_width + 20.0, text_y);
-    cr.show_text(text).ok();
+    // Create a sine wave pattern for vertical positioning
+    let wave_amplitude = h as f64 / 3.0;
     
-    // Draw text again to the left for seamless looping
-    cr.move_to(start_x - text_width - 20.0, text_y);
-    cr.show_text(text).ok();
+    // Number of text rows to display
+    let num_rows = (h as f64 / line_height).ceil() as i32 + 2;
+    
+    // Draw text scrolling horizontally across the entire screen at multiple vertical positions
+    for row in 0..=num_rows {
+        // Each row has a different vertical position with wave effect
+        let base_y = (row as f64 * line_height) - scroll_x * 0.1 * (row as f64 * 0.3);
+        let wave_offset = (time * 0.5 + row as f64 * 0.7).sin() * wave_amplitude * 0.3;
+        let text_y = base_y + wave_offset;
+        
+        // Only draw if visible
+        if text_y > -50.0 && text_y < h as f64 + 50.0 {
+            let start_x = -scroll_x;
+            cr.move_to(start_x, text_y);
+            cr.show_text(text).ok();
+            
+            // Draw again to the right for seamless looping
+            cr.move_to(start_x + text_width + 40.0, text_y);
+            cr.show_text(text).ok();
+        }
+    }
+    
+    // Additional effect: diagonal scrolling text in opposite direction
+    let diag_scroll_speed = 20.0 + audio_energy * 8.0;
+    let diag_scroll = (time * diag_scroll_speed).rem_euclid(w as f64 + h as f64);
+    
+    let c64_yellow = palette::YELLOW;
+    cr.set_source_rgba(
+        c64_yellow[0] as f64 / 255.0,
+        c64_yellow[1] as f64 / 255.0,
+        c64_yellow[2] as f64 / 255.0,
+        0.7,
+    );
+    cr.set_font_size(12.0);
+    
+    for i in 0..=(num_rows + 1) {
+        let diag_start_x = -diag_scroll + (i as f64 * line_height * 0.5);
+        let diag_y = (i as f64 * line_height * 0.7) + diag_scroll * 0.3;
+        
+        if diag_y > -30.0 && diag_y < h as f64 + 30.0 {
+            cr.move_to(diag_start_x, diag_y);
+            cr.show_text(text).ok();
+            cr.move_to(diag_start_x + text_width + 40.0, diag_y);
+            cr.show_text(text).ok();
+        }
+    }
+}
+
+/// C64 Plasma effect - classic demoscene plasma with sine-based color cycling
+fn plasma_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+    
+    // Audio energy affects plasma parameters
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    // C64 palette for plasma (using the authentic colors)
+    let plasma_colors = [
+        palette::PURPLE,  // Deep purple
+        palette::RED,     // Red
+        palette::ORANGE,  // Orange
+        palette::YELLOW,  // Yellow
+        palette::LIGHTGREEN, // Light green
+        palette::GREEN,   // Green
+        palette::CYAN,    // Cyan
+        palette::LIGHTBLUE, // Light blue
+    ];
+    
+    // Create a lower resolution grid for that classic C64 plasma look
+    let grid_size = 12;
+    let cols = (w as f64 / grid_size as f64).ceil() as usize;
+    let rows = (h as f64 / grid_size as f64).ceil() as usize;
+    
+    // Time-based offsets with audio reactivity
+    let offset_x = time * 0.3 + audio_energy * 0.2;
+    let offset_y = time * 0.2 + audio_energy * 0.15;
+    let offset_z = time * 0.15;
+    
+    // Draw plasma cells
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = col as f64 * grid_size as f64;
+            let y = row as f64 * grid_size as f64;
+            
+            // Classic plasma formula: combine multiple sine waves
+            let p1 = (x * 0.08 + offset_x).sin() * 2.0;
+            let p2 = (y * 0.06 + offset_y).sin() * 2.0;
+            let p3 = ((x + y) * 0.05 + offset_z).sin() * 2.0;
+            let p4 = (x * 0.12 - y * 0.08 + time * 0.4).sin() * 1.5;
+            
+            // Combine all plasma values
+            let plasma_value = (p1 + p2 + p3 + p4 + audio_energy * 3.0) * 0.4;
+            
+            // Map to color palette (clamped and modulated)
+            let color_index = (((plasma_value + 4.0) * 0.5 * plasma_colors.len() as f64).floor() as usize 
+                % plasma_colors.len()).min(plasma_colors.len() - 1);
+            
+            let color = plasma_colors[color_index];
+            cr.set_source_rgb(
+                color[0] as f64 / 255.0,
+                color[1] as f64 / 255.0,
+                color[2] as f64 / 255.0,
+            );
+            
+            // Draw a cell
+            cr.rectangle(x, y, grid_size as f64, grid_size as f64);
+            cr.fill().ok();
+        }
+    }
+    
+    // Add some scanline effect for that authentic C64 look
+    cr.set_source_rgba(0.0, 0.0, 0.0, 0.1 + audio_energy * 0.2);
+    for y in (0..h).step_by(2) {
+        let alpha = if y % 4 == 0 { 0.15 + audio_energy * 0.1 } else { 0.05 };
+        cr.set_source_rgba(0.0, 0.0, 0.0, alpha);
+        cr.move_to(0.0, y as f64);
+        cr.line_to(w as f64, y as f64);
+        cr.stroke().ok();
+    }
+}
+
+/// C64 Starfield - parallax starfield with depth layers
+fn starfield_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+
+    
+    // Audio energy affects starfield parameters
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    // Create a seeded random number generator for consistent stars
+    // We'll use a simple hash of time to create deterministic stars
+    
+    // Star layers (depth: 0 = farthest, 2 = closest)
+    let num_layers = 3;
+    let stars_per_layer = [40usize, 80, 120]; // More stars in background
+    let star_sizes = [1.0, 2.0, 3.5]; // Bigger stars closer
+    let star_speeds = [0.3, 0.6, 1.2]; // Faster stars closer
+    let star_brightness = [0.3, 0.6, 1.0]; // Brighter stars closer
+    
+    // C64 colors for stars
+    let star_colors = [
+        palette::WHITE,      // Bright white stars
+        palette::YELLOW,     // Yellow stars
+        palette::CYAN,       // Cyan stars
+        palette::LIGHTBLUE,  // Light blue stars
+    ];
+    
+    // Draw each layer
+    for layer in 0..num_layers {
+        let stars = stars_per_layer[layer];
+        let size = star_sizes[layer];
+        let speed = star_speeds[layer] * (1.0 + audio_energy * 0.5);
+        let brightness = star_brightness[layer];
+        
+        // Create stars at consistent positions for this layer
+        for i in 0..stars {
+            // Use deterministic positioning based on layer and index
+            let seed = layer as u64 * 1000 + i as u64;
+            let mut local_rng = rand::rngs::StdRng::seed_from_u64(seed);
+            
+            let x_pos = local_rng.gen_range(0.0..w as f64);
+            let y_pos = local_rng.gen_range(0.0..h as f64);
+            
+            // Calculate star movement (wrapping around)
+            let star_time = time * speed + (i as f64 * 0.1);
+            let star_x = (x_pos + star_time * 100.0).rem_euclid(w as f64);
+            let star_y = y_pos;
+            
+            // Star twinkling based on audio
+            let twinkle = if i % 3 == 0 {
+                (star_time * 2.0).sin().abs() * 0.3 + 0.7
+            } else {
+                1.0
+            };
+            
+            // Choose star color
+            let color_idx = i % star_colors.len();
+            let color = star_colors[color_idx];
+            
+            let final_brightness = brightness * twinkle * (0.7 + audio_energy * 0.3);
+            
+            cr.set_source_rgba(
+                color[0] as f64 / 255.0 * final_brightness,
+                color[1] as f64 / 255.0 * final_brightness,
+                color[2] as f64 / 255.0 * final_brightness,
+                1.0,
+            );
+            
+            // Draw star with glow effect
+            let glow_size = size * 2.0;
+            let gradient = cairo::RadialGradient::new(
+                star_x, star_y, 0.0,
+                star_x, star_y, glow_size
+            );
+            gradient.add_color_stop_rgba(0.0, 
+                color[0] as f64 / 255.0 * final_brightness, 
+                color[1] as f64 / 255.0 * final_brightness, 
+                color[2] as f64 / 255.0 * final_brightness, 
+                final_brightness);
+            gradient.add_color_stop_rgba(1.0, 0.0, 0.0, 0.0, 0.0);
+            
+            cr.set_source(gradient).ok();
+            cr.arc(star_x, star_y, glow_size, 0.0, PI * 2.0);
+            cr.fill().ok();
+            
+            // Draw core star
+            cr.set_source_rgba(
+                color[0] as f64 / 255.0 * final_brightness,
+                color[1] as f64 / 255.0 * final_brightness,
+                color[2] as f64 / 255.0 * final_brightness,
+                1.0,
+            );
+            cr.arc(star_x, star_y, size, 0.0, PI * 2.0);
+            cr.fill().ok();
+        }
+    }
+    
+    // Add subtle grid lines for depth perception (classic C64 grid effect)
+    cr.set_source_rgba(0.1, 0.1, 0.3, 0.15 * (1.0 - audio_energy * 0.5));
+    cr.set_line_width(0.5);
+    
+    let grid_spacing = 40.0;
+    for x in (0..w).step_by(grid_spacing as usize) {
+        let xf = x as f64;
+        let movement = (time * 0.1 + xf * 0.001).sin() * 2.0;
+        cr.move_to(xf, 0.0 + movement);
+        cr.line_to(xf, h as f64 + movement);
+        cr.stroke().ok();
+    }
+    
+    for y in (0..h).step_by(grid_spacing as usize) {
+        let yf = y as f64;
+        let movement = (time * 0.15 + yf * 0.001).cos() * 2.0;
+        cr.move_to(0.0, yf + movement);
+        cr.line_to(w as f64, yf + movement);
+        cr.stroke().ok();
+    }
+}
+
+/// C64 Raster Bars - authentic horizontal raster bars that move with audio
+fn raster_bars_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+    
+    // Audio energy drives the raster bar movement
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    // Use C64 raster bar colors from the palette
+    let bar_colors = palette::BARS;
+    
+    // Draw moving raster bars
+    let bar_height = 8.0;
+    let bar_spacing = bar_height * 1.5;
+    let total_height = (bar_height + bar_spacing) * bar_colors.len() as f64;
+    
+    // Starting position with audio reactivity
+    let start_y = (time * 20.0).sin() * 10.0 + audio_energy * 20.0;
+    
+    for (i, &color) in bar_colors.iter().enumerate() {
+        let y = start_y + i as f64 * (bar_height + bar_spacing);
+        let y_mod = y.rem_euclid(h as f64 + total_height) - total_height;
+        
+        // Apply audio-driven distortion
+        let distortion = (time * 0.5 + i as f64 * 0.3 + audio_energy * 2.0).sin() * 5.0;
+        let final_y = y_mod + distortion;
+        
+        // Color brightness based on audio
+        let brightness = 0.8 + audio_energy * 0.4;
+        
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness,
+            color[1] as f64 / 255.0 * brightness,
+            color[2] as f64 / 255.0 * brightness,
+            0.9 + audio_energy * 0.2,
+        );
+        
+        cr.rectangle(0.0, final_y, w as f64, bar_height);
+        cr.fill().ok();
+        
+        // Add edge glow
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness * 1.2,
+            color[1] as f64 / 255.0 * brightness * 1.2,
+            color[2] as f64 / 255.0 * brightness * 1.2,
+            0.4,
+        );
+        cr.rectangle(0.0, final_y, w as f64, 2.0);
+        cr.fill().ok();
+    }
+    
+    // Add vertical raster bars on the sides
+    let side_bar_width = 4.0;
+    for (i, &color) in bar_colors.iter().enumerate() {
+        let x = (time * 15.0 + i as f64 * 12.0).rem_euclid(w as f64 + 50.0);
+        let brightness = 0.6 + audio_energy * 0.4;
+        
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness,
+            color[1] as f64 / 255.0 * brightness,
+            color[2] as f64 / 255.0 * brightness,
+            0.7,
+        );
+        
+        // Left side
+        cr.rectangle(x, 0.0, side_bar_width, h as f64);
+        cr.fill().ok();
+        
+        // Right side
+        cr.rectangle(x + 10.0, 0.0, side_bar_width, h as f64);
+        cr.fill().ok();
+    }
+}
+
+/// C64 3D Tunnel - rotating tunnel effect
+fn tunnel_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+    
+    // Audio energy affects tunnel parameters
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    let center_x = w as f64 / 2.0;
+    let center_y = h as f64 / 2.0;
+    
+    // Tunnel parameters with audio reactivity
+    let tunnel_radius = 150.0 + audio_energy * 50.0;
+    let _tunnel_depth = 300.0 + audio_energy * 100.0;
+    let rotation = time * 0.3 + audio_energy * 0.1;
+    
+    // C64 colors for tunnel
+    let tunnel_colors = [
+        palette::PURPLE,
+        palette::RED,
+        palette::ORANGE,
+        palette::YELLOW,
+        palette::LIGHTGREEN,
+        palette::GREEN,
+        palette::CYAN,
+        palette::LIGHTBLUE,
+    ];
+    
+    // Draw tunnel rings
+    let num_rings = 20;
+    for ring in 0..num_rings {
+        let ring_progress = ring as f64 / num_rings as f64;
+        let ring_radius = tunnel_radius * ring_progress * ring_progress;
+        let ring_width = 12.0 + audio_energy * 8.0;
+        let ring_y_offset = -50.0 + ring as f64 * 5.0 * (1.0 + audio_energy);
+        
+        // Calculate ring color based on position
+        let color_idx = ((ring as f64 * 2.0 + time * 0.5).sin() * 0.5 + 0.5) * (tunnel_colors.len() - 1) as f64;
+        let color_idx = (color_idx as usize) % tunnel_colors.len();
+        let color = tunnel_colors[color_idx];
+        
+        // Color brightness based on depth and audio
+        let brightness = 1.0 - ring_progress * 0.7 + audio_energy * 0.3;
+        
+        // Draw the ring as a series of segments
+        let num_segments = 32 + (audio_energy * 16.0) as usize;
+        for seg in 0..num_segments {
+            let seg_angle = seg as f64 * PI * 2.0 / num_segments as f64 + rotation;
+            let next_seg_angle = (seg + 1) as f64 * PI * 2.0 / num_segments as f64 + rotation;
+            
+            let x1 = center_x + ring_radius * seg_angle.cos();
+            let y1 = center_y + ring_radius * seg_angle.sin() + ring_y_offset;
+            let x2 = center_x + ring_radius * next_seg_angle.cos();
+            let y2 = center_y + ring_radius * next_seg_angle.sin() + ring_y_offset;
+            
+            // Perspective scaling
+            let scale = 1.0 - ring_progress * 0.8;
+            let line_width = ring_width * scale;
+            
+            // Draw segment with gradient
+            cr.set_source_rgba(
+                color[0] as f64 / 255.0 * brightness,
+                color[1] as f64 / 255.0 * brightness,
+                color[2] as f64 / 255.0 * brightness,
+                0.9,
+            );
+            
+            cr.set_line_width(line_width);
+            cr.move_to(x1, y1);
+            cr.line_to(x2, y2);
+            cr.stroke().ok();
+        }
+    }
+    
+    // Add center point with audio pulse
+    let center_pulse = (time * 4.0).sin().abs() * 0.5 + 0.5 + audio_energy * 0.5;
+    let center_size = 4.0 + center_pulse * 8.0;
+    
+    cr.set_source_rgb(
+        palette::WHITE[0] as f64 / 255.0,
+        palette::WHITE[1] as f64 / 255.0,
+        palette::WHITE[2] as f64 / 255.0,
+    );
+    
+    let gradient = cairo::RadialGradient::new(
+        center_x, center_y, 0.0,
+        center_x, center_y, center_size * 2.0
+    );
+    gradient.add_color_stop_rgba(0.0, 1.0, 1.0, 1.0, center_pulse);
+    gradient.add_color_stop_rgba(1.0, 1.0, 1.0, 1.0, 0.0);
+    
+    cr.set_source(gradient).ok();
+    cr.arc(center_x, center_y, center_size * 2.0, 0.0, PI * 2.0);
+    cr.fill().ok();
+    
+    // Draw center point
+    cr.set_source_rgb(
+        palette::WHITE[0] as f64 / 255.0,
+        palette::WHITE[1] as f64 / 255.0,
+        palette::WHITE[2] as f64 / 255.0,
+    );
+    cr.arc(center_x, center_y, center_size, 0.0, PI * 2.0);
+    cr.fill().ok();
 }
 
 // Radio state and all tunes storage
 struct RadioData {
-    enabled: bool,
     all_tunes: Vec<tunes::Tune>,
 }
 
 pub fn build() -> gtk::Widget {
     let audio_state: AudioState = Rc::new(RefCell::new(None));
     let radio_state: RadioState = Rc::new(RefCell::new(false));
-    let visualizer_state = Rc::new(RefCell::new(0)); // 0: scope, 1: fireball, 2: marching cubes, 3: demo scroller
+    let visualizer_state = Rc::new(RefCell::new(0)); // 0: scope, 1: plasma, 2: starfield, 3: raster bars, 4: tunnel, 5: demo scroller
     
     // Store all tunes for radio functionality - will be populated later
     let radio_data: Rc<RefCell<RadioData>> = Rc::new(RefCell::new(RadioData {
-        enabled: false,
         all_tunes: Vec::new(),
     }));
 
@@ -288,7 +648,7 @@ pub fn build() -> gtk::Widget {
     radio_btn.add_css_class("radio-badge");
     
     // Visualizer selection dropdown
-    let visualizer_combo = gtk::DropDown::from_strings(&["Scope", "Fireball", "Marching Cubes", "Demo Scroller"]);
+    let visualizer_combo = gtk::DropDown::from_strings(&["Scope", "C64 Plasma", "Starfield", "Raster Bars", "3D Tunnel", "Demo Scroller"]);
     visualizer_combo.set_selected(0); // Default to Scope
     
     // Set initial radio state
@@ -350,7 +710,7 @@ pub fn build() -> gtk::Widget {
         }
         
         // Select a random tune
-        use rand::Rng;
+    
         let mut rng = rand::thread_rng();
         let random_index = rng.gen_range(0..radio_data_ref.all_tunes.len());
         let random_tune = radio_data_ref.all_tunes[random_index].clone();
@@ -383,19 +743,25 @@ pub fn build() -> gtk::Widget {
     let radio_state_for_toggle = radio_state.clone();
     let radio_data_for_toggle = radio_data.clone();
     let skip_btn_for_radio = skip_btn.clone();
+    let hpaned_for_radio = hpaned.clone();
     radio_btn.connect_toggled(move |btn| {
         let enabled = btn.is_active();
         *radio_state_for_toggle.borrow_mut() = enabled;
         update_radio_style();
         
-        // If enabling radio, start playing a random tune
+        // Collapse/expand song list based on radio state
         if enabled {
+            // Collapse left pane (song list) when radio is on
+            hpaned_for_radio.set_position(0);
             btn.set_active(true);
             let radio_data_ref = radio_data_for_toggle.borrow();
             if !radio_data_ref.all_tunes.is_empty() {
                 // Trigger skip to play first random tune
                 skip_btn_for_radio.activate();
             }
+        } else {
+            // Restore left pane when radio is off
+            hpaned_for_radio.set_position(600);
         }
     });
 
