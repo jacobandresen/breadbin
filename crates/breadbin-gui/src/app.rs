@@ -57,8 +57,20 @@ pub fn build_ui(app: &adw::Application) {
         .menu_model(&menu)
         .build();
 
+    let download_btn = gtk::Button::builder()
+        .icon_name("folder-download-symbolic")
+        .tooltip_text("Download all games and covers")
+        .build();
+
     let header = adw::HeaderBar::builder().title_widget(&switcher).build();
+    
+    // Add device badges to the header bar if controllers are connected
+    if let Some(device_badges) = crate::kiosk::create_device_badges() {
+        header.pack_start(&device_badges);
+    }
+    
     header.pack_end(&menu_button);
+    header.pack_end(&download_btn);
 
     let switcher_bar = adw::ViewSwitcherBar::builder().stack(&stack).build();
 
@@ -87,8 +99,9 @@ pub fn build_ui(app: &adw::Application) {
 
     let hidden_games_action = gio::SimpleAction::new("hidden-games", None);
     let win_weak_hg = window.downgrade();
+    let kiosk_refresh_hg = kiosk_refresh.clone();
     hidden_games_action.connect_activate(move |_, _| {
-        let refresh = kiosk_refresh.clone();
+        let refresh = kiosk_refresh_hg.clone();
         if let Some(w) = win_weak_hg.upgrade() {
             crate::kiosk::show_hidden_dialog(&w, refresh);
         }
@@ -110,4 +123,12 @@ pub fn build_ui(app: &adw::Application) {
     app.add_action(&about_action);
 
     window.present();
+
+    let win_weak_dl = window.downgrade();
+    let kiosk_refresh_dl = kiosk_refresh.clone();
+    download_btn.connect_clicked(move |_| {
+        if let Some(w) = win_weak_dl.upgrade() {
+            crate::kiosk::show_download_all_dialog(&w, kiosk_refresh_dl.clone());
+        }
+    });
 }

@@ -15,3 +15,5 @@ gdk = { version = "0.11.2", package = "gdk4" }
 glib = "0.22.7"
 gtk = { version = "0.11.3", package = "gtk4", features = ["v4_10"] }
 image = "0.25"
+rand = "0.8"
+cairo-rs = "0.17"

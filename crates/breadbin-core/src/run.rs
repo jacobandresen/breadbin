@@ -304,12 +304,18 @@ pub fn joystick_present() -> bool {
         // joydev may not be loaded, but udev still tags controllers in by-id/by-path
         // (e.g. usb-Sony_Controller-event-joystick, ...-event-gamepad) off the evdev
         // node, so look for those names too.
-        ["/dev/input/by-id", "/dev/input/by-path"].iter().any(|dir| {
+        if ["/dev/input/by-id", "/dev/input/by-path"].iter().any(|dir| {
             any_entry(dir, &|n| {
                 let n = n.to_ascii_lowercase();
                 n.contains("joystick") || n.contains("gamepad")
             })
-        })
+        }) {
+            return true;
+        }
+        // TheC64 joystick enumerates as a HID keyboard device, so it never creates
+        // /dev/input/jsN and its by-id name carries "kbd" not "joystick". Detect it
+        // through the evdev device name in /sys/class/input instead.
+        controller_kind() == ControllerKind::TheC64
     }
     #[cfg(target_os = "macos")]
     {
@@ -401,7 +407,7 @@ KeySet2Fire=65506
 
 /// Path to the VICE joystick mapping (.vjm) to load, or None to leave VICE on its
 /// (mapping-less) default. C64_JOYMAP=<path> wins; otherwise, when a Sony DualSense
-/// (PS5) pad is connected, write and use the bundled DualSense map.
+/// (PS5) pad or TheC64 joystick is connected, write and use the bundled map.
 #[cfg(target_os = "linux")]
 fn joymap_path() -> Option<std::path::PathBuf> {
     if let Some(p) = std::env::var_os("C64_JOYMAP").map(std::path::PathBuf::from) {
@@ -410,7 +416,36 @@ fn joymap_path() -> Option<std::path::PathBuf> {
     if dualsense_present() {
         return write_dualsense_joymap();
     }
+    if thec64_present() {
+        return write_thec64_joymap();
+    }
     None
+}
+
+/// Return a list of currently connected controller names for UI badges.
+/// Only returns controllers that are actually present.
+pub fn connected_controllers() -> Vec<String> {
+    let mut controllers = Vec::new();
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Check each controller type
+        if thec64_present() {
+            controllers.push("TheC64".to_string());
+        }
+        if dualsense_present() {
+            controllers.push("PS5".to_string());
+        }
+        if switchpro_present() {
+            controllers.push("Switch Pro".to_string());
+        }
+        // If no specific controllers found, check generic joystick
+        if controllers.is_empty() && joystick_present() {
+            controllers.push("Joystick".to_string());
+        }
+    }
+    
+    controllers
 }
 
 /// Lower-cased names of the connected input devices, gathered from udev's stable
@@ -442,12 +477,29 @@ fn dualsense_present() -> bool {
     input_device_names().iter().any(|n| n.contains("dualsense"))
 }
 
+/// True if a TheC64 joystick is among the connected input devices.
+/// TheC64 reports as e.g. "THEC64 Joystick" over USB.
+#[cfg(target_os = "linux")]
+fn thec64_present() -> bool {
+    input_device_names().iter().any(|n| n.contains("thec64"))
+}
+
+/// True if a Nintendo Switch Pro controller is among the connected input devices.
+#[cfg(target_os = "linux")]
+fn switchpro_present() -> bool {
+    let names = input_device_names();
+    names.iter().any(|n| {
+        n.contains("pro controller") || n.contains("switch pro") || n.contains("joy-con")
+    })
+}
+
 /// Which game controller is plugged in, for the launch banner's label and icon. On
 /// non-Linux hosts we can't read the device names, so everything is Generic.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ControllerKind {
-    PlayStation, // Sony DualSense (PS5)
-    TheC64,      // Retro Games Ltd THEC64 / THEVIC20 joystick
+    PlayStation,       // Sony DualSense (PS5)
+    TheC64,            // Retro Games Ltd THEC64 / THEVIC20 joystick
+    SwitchPro,        // Nintendo Switch Pro Controller
     Generic,
 }
 
@@ -463,6 +515,10 @@ fn controller_kind() -> ControllerKind {
         if has("thec64") {
             return ControllerKind::TheC64;
         }
+        // Nintendo Switch Pro Controller reports as "Pro Controller" or similar.
+        if has("pro controller") || has("switch pro") || has("joy-con") {
+            return ControllerKind::SwitchPro;
+        }
     }
     ControllerKind::Generic
 }
@@ -473,6 +529,7 @@ fn controller_name() -> String {
     match controller_kind() {
         ControllerKind::PlayStation => "PlayStation Controller",
         ControllerKind::TheC64 => "TheC64",
+        ControllerKind::SwitchPro => "Switch Pro",
         ControllerKind::Generic => "Joystick",
     }
     .to_string()
@@ -484,8 +541,9 @@ fn controller_name() -> String {
 /// in the kiosk's ratatui controls dialog.
 fn controller_icon() -> String {
     match controller_kind() {
-        ControllerKind::TheC64 => "·✦· 🕹 ·✦·".to_string(), // glowing halo
-        ControllerKind::PlayStation => "🎮".to_string(),     // boring: plain, unadorned
+        ControllerKind::TheC64 => "·✦· 🕹 ·✦·".to_string(),   // glowing halo
+        ControllerKind::PlayStation => "🎮".to_string(),       // boring: plain, unadorned
+        ControllerKind::SwitchPro => "🎮".to_string(),        // Nintendo controller icon
         ControllerKind::Generic => "🕹".to_string(),
     }
 }
@@ -573,6 +631,48 @@ fn write_dualsense_joymap() -> Option<std::path::PathBuf> {
 0 1 12 0
 ";
     let path = crate::core::data_path("vice-joymap-ds5.vjm");
+    std::fs::write(&path, VJM).ok().map(|_| path)
+}
+
+/// Write VICE's TheC64 joystick mapping. TheC64 joystick (Retro Games Ltd)
+/// enumerates as a HID keyboard device, but VICE can map its inputs to a
+/// virtual joystick port. This .vjm maps TheC64's directional pad and fire
+/// button to a single C64 joystick for host joystick 0 (VICE port = C64 port 2).
+#[cfg(target_os = "linux")]
+fn write_thec64_joymap() -> Option<std::path::PathBuf> {
+    // TheC64 joystick typically reports as:
+    //   button 0: up, button 1: down, button 2: left, button 3: right, button 4: fire
+    // VICE C64 joystick pin mapping: 1=up, 2=down, 4=left, 8=right, 16=fire
+    const VJM: &str = "\
+# VICE joystick mapping file for TheC64 (Retro Games Ltd) joystick
+#
+# TheC64 enumerates as a HID keyboard device on Linux, so we explicitly
+# map its button inputs to standard C64 joystick pins for host joystick 0.
+#
+# VJM format: joynum inputtype inputindex action [action_params]
+#   inputtype: 0=axis, 1=button, 2=hat
+#   action 1 pin: joystick (pin: 1/2/4/8/16 = up/down/left/right/fire)
+
+!CLEAR
+
+# TheC64 Joystick -> C64 Port 2 (VICE host joystick 0)
+0 1 0 1 8    # Button 0 (Up)    -> pin 1 (up)
+0 1 1 1 4    # Button 1 (Down)  -> pin 2 (down)
+0 1 2 1 2    # Button 2 (Left)  -> pin 4 (left)
+0 1 3 1 1    # Button 3 (Right) -> pin 8 (right)
+0 1 4 1 16   # Button 4 (Fire)  -> pin 16 (fire)
+
+# Disable additional buttons (TheC64 Maxi has extra buttons we ignore)
+0 1 5 0
+0 1 6 0
+0 1 7 0
+0 1 8 0
+0 1 9 0
+0 1 10 0
+0 1 11 0
+0 1 12 0
+";
+    let path = crate::core::data_path("vice-joymap-thec64.vjm");
     std::fs::write(&path, VJM).ok().map(|_| path)
 }
 

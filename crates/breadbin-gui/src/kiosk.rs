@@ -69,7 +69,7 @@ impl Card {
 
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(3)
+            .spacing(6)  // Increased spacing for better title readability
             .hexpand(hexpand)
             .build();
         root.add_css_class("cover-card");
@@ -476,6 +476,7 @@ fn build_genre_section(
     let loading_label_weak = loading_label.downgrade();
     let loading_bar_weak = loading_bar.downgrade();
     let total = row_indices.len();
+    let row_count = row_indices.len(); // Capture the value for the closure
     let grid_populated = std::rc::Rc::new(std::cell::Cell::new(false));
     toggle_btn.connect_clicked(move |btn| {
         let Some(s) = stack_weak.upgrade() else { return };
@@ -483,8 +484,9 @@ fn build_genre_section(
             if !grid_populated.get() {
                 grid_populated.set(true);
 
-                // First row: same STRIP_MAX cards, same hexpand as strip (false here
-                // since total > STRIP_MAX, otherwise there'd be no toggle button).
+                // First row: same STRIP_MAX cards, same hexpand as strip.
+                // Use same hexpand logic as strip for consistent sizing.
+                let hexpand_first_row = row_count <= STRIP_MAX;
                 if let Some(first_row) = first_row_weak.upgrade() {
                     for (row, joystick, top_rated) in grid_rows.iter().take(STRIP_MAX) {
                         let card = build_game_card(
@@ -493,7 +495,7 @@ fn build_genre_section(
                             *joystick,
                             *top_rated,
                             launch_for_grid.clone(),
-                            false,
+                            hexpand_first_row,
                             None,
                             on_refresh_for_grid.clone(),
                         );
@@ -677,6 +679,165 @@ pub fn build(settings: &Settings) -> (gtk::Widget, Rc<dyn Fn()>) {
     (outer.upcast(), real_refresh)
 }
 
+// ── Download-all dialog ───────────────────────────────────────────────────────
+
+/// Show a dialog that downloads every non-local game file and every missing
+/// cover, with a live progress bar. Calls `on_done` after a successful run so
+/// the kiosk grid refreshes to reflect newly-downloaded games.
+pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn Fn()>) {
+    let dialog = adw::Dialog::new();
+    dialog.set_title("Download All Games");
+    dialog.set_content_width(440);
+
+    let vbox = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(12)
+        .margin_top(24)
+        .margin_bottom(24)
+        .margin_start(24)
+        .margin_end(24)
+        .build();
+
+    let status_lbl = gtk::Label::builder()
+        .label("Preparing…")
+        .xalign(0.0)
+        .wrap(true)
+        .build();
+
+    let progress = gtk::ProgressBar::builder()
+        .show_text(false)
+        .build();
+
+    let action_btn = gtk::Button::builder()
+        .label("Cancel")
+        .halign(gtk::Align::End)
+        .build();
+
+    vbox.append(&status_lbl);
+    vbox.append(&progress);
+    vbox.append(&action_btn);
+
+    let scroll = gtk::ScrolledWindow::builder()
+        .child(&vbox)
+        .propagate_natural_height(true)
+        .build();
+    dialog.set_child(Some(&scroll));
+    dialog.present(Some(parent));
+
+    let cancelled = Rc::new(std::cell::Cell::new(false));
+
+    let cancelled_close = cancelled.clone();
+    dialog.connect_closed(move |_| {
+        cancelled_close.set(true);
+    });
+
+    let cancelled_btn = cancelled.clone();
+    let dialog_btn = dialog.clone();
+    action_btn.connect_clicked(move |_| {
+        if cancelled_btn.get() {
+            // Already done/cancelled — act as Close
+            dialog_btn.close();
+        } else {
+            cancelled_btn.set(true);
+            dialog_btn.close();
+        }
+    });
+
+    let status_weak = status_lbl.downgrade();
+    let progress_weak = progress.downgrade();
+    let btn_weak = action_btn.downgrade();
+
+    glib::spawn_future_local(async move {
+        // Load rows + cover index
+        let (rows, cidx) = run_blocking(|| {
+            let all_rows = tui::load_rows();
+            let hidden = tui::load_hidden();
+            let visible: Vec<tui::Row> = all_rows
+                .into_iter()
+                .filter(|r| !hidden.contains(&r.display))
+                .collect();
+            let cidx = cover::load_index();
+            (visible, cidx)
+        })
+        .await;
+
+        let non_local: Vec<tui::Row> =
+            rows.iter().filter(|r| !r.is_local()).cloned().collect();
+        let total_games = non_local.len();
+        let total_covers = rows.len();
+        let total = (total_games + total_covers).max(1);
+        let mut done = 0usize;
+
+        // Phase 1: download game files
+        for (i, row) in non_local.iter().enumerate() {
+            if cancelled.get() {
+                break;
+            }
+            if let Some(lbl) = status_weak.upgrade() {
+                lbl.set_label(&format!(
+                    "Game {}/{}: {}",
+                    i + 1,
+                    total_games,
+                    row.title
+                ));
+            }
+            let r = row.clone();
+            run_blocking(move || tui::resolve_no_rebuild(&r)).await;
+            done += 1;
+            if let Some(bar) = progress_weak.upgrade() {
+                bar.set_fraction(done as f64 / total as f64);
+            }
+            // Polite delay between IA requests
+            glib::timeout_future(std::time::Duration::from_millis(500)).await;
+        }
+
+        // Rebuild index once now that all game files are in place
+        if !cancelled.get() && total_games > 0 {
+            if let Some(lbl) = status_weak.upgrade() {
+                lbl.set_label("Rebuilding index…");
+            }
+            run_blocking(breadbin_core::build_index::build).await;
+        }
+
+        // Phase 2: fetch covers for all visible games
+        for (i, row) in rows.iter().enumerate() {
+            if cancelled.get() {
+                break;
+            }
+            if let Some(lbl) = status_weak.upgrade() {
+                lbl.set_label(&format!(
+                    "Cover {}/{}: {}",
+                    i + 1,
+                    total_covers,
+                    row.title
+                ));
+            }
+            let r = row.clone();
+            let c = cidx.clone();
+            run_blocking(move || tui::cover_for(&r, &c)).await;
+            done += 1;
+            if let Some(bar) = progress_weak.upgrade() {
+                bar.set_fraction(done as f64 / total as f64);
+            }
+        }
+
+        let finished = !cancelled.get();
+
+        if let Some(lbl) = status_weak.upgrade() {
+            lbl.set_label(if finished { "All done!" } else { "Cancelled." });
+        }
+        if let Some(btn) = btn_weak.upgrade() {
+            btn.set_label("Close");
+        }
+        if finished {
+            if let Some(bar) = progress_weak.upgrade() {
+                bar.set_fraction(1.0);
+            }
+            on_done();
+        }
+    });
+}
+
 /// Show a dialog listing all hidden games with an Unhide button for each.
 pub fn show_hidden_dialog(parent: &impl IsA<gtk::Widget>, on_refresh: Rc<dyn Fn()>) {
     let hidden: Vec<String> = {
@@ -743,4 +904,52 @@ pub fn show_hidden_dialog(parent: &impl IsA<gtk::Widget>, on_refresh: Rc<dyn Fn(
 
     dialog.set_child(Some(&scroll));
     dialog.present(Some(parent));
+}
+
+/// Create a controller badge widget for the header bar.
+/// Returns a box with the controller icon and name, or None if no controllers are connected.
+pub fn create_device_badges() -> Option<gtk::Box> {
+    let controllers = run::connected_controllers();
+    
+    if controllers.is_empty() {
+        return None;
+    }
+    
+    // Create a horizontal box to hold all controller badges
+    let badges_box = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(6)
+        .build();
+    badges_box.add_css_class("device-badges");
+    
+    for controller in controllers {
+        let badge = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(4)
+            .build();
+        badge.add_css_class("device-badge");
+        
+        let icon = gtk::Label::new(Some(&get_controller_icon(&controller)));
+        icon.add_css_class("device-icon");
+        
+        let name = gtk::Label::new(Some(&controller));
+        name.add_css_class("device-name");
+        
+        badge.append(&icon);
+        badge.append(&name);
+        badges_box.append(&badge);
+    }
+    
+    Some(badges_box)
+}
+
+/// Get the appropriate icon for a controller type.
+fn get_controller_icon(controller: &str) -> String {
+    match controller {
+        "TheC64" => "·✦· 🕹 ·✦·",
+        "PS5" => "🎮",
+        "Switch Pro" => "🎮",
+        _ => "🕹",
+    }
+    .to_string()
 }
