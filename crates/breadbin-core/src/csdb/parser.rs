@@ -3,6 +3,35 @@
 use crate::database::models::*;
 use crate::core;
 
+/// Extract website URL from XML, preferring itch.io URLs if multiple exist.
+fn extract_website(xml: &str) -> String {
+    // Find all Website tags
+    let mut websites = Vec::new();
+    let mut rest = xml;
+    
+    while let Some(start) = rest.find("<Website>") {
+        let after_start = &rest[start + 9..]; // 9 = len("<Website>")
+        if let Some(end) = after_start.find("</Website>") {
+            let url = &rest[start + 9..start + 9 + end];
+            let url = core::html_unescape(url.trim());
+            websites.push(url.to_string());
+            rest = &rest[start + 9 + end + 10..]; // 10 = len("</Website>")
+        } else {
+            break;
+        }
+    }
+    
+    // Prefer itch.io URLs
+    for url in &websites {
+        if url.contains("itch.io") {
+            return url.clone();
+        }
+    }
+    
+    // Fall back to first website
+    websites.first().cloned().unwrap_or_default()
+}
+
 /// Parse a release XML response from CSDb webservice.
 pub fn parse_release(xml: &str, _id: u32) -> Result<Release, String> {
     // Extract basic release info
@@ -24,9 +53,7 @@ pub fn parse_release(xml: &str, _id: u32) -> Result<Release, String> {
         .map(|s| core::html_unescape(s.trim()))
         .unwrap_or_default();
     
-    let website = core::between(xml, "<Website>", "</Website>")
-        .map(|s| core::html_unescape(s.trim()))
-        .unwrap_or_default();
+    let website = extract_website(xml);
     
     // Extract release date
     let release_day = core::between(xml, "<ReleaseDay>", "</ReleaseDay>")
@@ -656,4 +683,42 @@ pub fn parse_event(xml: &str) -> Result<Event, String> {
         website,
         updated_at: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_website_prefers_itchio() {
+        let xml = r#"<Release>
+            <Website>https://ausretrogamer.com/2022-reset64-4kb-craptastic-game-competition/</Website>
+            <Website>https://jaammees.itch.io/circles</Website>
+        </Release>"#;
+        
+        let result = extract_website(xml);
+        assert!(result.contains("itch.io"), "Should prefer itch.io URL, got: {}", result);
+    }
+
+    #[test]
+    fn test_extract_website_single() {
+        let xml = r#"<Release>
+            <Website>https://example.com</Website>
+        </Release>"#;
+        
+        let result = extract_website(xml);
+        assert_eq!(result, "https://example.com");
+    }
+
+    #[test]
+    fn test_extract_website_no_itchio() {
+        let xml = r#"<Release>
+            <Website>https://ausretrogamer.com/</Website>
+            <Website>https://example.com</Website>
+        </Release>"#;
+        
+        let result = extract_website(xml);
+        // Should return first website when no itch.io URL exists
+        assert_eq!(result, "https://ausretrogamer.com/");
+    }
 }
