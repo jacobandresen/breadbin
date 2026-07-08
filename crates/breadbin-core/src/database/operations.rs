@@ -228,12 +228,58 @@ pub fn save_release(conn: &Connection, release: &Release) -> SqlResult<()> {
         1 // Default to Demo
     };
     
+    // Save embedded group first (if it exists and has an ID)
+    if let Some(group) = &release.group {
+        if group.id > 0 {
+            save_group(conn, group)?;
+        }
+    }
+    
+    // Save embedded event first (if it exists and has an ID)
+    if let Some(event) = &release.event {
+        if event.id > 0 {
+            save_event(conn, event)?;
+        }
+    }
+    
+    // Save sceners referenced in credits (create minimal entries if they don't exist)
+    let mut scener_ids_to_save = Vec::new();
+    for credit in &release.credits {
+        if let Some(scener_id) = credit.scener_id {
+            if scener_id > 0 {
+                scener_ids_to_save.push(scener_id);
+            }
+        }
+    }
+    
+    // Deduplicate and save sceners
+    scener_ids_to_save.sort();
+    scener_ids_to_save.dedup();
+    for scener_id in scener_ids_to_save {
+        // Check if scener already exists
+        let exists: bool = conn.query_row(
+            "SELECT 1 FROM sceners WHERE id = ?",
+            [scener_id as i64],
+            |row| Ok(row.get::<_, i64>(0).map(|v| v == 1).unwrap_or(false))
+        ).unwrap_or(false);
+        
+        if !exists {
+            // Create a minimal scener entry
+            // We'll use the handle from the credit as the handle
+            // Since we don't have full scener data, we create a minimal entry
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO sceners (id, country, trivia, handle_story, updated_at) VALUES (?, '', '', '', CURRENT_TIMESTAMP)",
+                [scener_id as i64],
+            );
+        }
+    }
+    
     conn.execute(
         r#"
         INSERT OR REPLACE INTO releases 
         (id, name, release_type_id, group_id, rating, release_day, release_month, release_year,
          event_id, compo, place, screenshot_url, download_count, website, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         params![
             release.id as i64,
@@ -251,6 +297,7 @@ pub fn save_release(conn: &Connection, release: &Release) -> SqlResult<()> {
             release.download_count as i64,
             release.website.as_deref().unwrap_or(""),
             release.created_at.as_deref().unwrap_or(""),
+            release.updated_at.as_deref().unwrap_or(""),
         ],
     )?;
     
@@ -275,29 +322,29 @@ pub fn save_release(conn: &Connection, release: &Release) -> SqlResult<()> {
     
     // Save credits
     for credit in &release.credits {
-        save_release_credit(conn, credit)?;
+        save_release_credit(conn, credit, release.id)?;
     }
     
     // Save downloads
     for download in &release.downloads {
-        save_download_link(conn, download)?;
+        save_download_link(conn, download, release.id)?;
     }
     
     // Save SIDs
     for sid in &release.sids {
-        save_sid_file(conn, sid)?;
+        save_sid_file(conn, sid, release.id)?;
     }
     
     // Save IA mappings
     for mapping in &release.ia_mappings {
-        save_ia_mapping(conn, mapping)?;
+        save_ia_mapping(conn, mapping, release.id)?;
     }
     
     Ok(())
 }
 
 /// Save a release credit.
-pub fn save_release_credit(conn: &Connection, credit: &ReleaseCredit) -> SqlResult<()> {
+pub fn save_release_credit(conn: &Connection, credit: &ReleaseCredit, release_id: u32) -> SqlResult<()> {
     conn.execute(
         r#"
         INSERT OR REPLACE INTO release_credits 
@@ -306,7 +353,7 @@ pub fn save_release_credit(conn: &Connection, credit: &ReleaseCredit) -> SqlResu
         "#,
         params![
             credit.id.map(|id| id as i64).unwrap_or(0),
-            credit.release_id as i64,
+            release_id as i64,
             credit.scener_id.map(|s| s as i64).unwrap_or(0),
             &credit.handle,
             &credit.credit_type,
@@ -318,7 +365,7 @@ pub fn save_release_credit(conn: &Connection, credit: &ReleaseCredit) -> SqlResu
 }
 
 /// Save a download link.
-pub fn save_download_link(conn: &Connection, download: &DownloadLink) -> SqlResult<()> {
+pub fn save_download_link(conn: &Connection, download: &DownloadLink, release_id: u32) -> SqlResult<()> {
     conn.execute(
         r#"
         INSERT OR REPLACE INTO release_downloads 
@@ -327,7 +374,7 @@ pub fn save_download_link(conn: &Connection, download: &DownloadLink) -> SqlResu
         "#,
         params![
             download.id.map(|id| id as i64).unwrap_or(0),
-            download.release_id as i64,
+            release_id as i64,
             &download.url,
             download.counter_url.as_deref().unwrap_or(""),
             download.downloads as i64,
@@ -340,7 +387,7 @@ pub fn save_download_link(conn: &Connection, download: &DownloadLink) -> SqlResu
 }
 
 /// Save a SID file.
-pub fn save_sid_file(conn: &Connection, sid: &SidFile) -> SqlResult<()> {
+pub fn save_sid_file(conn: &Connection, sid: &SidFile, release_id: u32) -> SqlResult<()> {
     conn.execute(
         r#"
         INSERT OR REPLACE INTO release_sids 
@@ -350,7 +397,7 @@ pub fn save_sid_file(conn: &Connection, sid: &SidFile) -> SqlResult<()> {
         "#,
         params![
             sid.id.map(|id| id as i64).unwrap_or(0),
-            sid.release_id as i64,
+            release_id as i64,
             sid.sid_id.map(|s| s as i64).unwrap_or(0),
             sid.hvsc_path.as_deref().unwrap_or(""),
             &sid.name,
@@ -370,7 +417,7 @@ pub fn save_sid_file(conn: &Connection, sid: &SidFile) -> SqlResult<()> {
 }
 
 /// Save an IA mapping.
-pub fn save_ia_mapping(conn: &Connection, mapping: &IAMapping) -> SqlResult<()> {
+pub fn save_ia_mapping(conn: &Connection, mapping: &IAMapping, release_id: u32) -> SqlResult<()> {
     conn.execute(
         r#"
         INSERT OR REPLACE INTO ia_mappings 
@@ -379,7 +426,7 @@ pub fn save_ia_mapping(conn: &Connection, mapping: &IAMapping) -> SqlResult<()> 
         "#,
         params![
             mapping.id.map(|id| id as i64).unwrap_or(0),
-            mapping.release_id as i64,
+            release_id as i64,
             &mapping.ia_identifier,
             mapping.ia_title.as_deref().unwrap_or(""),
             &mapping.ia_collection,
