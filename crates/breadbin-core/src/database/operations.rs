@@ -197,7 +197,7 @@ pub fn save_event(conn: &Connection, event: &Event) -> SqlResult<()> {
         INSERT OR REPLACE INTO events 
         (id, name, event_type, aka, start_day, start_month, start_year, end_day, end_month, end_year, 
          address, zip, city, country, website, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         "#,
         params![
             event.id as i64,
@@ -268,8 +268,8 @@ pub fn save_release(conn: &Connection, release: &Release) -> SqlResult<()> {
             // We'll use the handle from the credit as the handle
             // Since we don't have full scener data, we create a minimal entry
             let _ = conn.execute(
-                "INSERT OR IGNORE INTO sceners (id, country, trivia, handle_story, updated_at) VALUES (?, '', '', '', CURRENT_TIMESTAMP)",
-                [scener_id as i64],
+                "INSERT OR IGNORE INTO sceners (id, country, trivia, handle_story, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                [&scener_id as &dyn rusqlite::ToSql, &"", &"", &""],
             );
         }
     }
