@@ -1171,7 +1171,14 @@ pub fn build() -> gtk::Widget {
 
     glib::spawn_future_local(async move {
         let (all_tunes, groups) = run_blocking(|| {
-            let tunes = tunes::load_tunes();
+            // Try to load from Diesel database first
+            let mut tunes = tunes::load_tunes_from_db();
+            
+            // If Diesel DB is empty, fall back to TSV
+            if tunes.is_empty() {
+                tunes = tunes::load_tunes();
+            }
+            
             let groups = tunes::group_by_party(&tunes);
             (tunes, groups)
         })

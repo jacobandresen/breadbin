@@ -435,7 +435,13 @@ pub fn build(settings: &Settings) -> gtk::Widget {
     let outer_weak = outer.downgrade();
 
     glib::spawn_future_local(async move {
-        let all_demos = run_blocking(demos::load_demos).await;
+        // Try to load from Diesel database first
+        let mut all_demos = run_blocking(demos::load_demos_from_db).await;
+        
+        // If Diesel DB is empty, fall back to TSV
+        if all_demos.is_empty() {
+            all_demos = run_blocking(demos::load_demos).await;
+        }
 
         let Some(outer) = outer_weak.upgrade() else { return };
 
@@ -466,7 +472,8 @@ pub fn build(settings: &Settings) -> gtk::Widget {
             });
 
             let result = run_blocking(move || {
-                demos::build_index(500, &mut |done, total| {
+                // Use Diesel-based build_index which also saves to TSV
+                demos::build_index_to_db(500, &mut |done, total| {
                     let _ = tx.send_blocking((done, total));
                 })
             })
@@ -487,7 +494,13 @@ pub fn build(settings: &Settings) -> gtk::Widget {
                 return;
             }
 
-            run_blocking(demos::load_demos).await
+            // Try Diesel DB first, then TSV
+            let loaded = run_blocking(demos::load_demos_from_db).await;
+            if loaded.is_empty() {
+                run_blocking(demos::load_demos).await
+            } else {
+                loaded
+            }
         } else {
             all_demos
         };

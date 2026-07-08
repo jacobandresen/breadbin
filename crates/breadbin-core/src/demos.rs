@@ -264,3 +264,166 @@ pub fn fetch_and_prepare(d: &Demo) -> Result<PathBuf, String> {
         Ok(out)
     }
 }
+
+// ============================================================================
+// Diesel Database Integration
+// ============================================================================
+
+use crate::diesel_db::{get_all_releases, ReleaseRow, save_release, initialize_default_release_types};
+
+/// Load demos from Diesel database instead of TSV file.
+/// This converts ReleaseRows with type 1 (C64 Demo) to Demo structs.
+pub fn load_demos_from_db() -> Vec<Demo> {
+    use crate::diesel_db::{get_group, get_event};
+    
+    let mut v = Vec::new();
+    
+    match get_all_releases() {
+        Ok(releases) => {
+            for release in releases {
+                // Only include demo releases (type 1 = C64 Demo)
+                if release.release_type_id != 1 {
+                    continue;
+                }
+                
+                let id = release.id.unwrap_or(0) as u32;
+                let name = release.name.clone();
+                
+                // Get group name
+                let group = release.group_id
+                    .and_then(|gid| get_group(gid).ok())
+                    .and_then(|g_opt| g_opt.map(|g| g.name))
+                    .unwrap_or_default();
+                
+                let rating = release.rating.unwrap_or(0.0);
+                let year = release.release_year.unwrap_or(0) as u32;
+                let place = release.place.unwrap_or(0) as u32;
+                let shot = release.screenshot_url.unwrap_or_default();
+                
+                let event_type = String::new();
+                let city = String::new();
+                let country = String::new();
+                let website = String::new();
+                
+                // Get event/party name
+                let party = release.event_id
+                    .and_then(|eid| get_event(eid).ok())
+                    .and_then(|e_opt| e_opt.map(|e| e.name))
+                    .unwrap_or_default();
+                
+                v.push(Demo {
+                    id,
+                    name,
+                    group,
+                    rating,
+                    party,
+                    year,
+                    place,
+                    shot,
+                    event_type,
+                    city,
+                    country,
+                    website,
+                });
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to load demos from Diesel DB: {}", e);
+        }
+    }
+    
+    v
+}
+
+/// Save a Demo to the Diesel database.
+pub fn save_demo_to_db(demo: &Demo) -> Result<(), String> {
+    // Ensure release types are initialized
+    initialize_default_release_types().map_err(|e| format!("Failed to initialize release types: {}", e))?;
+    
+    // Create a release row for this demo
+    // Type 1 = C64 Demo
+    let release = ReleaseRow {
+        id: Some(demo.id as i32),
+        name: demo.name.clone(),
+        release_type_id: 1, // C64 Demo
+        group_id: None, // Would need to resolve group ID
+        rating: Some(demo.rating),
+        release_day: None,
+        release_month: None,
+        release_year: Some(demo.year as i32),
+        event_id: None, // Would need to resolve event ID
+        compo: None,
+        place: Some(demo.place as i32),
+        screenshot_url: Some(demo.shot.clone()),
+        screenshot_urls: None,
+        download_count: None,
+        website: Some(demo.website.clone()),
+        created_at: None,
+        updated_at: None,
+    };
+    
+    save_release(&release).map_err(|e| format!("Failed to save demo release: {}", e))?;
+    
+    Ok(())
+}
+
+/// Build index and save to Diesel database.
+pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Result<(), String> {
+    use std::collections::HashMap;
+    
+    let body = core::fetch(TOPLIST, &[])?;
+    let html = String::from_utf8_lossy(&body);
+    let ranked = core::parse_toplist(&html);
+    if ranked.is_empty() {
+        return Err("could not parse the CSDb top demos list".to_string());
+    }
+    
+    let take = ranked.len().min(limit);
+    let mut venues: HashMap<u32, (String, String, String, String)> = HashMap::new();
+    
+    for (n, (id, name, group, rating)) in ranked.iter().take(take).enumerate() {
+        progress(n as u64 + 1, take as u64);
+        let (event_id, party, year, place, shot) = match core::fetch(&core::release_ws(*id, 1), &[]) {
+            Ok(b) => parse_release_xml(&String::from_utf8_lossy(&b)),
+            Err(_) => (0, String::new(), 0, 0, String::new()),
+        };
+        let (event_type, city, country, website) = if event_id == 0 {
+            (String::new(), String::new(), String::new(), String::new())
+        } else {
+            venues
+                .entry(event_id)
+                .or_insert_with(|| match core::fetch(&event_ws(event_id), &[]) {
+                    Ok(b) => parse_event_xml(&String::from_utf8_lossy(&b)),
+                    Err(_) => (String::new(), String::new(), String::new(), String::new()),
+                })
+                .clone()
+        };
+        let series = core::party_series(&party);
+        
+        // Create and save the demo
+        let demo = Demo {
+            id: *id,
+            name: core::clean(name),
+            group: core::clean(group),
+            rating: *rating,
+            party: core::clean(&series),
+            year,
+            place,
+            shot: core::clean(&shot),
+            event_type: core::clean(&event_type),
+            city: core::clean(&city),
+            country: core::clean(&country),
+            website: core::clean(&website),
+        };
+        
+        // Save to Diesel database
+        if let Err(e) = save_demo_to_db(&demo) {
+            log::warn!("Failed to save demo {}: {}", id, e);
+        }
+    }
+    
+    // Also write to TSV for backwards compatibility
+    build_index(limit, progress)?;
+    
+    Ok(())
+}

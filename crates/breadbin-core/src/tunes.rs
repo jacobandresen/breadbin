@@ -202,3 +202,145 @@ impl Default for Rng {
         Rng::new()
     }
 }
+
+// ============================================================================
+// Diesel Database Integration
+// ============================================================================
+
+use crate::diesel_db::{get_all_releases, ReleaseRow};
+
+/// Load tunes from Diesel database instead of TSV file.
+/// This converts ReleaseRows with type 7 (C64 Music) or 8 (C64 Music Collection) to Tune structs.
+pub fn load_tunes_from_db() -> Vec<Tune> {
+    use crate::diesel_db::{get_all_groups, get_all_events, get_group, get_event, get_all_release_credits, get_all_download_links};
+    
+    let mut v = Vec::new();
+    
+    match get_all_releases() {
+        Ok(releases) => {
+            for release in releases {
+                // Only include music releases (type 7 = C64 Music, type 8 = C64 Music Collection)
+                if release.release_type_id != 7 && release.release_type_id != 8 {
+                    continue;
+                }
+                
+                let name = release.name.clone();
+                let id = release.id.unwrap_or(0) as u32;
+                let rating = release.rating.unwrap_or(0.0);
+                let year = release.release_year.unwrap_or(0) as u32;
+                
+                // Extract composer, group, party, sid_url from related tables
+                let composer = String::new();
+                
+                // Get group name
+                let group = release.group_id
+                    .and_then(|gid| get_group(gid).ok())
+                    .and_then(|g_opt| g_opt.map(|g| g.name))
+                    .unwrap_or_default();
+                
+                // Get event/party name
+                let party = release.event_id
+                    .and_then(|eid| get_event(eid).ok())
+                    .and_then(|e_opt| e_opt.map(|e| e.name))
+                    .unwrap_or_default();
+                
+                let sid_url = String::new();
+                
+                v.push(Tune {
+                    id,
+                    name,
+                    composer,
+                    group,
+                    party,
+                    rating,
+                    year,
+                    sid_url,
+                });
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to load tunes from Diesel DB: {}", e);
+        }
+    }
+    
+    v
+}
+
+/// Save a Tune to the Diesel database.
+pub fn save_tune_to_db(tune: &Tune) -> Result<(), String> {
+    use crate::diesel_db::{ReleaseRow, save_release, initialize_default_release_types};
+    
+    // Ensure release types are initialized
+    initialize_default_release_types().map_err(|e| format!("Failed to initialize release types: {}", e))?;
+    
+    // Create a release row for this tune
+    // Type 7 = C64 Music
+    let release = ReleaseRow {
+        id: Some(tune.id as i32),
+        name: tune.name.clone(),
+        release_type_id: 7, // C64 Music
+        group_id: None, // Would need to resolve group ID
+        rating: Some(tune.rating),
+        release_day: None,
+        release_month: None,
+        release_year: Some(tune.year as i32),
+        event_id: None, // Would need to resolve event ID
+        compo: None,
+        place: None,
+        screenshot_url: None,
+        screenshot_urls: None,
+        download_count: None,
+        website: None,
+        created_at: None,
+        updated_at: None,
+    };
+    
+    save_release(&release).map_err(|e| format!("Failed to save tune release: {}", e))?;
+    
+    Ok(())
+}
+
+/// Build index and save to Diesel database.
+pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Result<(), String> {
+    let body = core::fetch(TOPLIST, &[])?;
+    let html = String::from_utf8_lossy(&body);
+    let ranked = core::parse_toplist(&html);
+    if ranked.is_empty() {
+        return Err("could not parse the CSDb top music list".to_string());
+    }
+    
+    let take = ranked.len().min(limit);
+    
+    for (n, (id, name, group, rating)) in ranked.iter().take(take).enumerate() {
+        progress(n as u64 + 1, take as u64);
+        let (composer, party, year, sid_url) = match core::fetch(&core::release_ws(*id, 2), &[]) {
+            Ok(b) => parse_release_xml(&String::from_utf8_lossy(&b)),
+            Err(_) => (String::new(), String::new(), 0, String::new()),
+        };
+        if sid_url.is_empty() {
+            continue;
+        }
+        
+        // Create and save the tune
+        let tune = Tune {
+            id: *id,
+            name: core::clean(name),
+            composer: core::clean(&composer),
+            group: core::clean(group),
+            rating: *rating,
+            year,
+            sid_url: core::clean(&sid_url),
+            party: core::clean(&party),
+        };
+        
+        // Save to Diesel database
+        if let Err(e) = save_tune_to_db(&tune) {
+            log::warn!("Failed to save tune {}: {}", id, e);
+        }
+    }
+    
+    // Also write to TSV for backwards compatibility
+    build_index(limit, progress)?;
+    
+    Ok(())
+}
