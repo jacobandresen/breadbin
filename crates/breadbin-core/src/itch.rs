@@ -136,21 +136,49 @@ pub fn find_itchio_downloads(page_html: &str, page_url: &str) -> Vec<String> {
     downloads.extend(extract_download_links(page_html, page_url));
     
     // Itch.io specific: look for file listings in the download section
-    // Itch.io often has a pattern like: **filename.ext** size
+    // Itch.io often has patterns like: **filename.ext** size (markdown) or
+    // <strong class="name">filename.ext</strong> <span class="file_size">3.9 kB</span> (HTML)
     let lines: Vec<&str> = page_html.lines().collect();
     for line in lines {
         let line_lower = line.to_lowercase();
         for ext in C64_EXTENSIONS {
             if line_lower.contains(ext) && (line_lower.contains("kb") || line_lower.contains("mb") || line_lower.contains("bytes")) {
-                // Try to extract the filename
-                // Look for **filename.ext** pattern (markdown)
+                // Try to extract the filename from markdown **pattern
                 if let Some(start) = line.find("**") {
                     if let Some(end) = line[start + 2..].find("**") {
                         let filename = &line[start + 2..start + 2 + end];
                         if filename.to_lowercase().ends_with(ext) {
-                            // Try to construct the download URL
-                            // Itch.io download URLs are typically: /download/<hash>/<filename>
-                            // or the page URL + /download/<filename>
+                            let possible_url = format!("{}/download/{}", page_url.trim_end_matches('/'), filename);
+                            if !downloads.contains(&possible_url) {
+                                downloads.push(possible_url);
+                            }
+                        }
+                    }
+                }
+                
+                // Try to extract the filename from HTML <strong class="name"> pattern
+                // Pattern: <strong ...>filename.ext</strong>
+                if let Some(start) = line.to_lowercase().find("<strong") {
+                    if let Some(tag_end) = line[start..].find('>') {
+                        let content_start = start + tag_end + 1;
+                        if let Some(content_end) = line[content_start..].find("</strong>") {
+                            let filename = &line[content_start..content_start + content_end];
+                            if filename.to_lowercase().ends_with(ext) {
+                                let possible_url = format!("{}/download/{}", page_url.trim_end_matches('/'), filename);
+                                if !downloads.contains(&possible_url) {
+                                    downloads.push(possible_url);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Also try to extract from title attribute: <strong title="filename.ext" ...>
+                if let Some(title_start) = line.to_lowercase().find("title=\"") {
+                    let after_title = &line[title_start + 7..]; // 7 = len("title=\"")
+                    if let Some(title_end) = after_title.find('"') {
+                        let filename = &after_title[..title_end];
+                        if filename.to_lowercase().ends_with(ext) {
                             let possible_url = format!("{}/download/{}", page_url.trim_end_matches('/'), filename);
                             if !downloads.contains(&possible_url) {
                                 downloads.push(possible_url);
@@ -381,5 +409,27 @@ Some text here.
         assert!(downloads.iter().any(|d| d.contains("circles.prg")));
         assert!(!downloads.iter().any(|d| d.contains("readme.txt")));
         assert!(!downloads.iter().any(|d| d.contains("docs.pdf")));
+    }
+
+    #[test]
+    fn test_itchio_html_strong_pattern() {
+        // Test extraction from HTML <strong> tags (real itch.io page pattern)
+        let html = r#"<div class="upload_name"><strong title="circles.prg" class="name">circles.prg</strong> <span class="file_size"><span>3.9 kB</span></span></div>"#;
+        
+        let downloads = find_itchio_downloads(html, "https://jaammees.itch.io/circles");
+        assert!(!downloads.is_empty());
+        assert!(downloads.iter().any(|d| d.contains("circles.prg")));
+        // Should construct a download URL
+        assert!(downloads.iter().any(|d| d.contains("/download/circles.prg")));
+    }
+
+    #[test]
+    fn test_itchio_html_strong_simple() {
+        // Test extraction from simple <strong>filename.ext</strong> pattern
+        let html = r#"<strong>demo.d64</strong> <span>1.2 MB</span>"#;
+        
+        let downloads = find_itchio_downloads(html, "https://example.itch.io/game");
+        assert!(!downloads.is_empty());
+        assert!(downloads.iter().any(|d| d.contains("demo.d64")));
     }
 }
