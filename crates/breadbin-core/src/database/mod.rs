@@ -5,9 +5,11 @@
 // It enables fast, offline-available search and filtering.
 
 pub mod models;
-pub mod schema;
+pub mod schema_legacy;
 pub mod search;
 pub mod operations;
+
+pub use schema_legacy as schema;
 
 #[cfg(test)]
 mod search_tests;

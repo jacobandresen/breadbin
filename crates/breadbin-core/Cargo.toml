@@ -36,6 +36,21 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 log = "0.4"
 
+# Diesel ORM for type-safe database access
+[dependencies.diesel]
+version = "2.2"
+features = ["sqlite", "r2d2", "chrono"]
+
+[dependencies.diesel_migrations]
+version = "2.2"
+
+[dependencies.r2d2]
+version = "0.8"
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]
+
 [dev-dependencies]
 uuid = { version = "1.10", features = ["v4"] }
 tempfile = "3"
