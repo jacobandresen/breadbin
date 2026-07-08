@@ -16,3 +16,6 @@ pub mod tunes;
 pub mod demos;
 pub mod tui;
 pub mod library;
+pub mod database;
+pub mod csdb;
+pub mod itch;

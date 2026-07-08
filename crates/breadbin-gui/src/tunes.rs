@@ -44,6 +44,9 @@ fn visualizer_draw(
         3 => raster_bars_draw(cr, w, h, samples, time), // Raster Bars
         4 => tunnel_draw(cr, w, h, samples, time), // 3D Tunnel
         5 => demo_scroller_draw(cr, w, h, samples, tune_description, time), // Demo Scroller
+        6 => fli_draw(cr, w, h, samples, time), // FLI (Flexible Line Distance)
+        7 => sprite_multiplexer_draw(cr, w, h, samples, time), // Sprite Multiplexer
+        8 => dycp_draw(cr, w, h, samples, tune_description, time), // DYCP Text
         _ => scope_draw(cr, w, h, samples), // Default to scope
     }
 }
@@ -137,19 +140,22 @@ fn demo_scroller_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], text
     // Create a sine wave pattern for vertical positioning
     let wave_amplitude = h as f64 / 3.0;
     
-    // Number of text rows to display
+    // Number of text rows to display - center around middle of screen
     let num_rows = (h as f64 / line_height).ceil() as i32 + 2;
     
     // Draw text scrolling horizontally across the entire screen at multiple vertical positions
-    for row in 0..=num_rows {
+    // Center the text vertically by offsetting the starting row
+    let start_row = -1;
+    for row in start_row..=num_rows {
         // Each row has a different vertical position with wave effect
-        let base_y = (row as f64 * line_height) - scroll_x * 0.1 * (row as f64 * 0.3);
+        let base_y = (row as f64 * line_height) + (h as f64 / 2.0) - (num_rows as f64 * line_height / 2.0);
         let wave_offset = (time * 0.5 + row as f64 * 0.7).sin() * wave_amplitude * 0.3;
         let text_y = base_y + wave_offset;
         
         // Only draw if visible
         if text_y > -50.0 && text_y < h as f64 + 50.0 {
-            let start_x = -scroll_x;
+            // Start from center and expand outwards for more centered feel
+            let start_x = w as f64 / 2.0 - scroll_x - text_width / 2.0;
             cr.move_to(start_x, text_y);
             cr.show_text(text).ok();
             
@@ -173,8 +179,8 @@ fn demo_scroller_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], text
     cr.set_font_size(12.0);
     
     for i in 0..=(num_rows + 1) {
-        let diag_start_x = -diag_scroll + (i as f64 * line_height * 0.5);
-        let diag_y = (i as f64 * line_height * 0.7) + diag_scroll * 0.3;
+        let diag_start_x = w as f64 / 2.0 - diag_scroll + (i as f64 * line_height * 0.5) - text_width / 2.0;
+        let diag_y = (h as f64 / 2.0) + (i as f64 * line_height * 0.7) + diag_scroll * 0.3 - (num_rows as f64 * line_height / 2.0);
         
         if diag_y > -30.0 && diag_y < h as f64 + 30.0 {
             cr.move_to(diag_start_x, diag_y);
@@ -445,7 +451,7 @@ fn raster_bars_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: 
     }
 }
 
-/// C64 3D Tunnel - rotating tunnel effect
+/// C64 3D Tunnel - rotating tunnel effect - BIGGER AND TRIPIER!
 fn tunnel_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
     
     // Audio energy affects tunnel parameters
@@ -454,12 +460,18 @@ fn tunnel_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) 
     let center_x = w as f64 / 2.0;
     let center_y = h as f64 / 2.0;
     
-    // Tunnel parameters with audio reactivity
-    let tunnel_radius = 150.0 + audio_energy * 50.0;
-    let _tunnel_depth = 300.0 + audio_energy * 100.0;
-    let rotation = time * 0.3 + audio_energy * 0.1;
+    // Tunnel parameters with audio reactivity - MAKE IT BIGGER!
+    let base_radius = (w as f64 + h as f64) * 0.6; // Use screen dimensions for bigger tunnel
+    let tunnel_radius = base_radius + audio_energy * 100.0;
+    let tunnel_depth = 500.0 + audio_energy * 200.0;
     
-    // C64 colors for tunnel
+    // More complex rotation with wobble effects for trippiness
+    let rotation = time * 0.5 + audio_energy * 0.2;
+    let wobble_x = (time * 1.3).sin() * 0.1 + audio_energy * 0.05;
+    let wobble_y = (time * 0.8).cos() * 0.1 + audio_energy * 0.05;
+    let spiral_factor = time * 0.1 + audio_energy * 0.05;
+    
+    // Psychedelic C64 colors for tunnel - more vibrant!
     let tunnel_colors = [
         palette::PURPLE,
         palette::RED,
@@ -469,45 +481,64 @@ fn tunnel_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) 
         palette::GREEN,
         palette::CYAN,
         palette::LIGHTBLUE,
+        palette::WHITE,
+        palette::SCREEN,
     ];
     
-    // Draw tunnel rings
-    let num_rings = 20;
+    // Fog effect - distant rings fade into the background
+    let fog_density = 1.5; // How quickly fog obscures distant objects
+    
+    // Draw tunnel rings - MORE RINGS for deeper tunnel!
+    let num_rings = 40;
     for ring in 0..num_rings {
         let ring_progress = ring as f64 / num_rings as f64;
-        let ring_radius = tunnel_radius * ring_progress * ring_progress;
-        let ring_width = 12.0 + audio_energy * 8.0;
-        let ring_y_offset = -50.0 + ring as f64 * 5.0 * (1.0 + audio_energy);
+        // Non-linear depth for more dramatic perspective
+        let depth_factor = ring_progress * ring_progress * ring_progress;
+        let ring_radius = tunnel_radius * (1.0 - depth_factor);
+        let ring_width = 15.0 + audio_energy * 12.0 + ring_progress * 8.0;
         
-        // Calculate ring color based on position
-        let color_idx = ((ring as f64 * 2.0 + time * 0.5).sin() * 0.5 + 0.5) * (tunnel_colors.len() - 1) as f64;
+        // Add vertical movement and spiral effect for trippiness
+        let ring_y_offset = -tunnel_depth * depth_factor + (time * 10.0 + ring as f64 * 2.0).sin() * 20.0 * audio_energy;
+        let spiral_offset = spiral_factor * ring as f64 * 0.1;
+        
+        // Calculate ring color based on position - more colorful cycling!
+        let color_idx = ((ring as f64 * 3.0 + time * 1.5 + audio_energy * 2.0).sin() * 0.5 + 0.5) * (tunnel_colors.len() - 1) as f64;
         let color_idx = (color_idx as usize) % tunnel_colors.len();
         let color = tunnel_colors[color_idx];
         
-        // Color brightness based on depth and audio
-        let brightness = 1.0 - ring_progress * 0.7 + audio_energy * 0.3;
+        // Color brightness based on depth and audio - more vibrant!
+        let brightness = 1.2 - ring_progress * 0.5 + audio_energy * 0.5;
         
-        // Draw the ring as a series of segments
-        let num_segments = 32 + (audio_energy * 16.0) as usize;
+        // Fog effect: calculate fog factor based on depth
+        // The deeper the ring, the more it fades into fog
+        let fog_factor = (depth_factor * fog_density).min(1.0);
+        let fog_alpha = (1.0 - fog_factor).max(0.1); // Never fully transparent
+        
+        // Draw the ring as a series of segments - more segments for smoother tunnel!
+        let num_segments = 64 + (audio_energy * 32.0) as usize;
         for seg in 0..num_segments {
-            let seg_angle = seg as f64 * PI * 2.0 / num_segments as f64 + rotation;
-            let next_seg_angle = (seg + 1) as f64 * PI * 2.0 / num_segments as f64 + rotation;
+            let seg_angle = seg as f64 * PI * 2.0 / num_segments as f64 + rotation + wobble_x + spiral_offset;
+            let next_seg_angle = (seg + 1) as f64 * PI * 2.0 / num_segments as f64 + rotation + wobble_x + spiral_offset;
             
-            let x1 = center_x + ring_radius * seg_angle.cos();
-            let y1 = center_y + ring_radius * seg_angle.sin() + ring_y_offset;
-            let x2 = center_x + ring_radius * next_seg_angle.cos();
-            let y2 = center_y + ring_radius * next_seg_angle.sin() + ring_y_offset;
+            // Add per-segment wobble for extra trippiness
+            let seg_wobble = (seg as f64 * 0.5 + time * 2.0 + audio_energy).sin() * 0.1 * audio_energy;
+            let next_seg_wobble = ((seg + 1) as f64 * 0.5 + time * 2.0 + audio_energy).sin() * 0.1 * audio_energy;
+            
+            let x1 = center_x + ring_radius * (seg_angle + seg_wobble).cos();
+            let y1 = center_y + ring_radius * (seg_angle + seg_wobble + wobble_y).sin() + ring_y_offset;
+            let x2 = center_x + ring_radius * (next_seg_angle + next_seg_wobble).cos();
+            let y2 = center_y + ring_radius * (next_seg_angle + next_seg_wobble + wobble_y).sin() + ring_y_offset;
             
             // Perspective scaling
-            let scale = 1.0 - ring_progress * 0.8;
+            let scale = 1.0 - depth_factor * 0.9;
             let line_width = ring_width * scale;
             
-            // Draw segment with gradient
+            // Draw segment with bright, saturated colors and fog effect
             cr.set_source_rgba(
                 color[0] as f64 / 255.0 * brightness,
                 color[1] as f64 / 255.0 * brightness,
                 color[2] as f64 / 255.0 * brightness,
-                0.9,
+                0.95 * fog_alpha,
             );
             
             cr.set_line_width(line_width);
@@ -517,35 +548,364 @@ fn tunnel_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) 
         }
     }
     
-    // Add center point with audio pulse
-    let center_pulse = (time * 4.0).sin().abs() * 0.5 + 0.5 + audio_energy * 0.5;
-    let center_size = 4.0 + center_pulse * 8.0;
+    // Add center point with intense audio pulse
+    let center_pulse = (time * 6.0).sin().abs() * 0.5 + 0.5 + audio_energy * 0.8;
+    let center_size = 6.0 + center_pulse * 15.0 + audio_energy * 10.0;
     
-    cr.set_source_rgb(
-        palette::WHITE[0] as f64 / 255.0,
-        palette::WHITE[1] as f64 / 255.0,
-        palette::WHITE[2] as f64 / 255.0,
-    );
+    // Center glow with color cycling
+    let center_color_idx = (time * 2.0 + audio_energy * 3.0) as usize % tunnel_colors.len();
+    let center_color = tunnel_colors[center_color_idx];
     
     let gradient = cairo::RadialGradient::new(
         center_x, center_y, 0.0,
-        center_x, center_y, center_size * 2.0
+        center_x, center_y, center_size * 3.0
     );
-    gradient.add_color_stop_rgba(0.0, 1.0, 1.0, 1.0, center_pulse);
-    gradient.add_color_stop_rgba(1.0, 1.0, 1.0, 1.0, 0.0);
+    gradient.add_color_stop_rgba(0.0, 
+        center_color[0] as f64 / 255.0, 
+        center_color[1] as f64 / 255.0, 
+        center_color[2] as f64 / 255.0, 
+        center_pulse);
+    gradient.add_color_stop_rgba(0.7, 
+        center_color[0] as f64 / 255.0 * 0.5, 
+        center_color[1] as f64 / 255.0 * 0.5, 
+        center_color[2] as f64 / 255.0 * 0.5, 
+        center_pulse * 0.5);
+    gradient.add_color_stop_rgba(1.0, 0.0, 0.0, 0.0, 0.0);
     
     cr.set_source(gradient).ok();
-    cr.arc(center_x, center_y, center_size * 2.0, 0.0, PI * 2.0);
+    cr.arc(center_x, center_y, center_size * 3.0, 0.0, PI * 2.0);
     cr.fill().ok();
     
-    // Draw center point
-    cr.set_source_rgb(
-        palette::WHITE[0] as f64 / 255.0,
-        palette::WHITE[1] as f64 / 255.0,
-        palette::WHITE[2] as f64 / 255.0,
+    // Draw center point with pulsing color
+    cr.set_source_rgba(
+        center_color[0] as f64 / 255.0,
+        center_color[1] as f64 / 255.0,
+        center_color[2] as f64 / 255.0,
+        1.0,
     );
     cr.arc(center_x, center_y, center_size, 0.0, PI * 2.0);
     cr.fill().ok();
+    
+    // Add floating particles inside tunnel for extra trippiness
+    let particle_count = 30 + (audio_energy * 20.0) as usize;
+    let mut rng = rand::thread_rng();
+    for _ in 0..particle_count {
+        let particle_depth = rng.gen_range(0.0..1.0);
+        let particle_angle = rng.gen_range(0.0..PI * 2.0);
+        let particle_size = 2.0 + audio_energy * 3.0;
+        
+        let px = center_x + (tunnel_radius * (1.0 - particle_depth * particle_depth) * particle_angle.cos()) as f64;
+        let py = center_y + (tunnel_radius * (1.0 - particle_depth * particle_depth) * particle_angle.sin()) as f64
+            - tunnel_depth * particle_depth * 0.5
+            + (time * 5.0 + particle_depth * 10.0).sin() * 10.0;
+        
+        let particle_color_idx = ((particle_depth * tunnel_colors.len() as f64) + time * 0.5) as usize % tunnel_colors.len();
+        let particle_color = tunnel_colors[particle_color_idx];
+        let particle_brightness = 0.8 + audio_energy * 0.5;
+        
+        // Apply fog to particles based on their depth
+        let particle_fog_factor = (particle_depth * fog_density).min(1.0);
+        let particle_fog_alpha = (1.0 - particle_fog_factor).max(0.1);
+        
+        cr.set_source_rgba(
+            particle_color[0] as f64 / 255.0 * particle_brightness,
+            particle_color[1] as f64 / 255.0 * particle_brightness,
+            particle_color[2] as f64 / 255.0 * particle_brightness,
+            0.9 * particle_fog_alpha,
+        );
+        cr.arc(px, py, particle_size, 0.0, PI * 2.0);
+        cr.fill().ok();
+    }
+}
+
+/// C64 FLI (Flexible Line Distance) - authentic C64 demo effect
+/// Reference: Antimon's Demo Programming Tutorial (https://www.antimon.org/code/Linus/)
+/// FLI was first introduced in "Think Twice" demo by The Judges (1986)
+/// Uses Bad Line trick: delaying next character line to create flexible line distance
+/// This gives more colors per character than normal multicolor mode
+fn fli_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+    // Audio energy for effect intensity
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    let center_x = w as f64 / 2.0;
+    let center_y = h as f64 / 2.0;
+    
+    // FLI parameters with audio reactivity
+    let fli_wave_speed = time * 0.5 + audio_energy * 0.2;
+    let fli_amplitude = 20.0 + audio_energy * 30.0;
+    let fli_frequency = 0.05 + audio_energy * 0.05;
+    
+    // C64 FLI uses 8 different screen RAMs with same bitmap
+    // We simulate this with 8 color layers
+    let fli_colors = palette::BARS; // Use raster bar colors for authenticity
+    
+    // Draw FLI-style horizontal bars with wave distortion
+    // In real C64, FLI triggers Bad Line on every line and changes $d018 each line
+    // We simulate the visual result: wavy, colorful bars
+    let num_bars = (h as f64 / 8.0).ceil() as usize; // 8-pixel high bars like C64 character rows
+    
+    for bar in 0..num_bars {
+        let bar_y = bar as f64 * 8.0;
+        
+        // FLI wave effect - each bar has vertical displacement based on sine
+        let wave_offset = (fli_frequency * bar_y + fli_wave_speed).sin() * fli_amplitude;
+        let final_y = bar_y + wave_offset + center_y - (num_bars as f64 * 8.0) / 2.0;
+        
+        // Color cycling through FLI palette
+        let color_idx = ((bar as f64 * 0.3 + time * 0.2) as usize) % fli_colors.len();
+        let color = fli_colors[color_idx];
+        
+        // Brightness based on audio
+        let brightness = 0.8 + audio_energy * 0.4;
+        
+        // Draw the bar with some horizontal wave too
+        let bar_height = 8.0 + (audio_energy * 4.0).sin() * 2.0;
+        
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness,
+            color[1] as f64 / 255.0 * brightness,
+            color[2] as f64 / 255.0 * brightness,
+            0.9,
+        );
+        
+        // Draw with horizontal distortion
+        cr.new_sub_path();
+        let points = 40;
+        for p in 0..=points {
+            let px = (p as f64 / points as f64) * w as f64;
+            let py = final_y + (fli_frequency * px * 0.5 + time * 0.3).sin() * (bar_height / 4.0);
+            if p == 0 {
+                cr.move_to(px, py);
+            } else {
+                cr.line_to(px, py);
+            }
+        }
+        for p in (0..=points).rev() {
+            let px = (p as f64 / points as f64) * w as f64;
+            let py = final_y + bar_height + (fli_frequency * px * 0.5 + time * 0.3).sin() * (bar_height / 4.0);
+            cr.line_to(px, py);
+        }
+        cr.close_path();
+        cr.fill().ok();
+    }
+    
+    // Add FLI logo/center element
+    let fli_center_size = 20.0 + (time * 2.0).sin().abs() * 10.0 + audio_energy * 15.0;
+    let center_color_idx = ((time * 0.5) as usize) % fli_colors.len();
+    let center_color = fli_colors[center_color_idx];
+    
+    cr.set_source_rgba(
+        center_color[0] as f64 / 255.0,
+        center_color[1] as f64 / 255.0,
+        center_color[2] as f64 / 255.0,
+        1.0,
+    );
+    cr.arc(center_x, center_y, fli_center_size, 0.0, PI * 2.0);
+    cr.fill().ok();
+}
+
+/// C64 Sprite Multiplexer - authentic hardware sprite demo effect
+/// Reference: Antimon's Demo Programming Tutorial
+/// Sprite multiplexing allows showing more than 8 sprites by changing Y coordinates
+/// mid-frame. Real C64: change sprite Y coords while being displayed, they reappear lower.
+/// We simulate the visual effect: multiple "sprites" (circles) moving in patterns
+fn sprite_multiplexer_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], time: f64) {
+    // Audio energy
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    let center_x = w as f64 / 2.0;
+    let center_y = h as f64 / 2.0;
+    
+    // C64 sprite colors (from hardware palette)
+    let sprite_colors = [
+        palette::WHITE,
+        palette::RED,
+        palette::ORANGE,
+        palette::YELLOW,
+        palette::GREEN,
+        palette::CYAN,
+        palette::LIGHTBLUE,
+        palette::PURPLE,
+    ];
+    
+    // Sprite multiplexer parameters
+    let num_sprites = 16; // Simulate 16 sprites (2x the hardware limit)
+    let sprite_size = 16.0 + audio_energy * 8.0;
+    
+    // Generate sine tables for movement (like real C64 demos use pre-computed tables)
+    let mut sine_table_x = vec![0.0; 256];
+    let mut sine_table_y = vec![0.0; 256];
+    for i in 0..256 {
+        // Different frequencies for X and Y
+        sine_table_x[i] = ((i as f64 / 4.0) * PI * 2.0).sin();
+        sine_table_y[i] = ((i as f64 / 8.0) * PI * 2.0).sin();
+    }
+    
+    // Draw sprites
+    for sprite in 0..num_sprites {
+        // Each sprite has a phase offset
+        let phase = (sprite as f64 * 17.0 + time * 100.0) as usize % 256;
+        
+        // Get position from sine tables
+        let offset_x = sine_table_x[phase] * center_x * 0.8;
+        let offset_y = sine_table_y[phase] * center_y * 0.8 + audio_energy * 20.0 * (sprite as f64 % 3.0 - 1.5);
+        
+        let sprite_x = center_x + offset_x;
+        let sprite_y = center_y + offset_y;
+        
+        // Sprite color based on ID
+        let color_idx = sprite % sprite_colors.len();
+        let color = sprite_colors[color_idx];
+        
+        // Brightness with audio modulation
+        let brightness = 0.7 + audio_energy * 0.5 + ((sprite as f64 * 0.3 + time * 2.0).sin() * 0.2).abs();
+        
+        // Draw sprite with glow effect (simulating C64 sprite with color)
+        let glow_gradient = cairo::RadialGradient::new(
+            sprite_x, sprite_y, 0.0,
+            sprite_x, sprite_y, sprite_size * 2.0,
+        );
+        glow_gradient.add_color_stop_rgba(0.0,
+            color[0] as f64 / 255.0 * brightness,
+            color[1] as f64 / 255.0 * brightness,
+            color[2] as f64 / 255.0 * brightness,
+            0.8);
+        glow_gradient.add_color_stop_rgba(1.0, 0.0, 0.0, 0.0, 0.0);
+        
+        cr.set_source(glow_gradient).ok();
+        cr.arc(sprite_x, sprite_y, sprite_size * 2.0, 0.0, PI * 2.0);
+        cr.fill().ok();
+        
+        // Draw sprite core
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness * 1.2,
+            color[1] as f64 / 255.0 * brightness * 1.2,
+            color[2] as f64 / 255.0 * brightness * 1.2,
+            1.0,
+        );
+        cr.arc(sprite_x, sprite_y, sprite_size, 0.0, PI * 2.0);
+        cr.fill().ok();
+    }
+    
+    // Draw connecting lines between sprites (like multiplexed sprites forming patterns)
+    cr.set_source_rgba(1.0, 1.0, 1.0, 0.3 + audio_energy * 0.4);
+    cr.set_line_width(1.0 + audio_energy * 2.0);
+    
+    for i in 0..num_sprites {
+        let phase_i = (i as f64 * 17.0 + time * 100.0) as usize % 256;
+        let x_i = center_x + sine_table_x[phase_i] * center_x * 0.8;
+        let y_i = center_y + sine_table_y[phase_i] * center_y * 0.8 + audio_energy * 20.0 * (i as f64 % 3.0 - 1.5);
+        
+        let phase_j = ((i + num_sprites/2) as f64 * 17.0 + time * 100.0) as usize % 256;
+        let x_j = center_x + sine_table_x[phase_j] * center_x * 0.8;
+        let y_j = center_y + sine_table_y[phase_j] * center_y * 0.8 + audio_energy * 20.0 * ((i + num_sprites/2) as f64 % 3.0 - 1.5);
+        
+        // Connect sprites that are close
+        let dist = ((x_i - x_j).powi(2) + (y_i - y_j).powi(2)).sqrt();
+        if dist < w as f64 * 0.4 {
+            let alpha = (1.0 - dist / (w as f64 * 0.4)).max(0.0);
+            cr.set_source_rgba(1.0, 1.0, 1.0, alpha * 0.5);
+            cr.move_to(x_i, y_i);
+            cr.line_to(x_j, y_j);
+            cr.stroke().ok();
+        }
+    }
+}
+
+/// C64 DYCP (Different Y Character Positions) - authentic text animation effect
+/// Reference: Antimon's Demo Programming Tutorial & Commodore Hacking magazine
+/// DYCP: Each character in a scroller moves up/down independently by altering charset in realtime
+/// We simulate this with individual character positioning and sine-based movement
+fn dycp_draw(cr: &cairo::Context, w: i32, h: i32, samples: &[i16], text: &str, time: f64) {
+    // Use C64 SCREEN color as background
+    let bg_color = palette::SCREEN;
+    cr.set_source_rgb(
+        bg_color[0] as f64 / 255.0,
+        bg_color[1] as f64 / 255.0,
+        bg_color[2] as f64 / 255.0,
+    );
+    cr.paint().ok();
+    
+    // Audio energy
+    let audio_energy: f64 = samples.iter().map(|&s| s.abs() as f64 / 32768.0).sum::<f64>() / samples.len() as f64;
+    
+    // C64 colors for text
+    let text_colors = [palette::WHITE, palette::YELLOW, palette::CYAN, palette::LIGHTBLUE];
+    
+    // Setup font
+    cr.select_font_face("monospace", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
+    
+    // Calculate character size
+    let char_width = 12.0;
+    let char_height = 18.0;
+    
+    // DYCP effect: each character has its own Y position based on sine wave
+    // In real C64: charset data is altered in realtime to animate characters
+    // We simulate by drawing each character at a different Y offset
+    let chars: Vec<char> = text.chars().collect();
+    let num_chars = chars.len();
+    
+    if num_chars == 0 {
+        return;
+    }
+    
+    // Center the text
+    let total_width = num_chars as f64 * char_width;
+    let start_x = (w as f64 - total_width) / 2.0;
+    let start_y = h as f64 / 2.0 - char_height / 2.0;
+    
+    // Scroll position
+    let scroll_speed = 20.0 + audio_energy * 10.0;
+    let scroll_x = (time * scroll_speed).rem_euclid(total_width);
+    
+    // Draw each character with individual Y displacement (DYCP effect)
+    for (i, &ch) in chars.iter().enumerate() {
+        let char_x = start_x + (i as f64 - scroll_x / char_width) * char_width;
+        
+        // DYCP: each character has its own vertical offset based on sine wave
+        // This simulates the effect of altering charset data in realtime
+        let dycp_offset = (time * 2.0 + i as f64 * 0.5 + audio_energy * 0.5).sin() * 20.0 * audio_energy;
+        let char_y = start_y + dycp_offset;
+        
+        // Color cycling per character
+        let color_idx = (i + (time * 10.0) as usize) % text_colors.len();
+        let color = text_colors[color_idx];
+        
+        // Brightness with depth effect
+        let brightness = 0.7 + ((char_x - start_x) / total_width).abs() * 0.3 + audio_energy * 0.3;
+        
+        cr.set_source_rgba(
+            color[0] as f64 / 255.0 * brightness,
+            color[1] as f64 / 255.0 * brightness,
+            color[2] as f64 / 255.0 * brightness,
+            1.0,
+        );
+        
+        cr.set_font_size(char_width * 0.9);
+        
+        // Only draw visible characters
+        if char_x > -50.0 && char_x < w as f64 + 50.0 && char_y > -50.0 && char_y < h as f64 + 50.0 {
+            let text_str = ch.to_string();
+            let extents = cr.text_extents(&text_str).unwrap();
+            cr.move_to(char_x - extents.x_bearing(), char_y - extents.y_bearing());
+            cr.show_text(&text_str).ok();
+        }
+    }
+    
+    // Add glow trails for extra effect
+    cr.set_source_rgba(1.0, 1.0, 1.0, 0.1 + audio_energy * 0.2);
+    for (i, &ch) in chars.iter().enumerate() {
+        let char_x = start_x + (i as f64 - scroll_x / char_width) * char_width;
+        let dycp_offset = (time * 2.0 + i as f64 * 0.5 + audio_energy * 0.5 - 0.5).sin() * 20.0 * audio_energy;
+        let char_y = start_y + dycp_offset;
+        
+        if char_x > -50.0 && char_x < w as f64 + 50.0 {
+            let text_str = ch.to_string();
+            let extents = cr.text_extents(&text_str).unwrap();
+            cr.move_to(char_x - extents.x_bearing() + 2.0, char_y - extents.y_bearing() + 2.0);
+            cr.show_text(&text_str).ok();
+        }
+    }
 }
 
 // Radio state and all tunes storage
@@ -556,7 +916,7 @@ struct RadioData {
 pub fn build() -> gtk::Widget {
     let audio_state: AudioState = Rc::new(RefCell::new(None));
     let radio_state: RadioState = Rc::new(RefCell::new(false));
-    let visualizer_state = Rc::new(RefCell::new(0)); // 0: scope, 1: plasma, 2: starfield, 3: raster bars, 4: tunnel, 5: demo scroller
+    let visualizer_state = Rc::new(RefCell::new(0)); // 0: scope, 1: plasma, 2: starfield, 3: raster bars, 4: tunnel, 5: demo scroller, 6: FLI, 7: sprite multiplexer, 8: DYCP
     
     // Store all tunes for radio functionality - will be populated later
     let radio_data: Rc<RefCell<RadioData>> = Rc::new(RefCell::new(RadioData {
@@ -651,7 +1011,7 @@ pub fn build() -> gtk::Widget {
     radio_btn.add_css_class("radio-badge");
     
     // Visualizer selection dropdown
-    let visualizer_combo = gtk::DropDown::from_strings(&["Scope", "C64 Plasma", "Starfield", "Raster Bars", "3D Tunnel", "Demo Scroller"]);
+    let visualizer_combo = gtk::DropDown::from_strings(&["Scope", "C64 Plasma", "Starfield", "Raster Bars", "3D Tunnel", "Demo Scroller", "FLI (Flexible Line Distance)", "Sprite Multiplexer", "DYCP Text"]);
     visualizer_combo.set_selected(0); // Default to Scope
     
     // Set initial radio state

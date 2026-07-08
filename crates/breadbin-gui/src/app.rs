@@ -42,6 +42,15 @@ pub fn build_ui(app: &adw::Application) {
         "Demos",
         "video-display-symbolic",
     );
+    
+    // Add Scene/CSDb view
+    let scene_widget = crate::scene::build_with_settings(&settings);
+    stack.add_titled_with_icon(
+        &scene_widget,
+        Some("scene"),
+        "Scene",
+        "system-users-symbolic",
+    );
 
     let switcher = adw::ViewSwitcher::builder()
         .stack(&stack)
@@ -51,6 +60,7 @@ pub fn build_ui(app: &adw::Application) {
     let menu = gio::Menu::new();
     menu.append(Some("Refresh catalogue"), Some("app.refresh"));
     menu.append(Some("Hidden games"), Some("app.hidden-games"));
+    menu.append(Some("Sync CSDb data"), Some("app.sync-csdb"));
     menu.append(Some("About breadbin"), Some("app.about"));
     let menu_button = gtk::MenuButton::builder()
         .icon_name("open-menu-symbolic")
@@ -107,6 +117,24 @@ pub fn build_ui(app: &adw::Application) {
         }
     });
     app.add_action(&hidden_games_action);
+
+    let sync_csdb_action = gio::SimpleAction::new("sync-csdb", None);
+    sync_csdb_action.connect_activate(|_, _| {
+        glib::spawn_future_local(async move {
+            match crate::scene::sync_database().await {
+                Ok(stats) => {
+                    eprintln!("CSDb sync complete: {} releases fetched", stats.releases_fetched);
+                    if !stats.errors.is_empty() {
+                        eprintln!("Errors: {:?}", stats.errors);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("CSDb sync failed: {}", e);
+                }
+            }
+        });
+    });
+    app.add_action(&sync_csdb_action);
 
     let about_action = gio::SimpleAction::new("about", None);
     let win_weak = window.downgrade();

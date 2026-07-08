@@ -26,11 +26,16 @@ flate2 = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 encoding_rs = "0.8"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+md5 = "0.7"
 # Pure-Rust SID playback: resid-rs is the MOS6581/8580 chip emulator; breadbin
 # supplies its own 6502 + PSID driver (src/sid.rs) and streams the samples to the
 # audio device via cpal. No external SID player (sidplayfp/vice) is required.
 resid-rs = "1.1"
 cpal = "0.15"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
 
 [dev-dependencies]
 uuid = { version = "1.10", features = ["v4"] }
+tempfile = "3"

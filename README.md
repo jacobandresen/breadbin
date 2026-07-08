@@ -115,3 +115,9 @@ fetches it from public preservation archives:
 - **Ultimate Tape Archive** — tape preservation
 
 Downloads land in your collection automatically.
+
+---
+
+## Development
+
+This project uses AI-assisted development tools (Mistral Vibe) to help with coding tasks, including implementation, refactoring, and bug fixing.

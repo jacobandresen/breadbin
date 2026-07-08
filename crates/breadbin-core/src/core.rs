@@ -60,6 +60,16 @@ pub fn data_path(name: &str) -> PathBuf {
     data_dir().join(name)
 }
 
+/// Directory for cache files. Defaults to user data directory cache subdirectory.
+pub fn cache_dir() -> PathBuf {
+    user_data_dir().join("cache")
+}
+
+/// A path inside the cache directory.
+pub fn cache_path(name: &str) -> PathBuf {
+    cache_dir().join(name)
+}
+
 /// Directory for mutable user data (downloads, caches). Defaults to
 /// `$HOME/.breadbin` unless overridden by `BREADBIN_USER_DATA`.
 pub fn user_data_dir() -> PathBuf {
