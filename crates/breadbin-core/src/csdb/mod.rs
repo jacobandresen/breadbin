@@ -9,6 +9,7 @@ use tokio::sync::Semaphore;
 
 use crate::core;
 use crate::database::models::*;
+use crate::diesel_db;
 
 pub mod fetcher;
 pub mod parser;
@@ -259,23 +260,17 @@ pub async fn sync_csdb_to_database(
     config: &CollectionConfig,
     release_ids: Vec<u32>,
 ) -> Result<CollectionStats, String> {
-    use crate::database;
-    
     let rate_limiter = RateLimiter::new(config.max_concurrent, config.delay_ms);
     let mut stats = CollectionStats::new();
     let mut errors = Vec::new();
-    
-    // Open database connection
-    let conn = database::open_rw()
-        .map_err(|e| format!("Failed to open database for writing: {}", e))?;
-    
+
     // Fetch and save each release
     for id in release_ids {
         let _permit = rate_limiter.acquire().await;
-        
+
         match fetch_release(id, 2).await {
             Ok(release) => {
-                if let Err(e) = database::save_release(&conn, &release) {
+                if let Err(e) = diesel_db::save_release(&release) {
                     errors.push(format!("Failed to save release {}: {}", id, e));
                 } else {
                     stats.releases_fetched += 1;
@@ -286,7 +281,7 @@ pub async fn sync_csdb_to_database(
             }
         }
     }
-    
+
     stats.errors = errors;
     Ok(stats)
 }
@@ -325,48 +320,17 @@ pub async fn initialize_csdb_database() -> Result<CollectionStats, String> {
 /// Convenience function for searching CSDb from breadbin-core.
 /// This provides a simple interface for CLI usage.
 pub fn search_csdb(query: &str, limit: usize) -> Result<Vec<(u32, String)>, String> {
-    use crate::database;
-    
-    let conn = database::open()
-        .map_err(|e| format!("Failed to open database: {}", e))?;
-    
-    let results = database::search::search_by_name(&conn, query, limit)?;
-    Ok(results)
+    diesel_db::search_by_name(query, limit)
 }
 
 /// Check if CSDb database exists and has data.
 pub fn has_csdb_data() -> bool {
-    use crate::database;
-    
-    if !database::database_exists() {
-        return false;
-    }
-    
-    let conn = match database::open() {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM releases",
-        [],
-        |row| row.get(0)
-    ).unwrap_or(0);
-    
-    count > 0
+    diesel_db::has_data()
 }
 
 /// Get the top N releases by rating from the CSDb database.
-pub fn get_top_releases(limit: usize) -> Result<Vec<crate::database::Release>, String> {
-    use crate::database;
-    
-    let conn = database::open()
-        .map_err(|e| format!("Failed to open database: {}", e))?;
-    
-    let releases = database::operations::get_top_releases(&conn, limit)
-        .map_err(|e| format!("Failed to get top releases: {}", e))?;
-    
-    Ok(releases)
+pub fn get_top_releases(limit: usize) -> Result<Vec<Release>, String> {
+    diesel_db::get_top_releases(limit)
 }
 
 /// Get the top 3 releases by rating from the CSDb database.

@@ -269,102 +269,52 @@ pub fn fetch_and_prepare(d: &Demo) -> Result<PathBuf, String> {
 // Diesel Database Integration
 // ============================================================================
 
-use crate::diesel_db::{get_all_releases, ReleaseRow, save_release, initialize_default_release_types};
+use crate::database::models::Release;
+use crate::diesel_db;
 
-/// Load demos from Diesel database instead of TSV file.
-/// This converts ReleaseRows with type 1 (C64 Demo) to Demo structs.
+/// Load demos from the Diesel database instead of the TSV file.
+/// Includes releases of type 1 (C64 Demo). Event details beyond the party
+/// name are not stored per-demo and stay empty.
 pub fn load_demos_from_db() -> Vec<Demo> {
-    use crate::diesel_db::{get_group, get_event};
-    
-    let mut v = Vec::new();
-    
-    match get_all_releases() {
-        Ok(releases) => {
-            for release in releases {
-                // Only include demo releases (type 1 = C64 Demo)
-                if release.release_type_id != 1 {
-                    continue;
-                }
-                
-                let id = release.id.unwrap_or(0) as u32;
-                let name = release.name.clone();
-                
-                // Get group name
-                let group = release.group_id
-                    .and_then(|gid| get_group(gid).ok())
-                    .and_then(|g_opt| g_opt.map(|g| g.name))
-                    .unwrap_or_default();
-                
-                let rating = release.rating.unwrap_or(0.0);
-                let year = release.release_year.unwrap_or(0) as u32;
-                let place = release.place.unwrap_or(0) as u32;
-                let shot = release.screenshot_url.unwrap_or_default();
-                
-                let event_type = String::new();
-                let city = String::new();
-                let country = String::new();
-                let website = String::new();
-                
-                // Get event/party name
-                let party = release.event_id
-                    .and_then(|eid| get_event(eid).ok())
-                    .and_then(|e_opt| e_opt.map(|e| e.name))
-                    .unwrap_or_default();
-                
-                v.push(Demo {
-                    id,
-                    name,
-                    group,
-                    rating,
-                    party,
-                    year,
-                    place,
-                    shot,
-                    event_type,
-                    city,
-                    country,
-                    website,
-                });
-            }
-        }
+    match diesel_db::list_releases(&[1]) {
+        Ok(listings) => listings
+            .into_iter()
+            .map(|l| Demo {
+                id: l.release.id,
+                name: l.release.name,
+                group: l.group_name,
+                rating: l.release.rating,
+                party: l.event_name,
+                year: l.release.release_year.unwrap_or(0),
+                place: l.release.place,
+                shot: l.release.screenshot_url.unwrap_or_default(),
+                event_type: String::new(),
+                city: String::new(),
+                country: String::new(),
+                website: l.release.website.unwrap_or_default(),
+            })
+            .collect(),
         Err(e) => {
             log::warn!("Failed to load demos from Diesel DB: {}", e);
+            Vec::new()
         }
     }
-    
-    v
 }
 
-/// Save a Demo to the Diesel database.
+/// Save a Demo to the Diesel database as a type 1 (C64 Demo) release.
 pub fn save_demo_to_db(demo: &Demo) -> Result<(), String> {
-    // Ensure release types are initialized
-    initialize_default_release_types().map_err(|e| format!("Failed to initialize release types: {}", e))?;
-    
-    // Create a release row for this demo
-    // Type 1 = C64 Demo
-    let release = ReleaseRow {
-        id: Some(demo.id as i32),
+    diesel_db::initialize_default_release_types()?;
+    diesel_db::save_release(&Release {
+        id: demo.id,
         name: demo.name.clone(),
         release_type_id: 1, // C64 Demo
-        group_id: None, // Would need to resolve group ID
-        rating: Some(demo.rating),
-        release_day: None,
-        release_month: None,
-        release_year: Some(demo.year as i32),
-        event_id: None, // Would need to resolve event ID
-        compo: None,
-        place: Some(demo.place as i32),
-        screenshot_url: Some(demo.shot.clone()),
-        screenshot_urls: None,
-        download_count: None,
-        website: Some(demo.website.clone()),
-        created_at: None,
-        updated_at: None,
-    };
-    
-    save_release(&release).map_err(|e| format!("Failed to save demo release: {}", e))?;
-    
-    Ok(())
+        rating: demo.rating,
+        release_year: (demo.year > 0).then_some(demo.year),
+        place: demo.place,
+        screenshot_url: (!demo.shot.is_empty()).then(|| demo.shot.clone()),
+        website: (!demo.website.is_empty()).then(|| demo.website.clone()),
+        ..Default::default()
+    })
 }
 
 /// Build index and save to Diesel database.

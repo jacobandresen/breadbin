@@ -12,7 +12,8 @@ use gtk::{Box, Button, Entry, Label, ListBox, ListBoxRow, ProgressBar, ScrolledW
 use adw::prelude::*;
 
 use breadbin_core::core;
-use breadbin_core::database::{self, DownloadLink, Release, SearchResult, SearchResultItem, ReleaseTypeFilter, SearchSort};
+use breadbin_core::database::{DownloadLink, Release, SearchResult, SearchResultItem, ReleaseTypeFilter, SearchSort};
+use breadbin_core::diesel_db;
 use breadbin_core::csdb;
 use breadbin_core::itch;
 use breadbin_core::run;
@@ -589,18 +590,12 @@ fn create_top_release_row(release: &Release, rank: usize, launch_opts: Option<ru
 
 /// Execute a search query
 async fn execute_search(query: &str) -> Result<SearchResult, String> {
-    // Open database connection for this search
-    let conn = database::open()
-        .map_err(|e| format!("Failed to open database: {}", e))?;
-    
-    // Parse the query
-    let mut search_query = database::search::parse_search_query(query);
+    let mut search_query = diesel_db::parse_search_query(query);
     search_query.limit = 50;
     search_query.offset = 0;
     search_query.sort_by = SearchSort::Relevance;
-    
-    // Execute the search
-    database::search::execute_search_query(&conn, &search_query)
+
+    diesel_db::execute_search_query(&search_query)
 }
 
 /// Display search results in the list

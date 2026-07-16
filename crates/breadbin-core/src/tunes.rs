@@ -207,97 +207,45 @@ impl Default for Rng {
 // Diesel Database Integration
 // ============================================================================
 
-use crate::diesel_db::{get_all_releases, ReleaseRow};
+use crate::database::models::Release;
+use crate::diesel_db;
 
-/// Load tunes from Diesel database instead of TSV file.
-/// This converts ReleaseRows with type 7 (C64 Music) or 8 (C64 Music Collection) to Tune structs.
+/// Load tunes from the Diesel database instead of the TSV file.
+/// Includes releases of type 7 (C64 Music) and 8 (C64 Music Collection).
+/// Composer and SID URL are not stored in the database yet and stay empty.
 pub fn load_tunes_from_db() -> Vec<Tune> {
-    use crate::diesel_db::{get_all_groups, get_all_events, get_group, get_event, get_all_release_credits, get_all_download_links};
-    
-    let mut v = Vec::new();
-    
-    match get_all_releases() {
-        Ok(releases) => {
-            for release in releases {
-                // Only include music releases (type 7 = C64 Music, type 8 = C64 Music Collection)
-                if release.release_type_id != 7 && release.release_type_id != 8 {
-                    continue;
-                }
-                
-                let name = release.name.clone();
-                let id = release.id.unwrap_or(0) as u32;
-                let rating = release.rating.unwrap_or(0.0);
-                let year = release.release_year.unwrap_or(0) as u32;
-                
-                // Extract composer, group, party, sid_url from related tables
-                let composer = String::new();
-                
-                // Get group name
-                let group = release.group_id
-                    .and_then(|gid| get_group(gid).ok())
-                    .and_then(|g_opt| g_opt.map(|g| g.name))
-                    .unwrap_or_default();
-                
-                // Get event/party name
-                let party = release.event_id
-                    .and_then(|eid| get_event(eid).ok())
-                    .and_then(|e_opt| e_opt.map(|e| e.name))
-                    .unwrap_or_default();
-                
-                let sid_url = String::new();
-                
-                v.push(Tune {
-                    id,
-                    name,
-                    composer,
-                    group,
-                    party,
-                    rating,
-                    year,
-                    sid_url,
-                });
-            }
-        }
+    match diesel_db::list_releases(&[7, 8]) {
+        Ok(listings) => listings
+            .into_iter()
+            .map(|l| Tune {
+                id: l.release.id,
+                name: l.release.name,
+                composer: String::new(),
+                group: l.group_name,
+                party: l.event_name,
+                rating: l.release.rating,
+                year: l.release.release_year.unwrap_or(0),
+                sid_url: String::new(),
+            })
+            .collect(),
         Err(e) => {
             log::warn!("Failed to load tunes from Diesel DB: {}", e);
+            Vec::new()
         }
     }
-    
-    v
 }
 
-/// Save a Tune to the Diesel database.
+/// Save a Tune to the Diesel database as a type 7 (C64 Music) release.
 pub fn save_tune_to_db(tune: &Tune) -> Result<(), String> {
-    use crate::diesel_db::{ReleaseRow, save_release, initialize_default_release_types};
-    
-    // Ensure release types are initialized
-    initialize_default_release_types().map_err(|e| format!("Failed to initialize release types: {}", e))?;
-    
-    // Create a release row for this tune
-    // Type 7 = C64 Music
-    let release = ReleaseRow {
-        id: Some(tune.id as i32),
+    diesel_db::initialize_default_release_types()?;
+    diesel_db::save_release(&Release {
+        id: tune.id,
         name: tune.name.clone(),
         release_type_id: 7, // C64 Music
-        group_id: None, // Would need to resolve group ID
-        rating: Some(tune.rating),
-        release_day: None,
-        release_month: None,
-        release_year: Some(tune.year as i32),
-        event_id: None, // Would need to resolve event ID
-        compo: None,
-        place: None,
-        screenshot_url: None,
-        screenshot_urls: None,
-        download_count: None,
-        website: None,
-        created_at: None,
-        updated_at: None,
-    };
-    
-    save_release(&release).map_err(|e| format!("Failed to save tune release: {}", e))?;
-    
-    Ok(())
+        rating: tune.rating,
+        release_year: (tune.year > 0).then_some(tune.year),
+        ..Default::default()
+    })
 }
 
 /// Build index and save to Diesel database.

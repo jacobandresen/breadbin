@@ -58,7 +58,7 @@ pub struct Event {
     pub updated_at: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Release {
     pub id: u32,
     pub name: String,
