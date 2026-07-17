@@ -264,6 +264,9 @@ pub async fn sync_csdb_to_database(
     let mut stats = CollectionStats::new();
     let mut errors = Vec::new();
 
+    // Releases reference release_types by id; seed them before saving.
+    diesel_db::initialize_default_release_types()?;
+
     // Fetch and save each release
     for id in release_ids {
         let _permit = rate_limiter.acquire().await;

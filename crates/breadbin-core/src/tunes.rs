@@ -207,25 +207,42 @@ impl Default for Rng {
 // Diesel Database Integration
 // ============================================================================
 
-use crate::database::models::Release;
+use crate::database::models::{DownloadLink, Release, ReleaseCredit};
 use crate::diesel_db;
 
 /// Load tunes from the Diesel database instead of the TSV file.
 /// Includes releases of type 7 (C64 Music) and 8 (C64 Music Collection).
-/// Composer and SID URL are not stored in the database yet and stay empty.
+/// The SID URL comes from the release's first .sid download link and the
+/// composer from its first Music credit; either stays empty if absent.
 pub fn load_tunes_from_db() -> Vec<Tune> {
     match diesel_db::list_releases(&[7, 8]) {
         Ok(listings) => listings
             .into_iter()
-            .map(|l| Tune {
-                id: l.release.id,
-                name: l.release.name,
-                composer: String::new(),
-                group: l.group_name,
-                party: l.event_name,
-                rating: l.release.rating,
-                year: l.release.release_year.unwrap_or(0),
-                sid_url: String::new(),
+            .map(|l| {
+                let sid_url = l
+                    .release
+                    .downloads
+                    .iter()
+                    .find(|d| d.url.to_lowercase().ends_with(".sid"))
+                    .map(|d| d.url.clone())
+                    .unwrap_or_default();
+                let composer = l
+                    .release
+                    .credits
+                    .iter()
+                    .find(|c| c.credit_type.starts_with("Music"))
+                    .map(|c| c.handle.clone())
+                    .unwrap_or_default();
+                Tune {
+                    id: l.release.id,
+                    name: l.release.name,
+                    composer,
+                    group: l.group_name,
+                    party: l.event_name,
+                    rating: l.release.rating,
+                    year: l.release.release_year.unwrap_or(0),
+                    sid_url,
+                }
             })
             .collect(),
         Err(e) => {
@@ -235,20 +252,79 @@ pub fn load_tunes_from_db() -> Vec<Tune> {
     }
 }
 
-/// Save a Tune to the Diesel database as a type 7 (C64 Music) release.
+/// Load tunes from the Diesel database and the TSV index combined: DB rows
+/// win, but missing fields (SID URL, composer, group, party) are filled from
+/// the TSV, and TSV-only tunes are appended.
+pub fn load_tunes_merged() -> Vec<Tune> {
+    let mut tunes = load_tunes_from_db();
+    let mut from_tsv: std::collections::HashMap<u32, Tune> =
+        load_tunes().into_iter().map(|t| (t.id, t)).collect();
+    for t in tunes.iter_mut() {
+        if let Some(f) = from_tsv.remove(&t.id) {
+            if t.sid_url.is_empty() {
+                t.sid_url = f.sid_url;
+            }
+            if t.composer.is_empty() {
+                t.composer = f.composer;
+            }
+            if t.group.is_empty() {
+                t.group = f.group;
+            }
+            if t.party.is_empty() {
+                t.party = f.party;
+            }
+        }
+    }
+    tunes.extend(from_tsv.into_values());
+    tunes
+}
+
+/// Save a Tune to the Diesel database as a type 7 (C64 Music) release, with
+/// its SID URL as a download link and the composer as a Music credit. The
+/// party is not persisted (CSDb event ids aren't known here).
 pub fn save_tune_to_db(tune: &Tune) -> Result<(), String> {
     diesel_db::initialize_default_release_types()?;
+    let downloads = if tune.sid_url.is_empty() {
+        Vec::new()
+    } else {
+        vec![DownloadLink {
+            id: None,
+            release_id: tune.id,
+            url: tune.sid_url.clone(),
+            counter_url: None,
+            downloads: 0,
+            status: String::new(),
+            is_internal: false,
+            file_type: Some("sid".to_string()),
+        }]
+    };
+    let credits = if tune.composer.is_empty() {
+        Vec::new()
+    } else {
+        vec![ReleaseCredit {
+            id: None,
+            release_id: tune.id,
+            scener_id: None,
+            handle: tune.composer.clone(),
+            credit_type: "Music".to_string(),
+            position: 0,
+            functions: Vec::new(),
+        }]
+    };
     diesel_db::save_release(&Release {
         id: tune.id,
         name: tune.name.clone(),
         release_type_id: 7, // C64 Music
         rating: tune.rating,
         release_year: (tune.year > 0).then_some(tune.year),
+        downloads,
+        credits,
         ..Default::default()
     })
 }
 
-/// Build index and save to Diesel database.
+/// Build index and save to the Diesel database, also writing tunes_index.tsv
+/// in the same pass.
 pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Result<(), String> {
     let body = core::fetch(TOPLIST, &[])?;
     let html = String::from_utf8_lossy(&body);
@@ -256,9 +332,10 @@ pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Re
     if ranked.is_empty() {
         return Err("could not parse the CSDb top music list".to_string());
     }
-    
+
     let take = ranked.len().min(limit);
-    
+    let mut out = String::new();
+
     for (n, (id, name, group, rating)) in ranked.iter().take(take).enumerate() {
         progress(n as u64 + 1, take as u64);
         let (composer, party, year, sid_url) = match core::fetch(&core::release_ws(*id, 2), &[]) {
@@ -268,8 +345,7 @@ pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Re
         if sid_url.is_empty() {
             continue;
         }
-        
-        // Create and save the tune
+
         let tune = Tune {
             id: *id,
             name: core::clean(name),
@@ -280,15 +356,18 @@ pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Re
             sid_url: core::clean(&sid_url),
             party: core::clean(&party),
         };
-        
-        // Save to Diesel database
+
         if let Err(e) = save_tune_to_db(&tune) {
             log::warn!("Failed to save tune {}: {}", id, e);
         }
+
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{:.2}\t{}\t{}\t{}\n",
+            tune.id, tune.name, tune.composer, tune.group, tune.rating, tune.year, tune.sid_url,
+            tune.party,
+        ));
     }
-    
-    // Also write to TSV for backwards compatibility
-    build_index(limit, progress)?;
-    
+
+    std::fs::write(tunes_index_path(), out).map_err(|e| e.to_string())?;
     Ok(())
 }

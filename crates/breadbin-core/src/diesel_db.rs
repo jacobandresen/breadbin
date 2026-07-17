@@ -335,6 +335,23 @@ impl From<&models::Event> for EventRow {
     }
 }
 
+impl From<ReleaseCreditRow> for models::ReleaseCredit {
+    fn from(row: ReleaseCreditRow) -> Self {
+        models::ReleaseCredit {
+            id: row.id.map(|i| i as u64),
+            release_id: row.release_id as u32,
+            scener_id: positive(Some(row.scener_id)),
+            handle: row.handle,
+            credit_type: row.credit_type,
+            position: row.position.unwrap_or(0).max(0) as u32,
+            functions: row
+                .functions
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default(),
+        }
+    }
+}
+
 impl From<DownloadLinkRow> for models::DownloadLink {
     fn from(row: DownloadLinkRow) -> Self {
         models::DownloadLink {
@@ -383,13 +400,27 @@ pub fn save_release(release: &models::Release) -> QueryResult<()> {
                 .execute(conn)?;
         }
 
+        // Ensure the release type exists; CSDb uses ids beyond the seeded set.
+        let type_row = ReleaseTypeRow {
+            id: Some(if release.release_type_id > 0 { release.release_type_id as i32 } else { 1 }),
+            name: if release.release_type.is_empty() {
+                format!("Type {}", release.release_type_id)
+            } else {
+                release.release_type.clone()
+            },
+            description: None,
+        };
+        diesel::insert_or_ignore_into(crate::schema::release_types::table)
+            .values(&type_row)
+            .execute(conn)?;
+
         // Ensure sceners referenced in credits exist, without overwriting
-        // fuller data already present.
+        // fuller data already present. Credits without a scener id are stored
+        // against the placeholder scener 0.
         let mut scener_ids: Vec<u32> = release
             .credits
             .iter()
-            .filter_map(|c| c.scener_id)
-            .filter(|id| *id > 0)
+            .map(|c| c.scener_id.unwrap_or(0))
             .collect();
         scener_ids.sort_unstable();
         scener_ids.dedup();
@@ -504,32 +535,110 @@ pub fn save_release(release: &models::Release) -> QueryResult<()> {
     .map_err(|e| format!("Failed to save release {}: {}", release.id, e))
 }
 
-/// Get the top N releases by rating, with their download links.
+/// Load download links for the given releases, keyed by release id.
+fn load_downloads(
+    conn: &mut DbConnection,
+    release_ids: &[i32],
+) -> QueryResult<HashMap<u32, Vec<models::DownloadLink>>> {
+    use crate::schema::release_downloads;
+
+    let mut downloads: HashMap<u32, Vec<models::DownloadLink>> = HashMap::new();
+    for row in release_downloads::table
+        .filter(release_downloads::release_id.eq_any(release_ids))
+        .load::<DownloadLinkRow>(conn)
+        .map_err(|e| format!("Failed to load download links: {}", e))?
+    {
+        let link = models::DownloadLink::from(row);
+        downloads.entry(link.release_id).or_default().push(link);
+    }
+    Ok(downloads)
+}
+
+/// Load credits for the given releases, keyed by release id.
+fn load_credits(
+    conn: &mut DbConnection,
+    release_ids: &[i32],
+) -> QueryResult<HashMap<u32, Vec<models::ReleaseCredit>>> {
+    use crate::schema::release_credits;
+
+    let mut credits: HashMap<u32, Vec<models::ReleaseCredit>> = HashMap::new();
+    for row in release_credits::table
+        .filter(release_credits::release_id.eq_any(release_ids))
+        .load::<ReleaseCreditRow>(conn)
+        .map_err(|e| format!("Failed to load credits: {}", e))?
+    {
+        let credit = models::ReleaseCredit::from(row);
+        credits.entry(credit.release_id).or_default().push(credit);
+    }
+    Ok(credits)
+}
+
+/// Attach group info and download links to a batch of releases.
+fn attach_group_and_downloads(
+    conn: &mut DbConnection,
+    items: &mut [models::Release],
+) -> QueryResult<()> {
+    use crate::schema::groups;
+
+    let group_ids: Vec<i32> = items
+        .iter()
+        .filter_map(|r| r.group_id.map(|g| g as i32))
+        .collect();
+    let group_names: HashMap<u32, String> = if group_ids.is_empty() {
+        HashMap::new()
+    } else {
+        groups::table
+            .filter(groups::id.eq_any(&group_ids))
+            .select((groups::id, groups::name))
+            .load::<(Option<i32>, String)>(conn)
+            .map_err(|e| format!("Failed to load group names: {}", e))?
+            .into_iter()
+            .filter_map(|(id, name)| id.map(|i| (i as u32, name)))
+            .collect()
+    };
+
+    let release_ids: Vec<i32> = items.iter().map(|r| r.id as i32).collect();
+    let mut downloads = load_downloads(conn, &release_ids)?;
+
+    for release in items.iter_mut() {
+        if let Some(name) = release.group_id.and_then(|gid| group_names.get(&gid)) {
+            release.group = Some(Box::new(models::Group {
+                id: release.group_id.unwrap_or(0),
+                name: name.clone(),
+                short: None,
+                base_country: None,
+                founded_month: None,
+                founded_year: None,
+                website: None,
+                rating: 0.0,
+                group_types: Vec::new(),
+                slogans: Vec::new(),
+                updated_at: None,
+            }));
+        }
+        if let Some(links) = downloads.remove(&release.id) {
+            release.downloads = links;
+        }
+    }
+    Ok(())
+}
+
+/// Get the top N releases by rating, with their group and download links.
 pub fn get_top_releases(limit: usize) -> QueryResult<Vec<models::Release>> {
-    use crate::schema::{release_downloads, releases};
+    use crate::schema::releases;
 
     let mut conn = get_conn()?;
 
-    let rows = releases::table
+    let mut items: Vec<models::Release> = releases::table
         .order(releases::rating.desc())
         .limit(limit as i64)
         .load::<ReleaseRow>(&mut conn)
-        .map_err(|e| format!("Failed to load top releases: {}", e))?;
-
-    rows.into_iter()
-        .map(|row| {
-            let rid = row.id.unwrap_or(0);
-            let mut release = models::Release::from(row);
-            release.downloads = release_downloads::table
-                .filter(release_downloads::release_id.eq(rid))
-                .load::<DownloadLinkRow>(&mut conn)
-                .map_err(|e| format!("Failed to load download links: {}", e))?
-                .into_iter()
-                .map(Into::into)
-                .collect();
-            Ok(release)
-        })
-        .collect()
+        .map_err(|e| format!("Failed to load top releases: {}", e))?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    attach_group_and_downloads(&mut conn, &mut items)?;
+    Ok(items)
 }
 
 /// A release joined with its group and event names, for flat list views.
@@ -565,14 +674,27 @@ pub fn list_releases(type_ids: &[u32]) -> QueryResult<Vec<ReleaseListing>> {
         .load::<(ReleaseRow, Option<String>, Option<String>)>(&mut conn)
         .map_err(|e| format!("Failed to list releases: {}", e))?;
 
-    Ok(rows
+    let mut listings: Vec<ReleaseListing> = rows
         .into_iter()
         .map(|(row, group_name, event_name)| ReleaseListing {
             release: row.into(),
             group_name: group_name.unwrap_or_default(),
             event_name: event_name.unwrap_or_default(),
         })
-        .collect())
+        .collect();
+
+    let ids: Vec<i32> = listings.iter().map(|l| l.release.id as i32).collect();
+    let mut downloads = load_downloads(&mut conn, &ids)?;
+    let mut credits = load_credits(&mut conn, &ids)?;
+    for listing in listings.iter_mut() {
+        if let Some(links) = downloads.remove(&listing.release.id) {
+            listing.release.downloads = links;
+        }
+        if let Some(c) = credits.remove(&listing.release.id) {
+            listing.release.credits = c;
+        }
+    }
+    Ok(listings)
 }
 
 /// Check whether the database exists and contains at least one release.
@@ -929,19 +1051,25 @@ pub fn execute_search_query(query: &SearchQuery) -> QueryResult<SearchResult> {
         SearchSort::Downloads => q.order(releases::download_count.desc()),
     };
 
-    let results = q
+    let mut items: Vec<models::Release> = q
         .limit(query.limit as i64)
         .offset(query.offset as i64)
         .load::<ReleaseRow>(&mut conn)
         .map_err(|e| format!("Failed to execute search: {}", e))?
         .into_iter()
-        .map(|row| SearchResultItem {
-            release: row.into(),
+        .map(Into::into)
+        .collect();
+    attach_group_and_downloads(&mut conn, &mut items)?;
+    drop(conn);
+
+    let results = items
+        .into_iter()
+        .map(|release| SearchResultItem {
+            release,
             score: 1.0,
             highlights: Vec::new(),
         })
         .collect();
-    drop(conn);
 
     Ok(SearchResult {
         total: count_search_results(query)?,

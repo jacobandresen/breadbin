@@ -1171,21 +1171,19 @@ pub fn build() -> gtk::Widget {
 
     glib::spawn_future_local(async move {
         let (all_tunes, groups) = run_blocking(|| {
-            // Try to load from Diesel database first
-            let mut tunes = tunes::load_tunes_from_db();
-            
-            // If Diesel DB is empty, fall back to TSV
-            if tunes.is_empty() {
-                tunes = tunes::load_tunes();
-            }
-            
+            // Diesel DB merged with the TSV index (fills missing SID URLs etc.)
+            let tunes = tunes::load_tunes_merged();
             let groups = tunes::group_by_party(&tunes);
             (tunes, groups)
         })
         .await;
         
-        // Store all tunes in radio data for random selection
-        radio_data_load.borrow_mut().all_tunes = all_tunes.clone();
+        // Store playable tunes in radio data for random selection
+        radio_data_load.borrow_mut().all_tunes = all_tunes
+            .iter()
+            .filter(|t| !t.sid_url.is_empty())
+            .cloned()
+            .collect();
 
         let Some(left) = left_weak.upgrade() else {
             return;
@@ -1217,6 +1215,9 @@ pub fn build() -> gtk::Widget {
 
         let all_tunes = Rc::new(all_tunes);
 
+        // Maps each listbox row position to a tune index (None for party headers)
+        let mut row_tune: Vec<Option<usize>> = Vec::new();
+
         for (party_name, idxs) in &groups {
             // Party header row
             let header_row = gtk::ListBoxRow::new();
@@ -1228,6 +1229,7 @@ pub fn build() -> gtk::Widget {
                 .build();
             header_row.set_child(Some(&header_label));
             listbox.append(&header_row);
+            row_tune.push(None);
 
             for &idx in idxs {
                 let tune = &all_tunes[idx];
@@ -1276,41 +1278,47 @@ pub fn build() -> gtk::Widget {
                 let lb_row = gtk::ListBoxRow::builder().activatable(true).build();
                 lb_row.set_child(Some(&hbox));
 
-                let tune_for_click = all_tunes[idx].clone();
-                let audio_for_click = audio_for_load.clone();
-                let title_lbl = now_title_load.clone();
-                let composer_lbl = now_composer_load.clone();
-                let pp_btn = pp_btn_load.clone();
-
-                lb_row.connect_activate(move |_| {
-                    let t = tune_for_click.clone();
-                    let audio_rc = audio_for_click.clone();
-                    let title_l = title_lbl.clone();
-                    let composer_l = composer_lbl.clone();
-                    let pp = pp_btn.clone();
-                    let name = t.name.clone();
-                    let composer = t.composer.clone();
-
-                    glib::spawn_future_local(async move {
-                        let result = run_blocking(move || tunes::ensure_sid(&t)).await;
-                        match result {
-                            Ok(bytes) => match Audio::start(bytes, 0) {
-                                Ok(new_audio) => {
-                                    *audio_rc.borrow_mut() = Some(new_audio);
-                                    title_l.set_label(&name);
-                                    composer_l.set_label(&composer);
-                                    pp.set_label("Pause");
-                                }
-                                Err(e) => eprintln!("audio error: {e}"),
-                            },
-                            Err(e) => eprintln!("SID fetch error: {e}"),
-                        }
-                    });
-                });
-
                 listbox.append(&lb_row);
+                row_tune.push(Some(idx));
             }
         }
+
+        // ListBoxRow's "activate" is a keybinding-only signal; clicks arrive as
+        // "row-activated" on the listbox itself.
+        let all_tunes_for_click = all_tunes.clone();
+        let audio_for_click = audio_for_load.clone();
+        let title_lbl = now_title_load.clone();
+        let composer_lbl = now_composer_load.clone();
+        let pp_btn = pp_btn_load.clone();
+
+        listbox.connect_row_activated(move |_, row| {
+            let Some(Some(idx)) = row_tune.get(row.index() as usize).copied() else {
+                return;
+            };
+            let t = all_tunes_for_click[idx].clone();
+            let audio_rc = audio_for_click.clone();
+            let title_l = title_lbl.clone();
+            let composer_l = composer_lbl.clone();
+            let pp = pp_btn.clone();
+            let name = t.name.clone();
+            let composer = t.composer.clone();
+
+            glib::spawn_future_local(async move {
+                let result = run_blocking(move || tunes::ensure_sid(&t)).await;
+                match result {
+                    Ok(bytes) => match Audio::start(bytes, 0) {
+                        Ok(new_audio) => {
+                            *audio_rc.borrow_mut() = Some(new_audio);
+                            title_l.set_label(&name);
+                            composer_l.set_label(&composer);
+                            pp.set_label("Pause");
+                        }
+                        Err(e) => eprintln!("audio error: {e}"),
+                    },
+                    Err(e) => eprintln!("SID fetch error: {e}"),
+                }
+            });
+        });
 
         scrolled.set_child(Some(&listbox));
         left.append(&scrolled);
