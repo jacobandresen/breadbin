@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Top keyboard surface: warm beige, slightly darker toward front -->
+    <linearGradient id="keytop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C8B478"/>
+      <stop offset="100%" stop-color="#B89E62"/>
+    </linearGradient>
+    <!-- Key cap face (lighter) -->
+    <linearGradient id="keycap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DDD0A0"/>
+      <stop offset="100%" stop-color="#C8B878"/>
+    </linearGradient>
+    <!-- Logo band -->
+    <linearGradient id="logoband" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C0A86C"/>
+      <stop offset="100%" stop-color="#B09860"/>
+    </linearGradient>
+    <!-- Front face of case -->
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8A6C30"/>
+      <stop offset="100%" stop-color="#6A5020"/>
+    </linearGradient>
+    <!-- Right-side face of case -->
+    <linearGradient id="rightside" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7A5E28"/>
+      <stop offset="100%" stop-color="#604818"/>
+    </linearGradient>
+  </defs>
+
+  <!--
+    C64 bounding box in original 512-space: x 52–468, y 136–394 → 416×258.
+    Target canvas with ~9px margin: 110×110 usable.
+    Scale = 110/416 = 0.264 (width-limited), scaled height = 68px.
+    Centred: x offset = (128-110)/2 = 9, y offset = (128-68)/2 = 30.
+    Transform: translate(9,30) scale(0.264) translate(-52,-136)
+    Stroke widths scaled up by 1/0.264 ≈ 3.8 to stay at original visual weight.
+  -->
+  <g transform="translate(9,30) scale(0.264) translate(-52,-136)">
+
+    <!-- Right-side face of the case -->
+    <polygon points="457,136 451,346 462,372 468,162" fill="url(#rightside)"/>
+
+    <!-- Front face of the case -->
+    <polygon points="52,368 451,346 462,372 63,394" fill="url(#front)"/>
+
+    <!-- Main top surface (keyboard) -->
+    <polygon points="58,158 457,136 451,346 52,368" fill="url(#keytop)"/>
+
+    <!-- ── LOGO BAND ──────────────────────────────────────────── -->
+    <polygon points="58,158 457,136 456,187 57,209" fill="url(#logoband)"/>
+    <!-- Dark ridge separating logo from keyboard -->
+    <polygon points="57,209 456,187 456,193 57,215" fill="#7A6030"/>
+
+    <!-- ── KEY ROWS ──────────────────────────────────────────── -->
+    <polygon points="57,215 456,193 455,218 56,240" fill="url(#keycap)"/>
+    <polygon points="56,244 455,222 454,248 55,270" fill="url(#keycap)"/>
+    <polygon points="55,274 454,252 453,278 54,300" fill="url(#keycap)"/>
+    <polygon points="54,305 453,283 452,309 53,331" fill="url(#keycap)"/>
+    <polygon points="53,335 452,313 451,346 52,368" fill="url(#keycap)"/>
+
+    <!-- ── KEY DIVIDER LINES ─────────────────────────────────── -->
+    <!-- Number row -->
+    <line x1="147" y1="210" x2="146" y2="235" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="243" y1="204" x2="242" y2="229" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="339" y1="199" x2="338" y2="224" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="406" y1="195" x2="405" y2="219" stroke="#9A8044" stroke-width="4.5"/>
+    <!-- QWERTY row -->
+    <line x1="147" y1="240" x2="146" y2="265" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="243" y1="234" x2="242" y2="259" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="339" y1="228" x2="338" y2="253" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="406" y1="224" x2="405" y2="249" stroke="#9A8044" stroke-width="4.5"/>
+    <!-- ASDF row -->
+    <line x1="147" y1="270" x2="146" y2="295" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="243" y1="264" x2="242" y2="289" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="339" y1="258" x2="338" y2="283" stroke="#9A8044" stroke-width="4.5"/>
+    <!-- ZXCV row -->
+    <line x1="147" y1="300" x2="146" y2="325" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="243" y1="294" x2="242" y2="319" stroke="#9A8044" stroke-width="4.5"/>
+    <line x1="339" y1="288" x2="338" y2="313" stroke="#9A8044" stroke-width="4.5"/>
+
+    <!-- ── FUNCTION KEYS ─────────────────────────────────────── -->
+    <line x1="426" y1="194" x2="423" y2="310" stroke="#9A8044" stroke-width="5.7"/>
+    <polygon points="426,194 456,192 455,218 425,220" fill="#D8C890"/>
+    <polygon points="424,254 454,252 453,278 423,280" fill="#D8C890"/>
+    <polygon points="425,224 455,222 454,248 424,250" fill="#D8C890"/>
+    <polygon points="423,284 453,282 452,308 422,310" fill="#D8C890"/>
+
+    <!-- ── RETURN KEY ─────────────────────────────────────────── -->
+    <polygon points="397,231 421,229 419,278 395,280" fill="#D8C890"/>
+
+    <!-- ── SPACE BAR ──────────────────────────────────────────── -->
+    <polygon points="145,330 361,318 360,343 144,355" fill="#D8C890"/>
+
+    <!-- ── COMMODORE LOGO ─────────────────────────────────────── -->
+    <text x="257" y="174" font-family="sans-serif" font-size="20" font-weight="700"
+          font-style="italic" fill="#3A2010" text-anchor="middle" letter-spacing="1">commodore</text>
+    <text x="257" y="196" font-family="sans-serif" font-size="17" font-weight="900"
+          fill="#C03010" text-anchor="middle" letter-spacing="3">64</text>
+
+    <!-- ── KEY LETTER LABELS ─────────────────────────────────── -->
+    <!-- Number row: 1 2 3 4 5 6 7 8 9 0 -->
+    <text x="82"  y="229" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">1</text>
+    <text x="114" y="227" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">2</text>
+    <text x="146" y="225" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">3</text>
+    <text x="177" y="224" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">4</text>
+    <text x="209" y="222" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">5</text>
+    <text x="241" y="220" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">6</text>
+    <text x="273" y="218" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">7</text>
+    <text x="305" y="216" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">8</text>
+    <text x="337" y="215" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">9</text>
+    <text x="368" y="213" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">0</text>
+    <!-- QWERTY row -->
+    <text x="82"  y="259" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">Q</text>
+    <text x="114" y="257" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">W</text>
+    <text x="146" y="255" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">E</text>
+    <text x="177" y="254" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">R</text>
+    <text x="209" y="252" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">T</text>
+    <text x="241" y="250" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">Y</text>
+    <text x="273" y="248" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">U</text>
+    <text x="305" y="247" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">I</text>
+    <text x="337" y="245" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">O</text>
+    <text x="368" y="243" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">P</text>
+    <!-- ASDF row -->
+    <text x="82"  y="289" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">A</text>
+    <text x="114" y="287" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">S</text>
+    <text x="146" y="285" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">D</text>
+    <text x="177" y="283" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">F</text>
+    <text x="209" y="282" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">G</text>
+    <text x="241" y="280" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">H</text>
+    <text x="273" y="278" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">J</text>
+    <text x="305" y="276" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">K</text>
+    <text x="337" y="275" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">L</text>
+    <!-- ZXCV row -->
+    <text x="82"  y="319" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">Z</text>
+    <text x="114" y="317" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">X</text>
+    <text x="146" y="315" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">C</text>
+    <text x="177" y="314" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">V</text>
+    <text x="209" y="312" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">B</text>
+    <text x="241" y="310" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">N</text>
+    <text x="273" y="308" font-family="sans-serif" font-size="8" fill="#2A1808" text-anchor="middle">M</text>
+    <!-- C= key -->
+    <text x="66" y="352" font-family="sans-serif" font-size="7" font-weight="700"
+          fill="#3A60A0" text-anchor="middle">C=</text>
+
+    <!-- ── BODY OUTLINE ──────────────────────────────────────── -->
+    <polygon points="58,158 457,136 451,346 52,368"
+             fill="none" stroke="#5A4018" stroke-width="7.6" stroke-linejoin="round"/>
+    <line x1="52"  y1="368" x2="63"  y2="394" stroke="#5A4018" stroke-width="5.7"/>
+    <line x1="451" y1="346" x2="462" y2="372" stroke="#5A4018" stroke-width="5.7"/>
+    <line x1="63"  y1="394" x2="462" y2="372" stroke="#5A4018" stroke-width="5.7"/>
+    <line x1="457" y1="136" x2="468" y2="162" stroke="#4A3010" stroke-width="5.7"/>
+    <line x1="468" y1="162" x2="462" y2="372" stroke="#4A3010" stroke-width="4.5"/>
+    <line x1="57"  y1="209" x2="456" y2="187" stroke="#8A6C2C" stroke-width="4.5"/>
+
+    <!-- ── POWER LED ──────────────────────────────────────────── -->
+    <ellipse cx="74" cy="172" rx="5" ry="4" fill="#1A3A10"/>
+    <ellipse cx="74" cy="172" rx="4" ry="3" fill="#22CC22"/>
+    <ellipse cx="73" cy="171" rx="2" ry="1.5" fill="#88FF88" opacity="0.9"/>
+
+  </g>
+
+  <!-- ── Competition Pro joystick, lower-right corner ──────────────
+       Sitting on the desk in front of the C64, slight perspective
+       matching the C64 tilt (right side a touch higher than left).
+  ─────────────────────────────────────────────────────────────── -->
+
+  <!-- Floor shadow -->
+  <ellipse cx="101" cy="122" rx="19" ry="4" fill="#000" opacity="0.22"/>
+
+  <!-- Base — trapezoidal top face for 3/4 perspective -->
+  <path d="M83,120 L119,117 L117,106 L82,109 Z" fill="#1E1E1E" rx="2"/>
+  <!-- Base top surface (slightly lighter, shows depth) -->
+  <path d="M82,109 L117,106 L116,110 L83,113 Z" fill="#353535"/>
+  <!-- Base front face (dark strip) -->
+  <path d="M83,113 L116,110 L119,117 L83,120 Z" fill="#282828"/>
+
+  <!-- Stick shaft (two-tone to suggest roundness) -->
+  <line x1="100" y1="111" x2="97"  y2="95" stroke="#2A2A2A" stroke-width="4.5" stroke-linecap="round"/>
+  <line x1="100" y1="111" x2="97"  y2="95" stroke="#555"    stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Red ball — shadow, body, specular highlight -->
+  <circle cx="97"  cy="93"   r="6.5" fill="#7A0A0A" opacity="0.5"/>
+  <circle cx="96.5" cy="92.5" r="6"  fill="#C01818"/>
+  <circle cx="96.5" cy="92.5" r="5.5" fill="#DD2222"/>
+  <circle cx="95"  cy="91"   r="2.5" fill="#FF7070" opacity="0.75"/>
+
+  <!-- Fire button LEFT -->
+  <ellipse cx="89"   cy="112"   rx="4"   ry="3"   fill="#7A0A0A"/>
+  <ellipse cx="89"   cy="111.5" rx="3.5" ry="2.5" fill="#CC2020"/>
+  <ellipse cx="88.5" cy="111"   rx="1.5" ry="1"   fill="#FF6060" opacity="0.65"/>
+
+  <!-- Fire button RIGHT -->
+  <ellipse cx="112"   cy="110"   rx="4"   ry="3"   fill="#7A0A0A"/>
+  <ellipse cx="112"   cy="109.5" rx="3.5" ry="2.5" fill="#CC2020"/>
+  <ellipse cx="111.5" cy="109"   rx="1.5" ry="1"   fill="#FF6060" opacity="0.65"/>
+
+</svg>

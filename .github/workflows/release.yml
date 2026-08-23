@@ -19,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            debhelper cargo pkg-config \
+            build-essential debhelper cargo pkg-config \
             libgtk-4-dev libadwaita-1-dev libglib2.0-dev
 
       - name: Build package

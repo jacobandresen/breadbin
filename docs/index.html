@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Breadbin — a native Commodore 64 kiosk for Linux</title>
 <meta name="description" content="Breadbin turns your C64 collection into a cover-art kiosk with a demoscene browser and SID music player, styled with the authentic Pepto VIC-II colour palette.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%23483aaa%22/><text x=%228%22 y=%2212%22 font-size=%2211%22 text-anchor=%22middle%22 fill=%22%23f2e02f%22 font-family=%22monospace%22>B</text></svg>">
+<link rel="icon" type="image/svg+xml" href="images/breadbin.svg">
 <style>
   :root {
     --bg: #1a1030;
@@ -42,17 +42,17 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 72px;
-    height: 72px;
+    width: 88px;
+    height: 88px;
     border-radius: 16px;
     background: linear-gradient(160deg, #483aaa, #2c1c63);
     border: 2px solid var(--border);
-    font-family: "Courier New", monospace;
-    font-weight: 700;
-    font-size: 2rem;
-    color: var(--accent);
     margin-bottom: 1.25rem;
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .logo-badge img {
+    width: 64px;
+    height: 64px;
   }
   h1 {
     margin: 0 0 0.5rem;
@@ -229,7 +229,7 @@
 <body>
 
 <header class="hero">
-  <div class="logo-badge">B</div>
+  <div class="logo-badge"><img src="images/breadbin.svg" alt="Breadbin logo — a beige Commodore 64 with a joystick"></div>
   <h1>Breadbin</h1>
   <p class="tagline">
     A native Commodore 64 kiosk for Linux. Named after the "breadbin" —
@@ -237,6 +237,7 @@
   </p>
   <div class="cta-row">
     <a class="btn btn-primary" href="#install">Install</a>
+    <a class="btn btn-secondary" href="https://github.com/jacobandresen/breadbin/releases/latest">Latest Release</a>
     <a class="btn btn-secondary" href="https://github.com/jacobandresen/breadbin">View on GitHub</a>
   </div>
 </header>
@@ -304,6 +305,11 @@
 
   <section id="install">
     <h2>Install</h2>
+    <p style="color: var(--text-dim);">
+      Prebuilt <code>.deb</code> packages are published on the
+      <a href="https://github.com/jacobandresen/breadbin/releases/latest">GitHub Releases</a> page
+      for every tagged version, alongside an updated Arch <code>PKGBUILD</code>.
+    </p>
 
     <details class="install-block" open>
       <summary>Arch Linux (recommended)</summary>
@@ -321,9 +327,13 @@ makepkg -si</code></pre>
     <details class="install-block">
       <summary>Ubuntu / Debian</summary>
       <div class="body">
+        <p>Download the latest <code>.deb</code> from
+           <a href="https://github.com/jacobandresen/breadbin/releases/latest">GitHub Releases</a> and install it:</p>
+        <pre><code>sudo dpkg -i breadbin_*.deb</code></pre>
+        <p>Or build it yourself:</p>
         <pre><code>packaging/install.sh build
 sudo packaging/install.sh</code></pre>
-        <p>Or build a <code>.deb</code>:</p>
+        <p>Or build a <code>.deb</code> locally:</p>
         <pre><code>cp -r packaging/debian debian
 dpkg-buildpackage -us -uc -b
 sudo dpkg -i ../breadbin_*.deb</code></pre>
