@@ -69,8 +69,12 @@ Or build a `.deb`:
 ```sh
 cp -r packaging/debian debian
 dpkg-buildpackage -us -uc -b
-sudo dpkg -i ../breadbin_*.deb
+sudo apt install ../breadbin_*.deb
 ```
+
+(Use `apt install`, not `dpkg -i`, so dependencies like GTK4/libadwaita get pulled in
+automatically. If you already used `dpkg -i` and hit dependency errors, run
+`sudo apt-get install -f` to fix it.)
 
 ### From source (dev loop)
 

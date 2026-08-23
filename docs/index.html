@@ -329,14 +329,19 @@ makepkg -si</code></pre>
       <div class="body">
         <p>Download the latest <code>.deb</code> from
            <a href="https://github.com/jacobandresen/breadbin/releases/latest">GitHub Releases</a> and install it:</p>
-        <pre><code>sudo dpkg -i breadbin_*.deb</code></pre>
+        <pre><code>sudo apt install ./breadbin_*.deb</code></pre>
+        <p style="color: var(--text-dim); font-size: 0.9rem; margin-top: -0.4rem;">
+          Use <code>apt install</code>, not <code>dpkg -i</code>, so dependencies like GTK4/libadwaita
+          get pulled in automatically. Already hit dependency errors from <code>dpkg -i</code>?
+          Run <code>sudo apt-get install -f</code> to fix it.
+        </p>
         <p>Or build it yourself:</p>
         <pre><code>packaging/install.sh build
 sudo packaging/install.sh</code></pre>
         <p>Or build a <code>.deb</code> locally:</p>
         <pre><code>cp -r packaging/debian debian
 dpkg-buildpackage -us -uc -b
-sudo dpkg -i ../breadbin_*.deb</code></pre>
+sudo apt install ../breadbin_*.deb</code></pre>
       </div>
     </details>
 
