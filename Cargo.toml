@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/breadbin-core", "crates/breadbin-gui", "crates/breadbin-sid", "crates/breadbin-sid-wasm"]
+members = ["crates/breadbin"]
 
 [profile.release]
+lto = true
 strip = true
 
-# reSID's fixpoint resampler relies on wrapping integer arithmetic; disable overflow
-# checks for it in debug so it behaves like release (see original Cargo.toml note).
+# reSID's fixpoint resampler relies on wrapping integer arithmetic; disable
+# overflow checks for it in debug so it behaves like release.
 [profile.dev.package.resid-rs]
 overflow-checks = false

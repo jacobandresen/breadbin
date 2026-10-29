@@ -3,7 +3,8 @@
 // present, so nothing licensed is needed. The file goes over postMessage,
 // following vc64web's own embedding protocol (js/vc64web_player.js).
 
-import { bootScript, driveScript } from './drive.js';
+import { driveScripts } from './drive.js';
+import { engineBytes } from './engine.js';
 import { PAD_LISTENER } from './touch.js';
 
 const VC64WEB = 'https://vc64web.github.io/';
@@ -57,8 +58,7 @@ export function run(host, file, { roms = {}, onState, onDrive } = {}) {
         // these run inside vc64web via its scripting API
         script(PAD_LISTENER);
         if (file.vdrive) {
-          script(driveScript(file.bytes));
-          script(bootScript());
+          engineBytes().then((engine) => driveScripts(engine, file.bytes).forEach(script));
         } else if (disk) {
           script('wasm_auto_type(\'load"*",8,1:\\n\'); await disk_loading_finished(); wasm_auto_type("\\nrun:\\n");');
         }

@@ -1,5 +1,5 @@
-// sid-worklet - runs breadbin's SID player (Rust: 6502 driver + reSID, compiled
-// to WebAssembly) on the audio thread. The main thread posts the module bytes and
+// sid-worklet - runs the engine's SID player (Rust: 6502 driver + reSID,
+// compiled to WebAssembly) on the audio thread. The main thread posts the module bytes and
 // a tune; this processor renders PCM in 128-frame quanta and reports the SID
 // registers ~60 times a second for the visualiser.
 
@@ -20,7 +20,9 @@ class SidProcessor extends AudioWorkletProcessor {
 
   async onMessage(m) {
     if (m.type === 'init') {
-      const { instance } = await WebAssembly.instantiate(m.wasm, {});
+      // the drive's host functions only exist inside the emulator frame
+      const env = { host_peek: () => 0, host_poke() {}, host_event() {} };
+      const { instance } = await WebAssembly.instantiate(m.wasm, { env });
       this.wasm = instance.exports;
       this.buf = this.wasm.bb_alloc(256);
       this.regs = this.wasm.bb_alloc(32);

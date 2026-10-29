@@ -10,7 +10,7 @@ import * as hvsc from './hvsc.js';
 import * as store from './store.js';
 import * as emu from './emu.js';
 import { boxartIndex, canon } from './covers.js';
-import { pickFile, prepare } from './media.js';
+import { pick, prepare } from './engine.js';
 import { createPad } from './touch.js';
 import { SidPlayer, sidHeader } from './sid.js';
 import { Viz, NAMES } from './viz.js';
@@ -63,7 +63,7 @@ const started = new Set();
 let current = '';
 
 function route() {
-  const tab = (location.hash.slice(1) || 'games').split('/')[0];
+  const [tab, item] = (location.hash.slice(1) || 'games').split('/');
   const name = tab in views ? tab : 'games';
   current = name;
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== name;
@@ -75,8 +75,50 @@ function route() {
     views[name]();
   }
   if (name !== 'games') bootDone();
+  if (item && name !== 'tunes') openItem(name, decodeURIComponent(item));
 }
 addEventListener('hashchange', route);
+
+/** Deep link (#games/<id>, #demos/<id>): open that item's sheet. Ids not in
+ *  the verified list still open, which is how the playtests reach new titles. */
+async function openItem(tab, id) {
+  try {
+    const v = await verified();
+    if (tab === 'games') {
+      await coversReady;
+      const known = v.games.find((g) => g.id === id);
+      if (known) return showGame(known);
+      if (id.startsWith('gb64:')) {
+        const gb = id.slice(5);
+        return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: new URLSearchParams(location.search).get('run') || '' });
+      }
+    } else {
+      const known = v.demos.find((d) => d.id === id);
+      if (known) return showDemo({ ...known, csdbId: known.csdb });
+    }
+    const m = (await ia.metadata(id)).metadata;
+    if (!m) throw new Error('no such item');
+    const raw = String(first(m.title) || id).trim();
+    const item = {
+      id,
+      ia: id,
+      title: ia.displayTitle(raw),
+      group: String(first(m.csdb_group) || first(m.creator) || '').replace(/,\s*$/, ''),
+      publisher: String(first(m.creator) || ''),
+      year: Number(/\d{4}/.exec(first(m.date) || first(m.csdb_release_date) || '')?.[0]) || 0,
+    };
+    if (tab === 'demos') showDemo(item);
+    else showGame(item);
+  } catch (e) {
+    toast(`Couldn't open ${id}: ${e.message}`);
+  }
+}
+
+/** Keep the address bar pointing at the open item, so it can be shared. */
+function linkTo(tab, id) {
+  history.replaceState(null, '', id ? `#${tab}/${encodeURIComponent(id)}` : `#${tab}`);
+}
+$('#detail').addEventListener('close', () => linkTo(current));
 
 // ── shelves ──────────────────────────────────────────────────────────────────
 
@@ -179,98 +221,106 @@ function art(urls, label, { boxart = false, badge } = {}) {
   return wrap;
 }
 
-// ── games ────────────────────────────────────────────────────────────────────
+// ── verified catalogue ───────────────────────────────────────────────────────
 
-const GENRES = [
-  ['Arcade action', 'mobygames_genre:"Action"'],
-  ['Shoot \'em up', 'mobygames_gameplay:"Shooter"'],
-  ['Platform', 'mobygames_gameplay:"Platform"'],
-  ['Adventure', 'mobygames_genre:"Adventure"'],
-  ['Sports', 'mobygames_genre:"Sports"'],
-  ['Racing', 'mobygames_genre:"Racing / Driving"'],
-  ['Role-playing', 'mobygames_genre:"Role-Playing (RPG)"'],
-  ['Strategy', 'mobygames_genre:"Strategy/Tactics"'],
-  ['Simulation', 'mobygames_genre:"Simulation"'],
-  ['Puzzle', 'mobygames_genre:"Puzzle"'],
-  ['Ocean Software', 'creator:(Ocean)'],
-  ['Educational', 'mobygames_genre:"Educational"'],
-];
+// verified.json lists what the playtests (tools/playtest) showed working, best
+// rated first, so every card offered here starts and plays.
+let verifiedList = null;
+function verified() {
+  verifiedList ??= fetch(new URL('./verified.json', import.meta.url), { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.json() : { games: [], demos: [], tunes: [] }))
+    .catch(() => ({ games: [], demos: [], tunes: [] }))
+    .then((v) => ({
+      games: v.games.map((g) => ({ ...g, id: g.gb ? `gb64:${g.gb}` : g.ia })),
+      demos: v.demos,
+      tunes: v.tunes,
+    }));
+  return verifiedList;
+}
+
+/** A shelf over a fixed list of items. */
+function listShelf(parent, title, items, card, opts = {}) {
+  if (!items.length) return null;
+  return shelf(parent, {
+    title, card, size: 24, ...opts,
+    load: async (page, size) => ({ total: items.length, items: items.slice((page - 1) * size, page * size) }),
+  });
+}
+
+// ── games ────────────────────────────────────────────────────────────────────
 
 let covers = new Map();
 const coversReady = boxartIndex().then((m) => (covers = m));
 
+const gameArt = (g) => [covers.get(canon(g.title)), g.ia && ia.thumb(g.ia), g.shot && ia.gb64Shot(g.shot)];
+
 function gameCard(g) {
-  const box = covers.get(canon(g.rawTitle));
-  const sub = [g.year || '', g.group].filter(Boolean).join(' · ');
+  const box = covers.get(canon(g.title));
+  const sub = [g.year || '', g.publisher].filter(Boolean).join(' · ');
   return h('button.card', { onclick: () => showGame(g), title: g.title },
-    art([box, ia.thumb(g.id)], g.title, { boxart: !!box }),
+    art(gameArt(g), g.title, { boxart: !!box, badge: g.rating >= 4 ? '★' : null }),
     h('div.card-title', {}, g.title),
     sub && h('div.card-sub', {}, sub));
 }
 
-function iaShelf(parent, title, query, card = gameCard, opts = {}) {
-  return shelf(parent, {
-    title,
-    card,
-    ...opts,
-    load: async (page, rows) => {
-      const { total, docs } = await ia.search(query, { page, rows });
-      return { total, items: docs };
-    },
-  });
-}
-
-function recentShelf(parent, kind, title, card) {
-  const played = store.recentPlays(kind);
-  if (!played.length) return;
-  shelf(parent, {
-    title,
-    card,
-    load: async () => ({ total: played.length, items: played.map((p) => p.item) }),
-  });
+/** Recently played items that are still on the verified list. */
+async function recentShelf(parent, kind, title, card) {
+  const v = await verified();
+  const ok = new Set((kind === 'game' ? v.games : v.demos).map((x) => x.id));
+  const played = store.recentPlays(kind).filter((p) => ok.has(p.item.id));
+  listShelf(parent, title, played.map((p) => p.item), card);
 }
 
 async function initGames() {
   const root = $('#games');
   const shelves = h('div.shelves');
   root.append(shelves);
-  await Promise.race([coversReady, new Promise((r) => setTimeout(r, 2500))]);
-  recentShelf(shelves, 'game', 'Latest played', gameCard);
-  const first = iaShelf(shelves, 'Most played', `collection:${ia.GAMES} AND mobygames:*`);
-  for (const [title, q] of GENRES) iaShelf(shelves, title, `collection:${ia.GAMES} AND ${q}`);
-  first.ready.then(bootDone);
+  const [{ games }] = await Promise.all([verified(), Promise.race([coversReady, new Promise((r) => setTimeout(r, 2500))])]);
+  if (!games.length) {
+    shelves.append(h('p.banner', {}, 'No playtested games yet: run tools/playtest to build verified.json.'));
+    return bootDone();
+  }
+  await recentShelf(shelves, 'game', 'Latest played', gameCard);
+  const top = listShelf(shelves, 'Top rated', games, gameCard);
+  listShelf(shelves, 'Classics', games.filter((g) => g.classic), gameCard);
+  // genres in the order their best game ranks
+  const genres = [];
+  for (const g of games) if (g.genre && !genres.includes(g.genre)) genres.push(g.genre);
+  for (const genre of genres) {
+    const items = games.filter((g) => g.genre === genre);
+    if (items.length >= 4) listShelf(shelves, genre, items, gameCard);
+  }
+  top.ready.then(bootDone);
 }
 
 async function showGame(g) {
+  linkTo('games', g.id);
   const dlg = $('#detail');
-  const box = covers.get(canon(g.rawTitle));
-  const body = h('div.sheet-body');
-  dlg.replaceChildren(closeButton(dlg), body);
   const facts = h('dl.facts');
-  const actions = h('div.actions',
-    {},
-    h('button.key.pill.primary', { onclick: () => launch({ kind: 'game', item: g }) }, '▶ Play'),
-  );
-  const links = h('div.links', {}, h('a', { href: ia.itemUrl(g.id), target: '_blank', rel: 'noopener' }, 'Internet Archive ↗'));
-  body.append(
-    h('div.sheet-art', {}, h('img', { src: box || ia.thumb(g.id), alt: '' })),
-    h('div', {}, h('h2', {}, g.title), h('p.by', {}, [g.group, g.year || ''].filter(Boolean).join(' · ')), facts, actions, links,
-      h('p.hint', {}, 'Joystick in port 2: cursor keys + space (or a gamepad). The emulator runs on the free MEGA65 Open ROMs.')),
-  );
+  const links = h('div.links');
+  if (g.ia) links.append(h('a', { href: ia.itemUrl(g.ia), target: '_blank', rel: 'noopener' }, 'Internet Archive ↗'));
+  if (g.gb) links.append(h('a', { href: 'https://www.gb64.com/', target: '_blank', rel: 'noopener' }, 'GameBase64 ↗'));
+  const shots = h('div.shots');
+  if (g.shot) shots.append(h('img', { src: ia.gb64Shot(g.shot), alt: '', loading: 'lazy' }));
+  dlg.replaceChildren(closeButton(dlg), h('div.sheet-body', {},
+    h('div.sheet-art', {}, art(gameArt(g), g.title, { boxart: true })),
+    h('div', {}, h('h2', {}, g.title), h('p.by', {}, [g.publisher, g.year || ''].filter(Boolean).join(' · ')), facts,
+      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch({ kind: 'game', item: g }) }, '▶ Play')),
+      links, shots,
+      h('p.hint', {}, 'Joystick in port 2: cursor keys + space, a gamepad, or the on-screen pad. Runs on the free MEGA65 Open ROMs.'))));
   dlg.showModal();
-  try {
-    const meta = (await ia.metadata(g.id)).metadata || {};
-    const add = (k, v) => v && facts.append(h('dt', {}, k), h('dd', {}, Array.isArray(v) ? v.join(', ') : v));
-    add('Year', meta.date);
-    add('Publisher', meta.creator);
-    add('Developer', meta.mobygames_developed_by);
-    add('Genre', [meta.mobygames_genre, meta.mobygames_gameplay].filter(Boolean).join(' · '));
-    add('Setting', meta.mobygames_setting);
-    add('Downloads', g.downloads ? fmt.format(g.downloads) : '');
-    for (const [label, key] of [['MobyGames', 'mobygames'], ['Wikipedia', 'wikipedia']]) {
-      if (meta[key]) links.append(h('a', { href: first(meta[key]), target: '_blank', rel: 'noopener' }, `${label} ↗`));
-    }
-  } catch {}
+  const add = (k, v) => v && facts.append(h('dt', {}, k), h('dd', {}, v));
+  add('Genre', [g.genre, g.sub].filter(Boolean).join(' · '));
+  add('Rating', g.rating ? `${'★'.repeat(g.rating)} (GameBase64)` : '');
+  add('Classic', g.classic ? 'A GameBase64 classic' : '');
+  add('Players', g.players || '');
+  if (g.ia && !g.year) {
+    try {
+      const meta = (await ia.metadata(g.ia)).metadata || {};
+      add('Year', first(meta.date));
+      add('Publisher', first(meta.creator));
+    } catch {}
+  }
 }
 
 const first = (v) => (Array.isArray(v) ? v[0] : v);
@@ -281,8 +331,6 @@ function closeButton(dlg) {
 
 // ── demos ────────────────────────────────────────────────────────────────────
 
-const DEMO_GROUPS = ['Booze Design', 'Oxyron', 'Censor Design', 'Crest', 'Fairlight', 'Performers', 'Bonzai', 'Triad'];
-
 function demoCard(d) {
   const shots = d.id ? [ia.thumb(d.id)] : csdb.shotUrls(d.csdbId);
   return h('button.card', { onclick: () => showDemo(d), title: d.title },
@@ -291,69 +339,28 @@ function demoCard(d) {
     h('div.card-sub', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')));
 }
 
-/** Map CSDb release ids to their Internet Archive items (csdb field). */
-async function iaForCsdb(ids) {
-  const found = new Map();
-  for (let i = 0; i < ids.length; i += 40) {
-    const chunk = ids.slice(i, i + 40);
-    const q = `collection:${ia.DEMOS} AND csdb:(${chunk.map((id) => ia.q(csdb.releaseUrl(id))).join(' OR ')})`;
-    const { docs } = await ia.search(q, { rows: 120, sort: 'downloads desc', maxAgeMs: 7 * 24 * 3600e3 });
-    for (const d of docs) {
-      const id = Number(/id=(\d+)/.exec(d.csdb || '')?.[1]);
-      // multi-disk demos are several items; keep side A / the most downloaded
-      if (id && (!found.has(id) || /side_?a\b|_a$/i.test(d.id))) found.set(id, d);
-    }
-  }
-  return found;
-}
-
 async function initDemos() {
   const root = $('#demos');
   const shelves = h('div.shelves.wide');
   root.append(shelves);
-  recentShelf(shelves, 'demo', 'Latest watched', demoCard);
-  const pending = shelf(shelves, { title: 'CSDb top rated', wide: true, card: demoCard, load: () => new Promise(() => {}) });
-  const archive = h('div');
-  shelves.append(archive);
-  iaShelf(archive, 'Most watched on the Archive', `collection:${ia.DEMOS}`, demoCard, { wide: true });
-  for (const g of DEMO_GROUPS) iaShelf(archive, g, `collection:${ia.DEMOS} AND csdb_group:${ia.q(g)}`, demoCard, { wide: true });
-  try {
-    const top = (await csdb.toplist(csdb.TOP_DEMOS)).slice(0, 320);
-    const [onIa, files] = await Promise.all([iaForCsdb(top.map((t) => t.id)), csdb.canFetchFiles()]);
-    // Demos the Archive has run from there; the rest straight from CSDb when we can.
-    const demos = top
-      .map((t) => {
-        const d = onIa.get(t.id);
-        if (d) return { ...d, title: t.name, group: t.group || d.group, rating: t.rating, csdbId: t.id };
-        return files ? { id: '', title: t.name, group: t.group, rating: t.rating, csdbId: t.id, year: 0 } : null;
-      })
-      .filter(Boolean);
-    const staticShelf = (title, items) => {
-      if (!items.length) return;
-      const s = shelf(shelves, {
-        title, wide: true, card: demoCard, size: 24,
-        load: async (page, size) => ({ total: items.length, items: items.slice((page - 1) * size, page * size) }),
-      });
-      shelves.insertBefore(s.el, archive);
-    };
-    pending.el.remove();
-    staticShelf('CSDb top rated', demos);
-    for (const decade of [2020, 2010, 2000, 1990, 1980]) {
-      staticShelf(`The ${decade}s`, demos.filter((d) => d.year >= decade && d.year < decade + 10));
-    }
-    if (!files && demos.length < top.length) {
-      shelves.insertBefore(h('p.banner', {},
-        `${top.length - demos.length} of CSDb's top ${top.length} demos are only on csdb.dk, which this page can't download from yet. `,
-        h('a', { href: '#', onclick: (e) => { e.preventDefault(); openSettings(); } }, 'Set up a relay'),
-        ' to add them.'), archive);
-    }
-  } catch (e) {
-    pending.el.remove();
-    shelves.insertBefore(h('p.banner', {}, h('b', {}, 'CSDb is out of reach right now'), ` (${e.message}). Showing the Internet Archive's demo collection.`), archive);
+  const { demos } = await verified();
+  const items = demos.map((d) => ({ ...d, csdbId: d.csdb }));
+  await recentShelf(shelves, 'demo', 'Latest watched', demoCard);
+  listShelf(shelves, 'CSDb top rated', items, demoCard, { wide: true });
+  for (const decade of [2020, 2010, 2000, 1990, 1980]) {
+    listShelf(shelves, `The ${decade}s`, items.filter((d) => d.year >= decade && d.year < decade + 10), demoCard, { wide: true });
   }
+  const groups = [];
+  for (const d of items) for (const g of d.group.split(/,\s*/)) if (g && !groups.includes(g)) groups.push(g);
+  for (const g of groups) {
+    const theirs = items.filter((d) => d.group.split(/,\s*/).includes(g));
+    if (theirs.length >= 3) listShelf(shelves, g, theirs, demoCard, { wide: true });
+  }
+  if (!items.length) shelves.append(h('p.banner', {}, 'No playtested demos yet: run tools/playtest to build verified.json.'));
 }
 
 async function showDemo(d) {
+  if (d.id) linkTo('demos', d.id);
   const dlg = $('#detail');
   const facts = h('dl.facts');
   const shots = h('div.shots');
@@ -418,12 +425,17 @@ async function launch({ kind, item }) {
     bar.style.width = total ? `${Math.round((got / total) * 100)}%` : `${Math.min(95, got / 2000)}%`;
   };
   try {
-    const { name, bytes } = item.id ? await archiveFile(item.id, progress) : await csdbFile(item.csdbId, progress);
+    const { name, bytes, prefer } = item.gb
+      ? { name: item.gb.split('/').pop(), bytes: await ia.gb64Game(item.gb, progress), prefer: item.run }
+      : item.ia || (item.id && !item.id.startsWith('gb64:'))
+        ? await archiveFile(item.ia || item.id, progress)
+        : await csdbFile(item.csdbId, progress);
     bar.style.width = '100%';
     const roms = await loadRoms();
-    const file = await prepare(name, bytes, { canMountDisks: !!roms.floppy });
-    if (file.note) note.textContent = file.note;
-    else note.textContent = 'Joystick in port 2: cursor keys + space, or a gamepad.';
+    const file = await prepare(name, bytes, { canMount: !!roms.floppy, prefer });
+    note.textContent = file.vdrive
+      ? 'Disk served by breadbin\'s virtual drive. Joystick in port 2: cursor keys + space, a gamepad or the pad.'
+      : 'Joystick in port 2: cursor keys + space, a gamepad or the pad.';
     store.recordPlay({ kind, id: item.id || `csdb-${item.csdbId}`, item });
     session = emu.run(stage, file, {
       roms,
@@ -441,7 +453,8 @@ async function launch({ kind, item }) {
 }
 
 async function archiveFile(id, progress) {
-  const name = pickFile(await ia.metadata(id));
+  const meta = await ia.metadata(id);
+  const name = await pick((meta.files || []).map((f) => f.name), meta.metadata?.emulator_start);
   if (!name) throw new Error('this item has no C64 disk, tape or program file');
   return { name, bytes: await ia.download(id, name, progress) };
 }
@@ -511,6 +524,7 @@ function tuneRow(entry) {
 async function initTunes() {
   player = new SidPlayer();
   viz = new Viz($('#viz'));
+  await viz.ready;
   viz.kind = settings.viz;
   const sel = $('#viz-kind');
   NAMES.forEach((n, i) => sel.append(h('option', { value: i }, n)));
@@ -538,16 +552,38 @@ async function initTunes() {
   const top = h('div');
   list.append(top);
   for (const [name, dir] of hvsc.LEGENDS) list.append(legendSection(name, dir));
-  try {
-    const ranked = (await csdb.toplist(csdb.TOP_MUSIC)).slice(0, 150);
-    top.append(h('h3.tune-section', {}, 'CSDb top rated', h('span.count', {}, `${ranked.length} tunes`)));
-    const rows = ranked.map((t, i) => tuneRow({ kind: 'csdb', id: t.id, name: t.name, sub: t.group, rating: t.rating, rank: i + 1 }));
-    top.append(...rows);
-    // queue currently holds legend rows first; CSDb rows belong at the front
-    queue = [...rows, ...queue.filter((r) => !rows.includes(r))];
-    enrichVisible(rows);
-  } catch (e) {
-    top.append(h('p.banner', {}, h('b', {}, 'CSDb is out of reach right now'), ` (${e.message}). The HVSC composer shelves below still play.`));
+  // Playtested CSDb favourites, grouped by the party they were released at
+  // (like the desktop jukebox); each row knows its HVSC path, so playing needs
+  // no CSDb request at all.
+  const { tunes } = await verified();
+  const byParty = new Map();
+  for (const t of tunes) {
+    const party = (t.party || '').replace(/\s*\d{4}$/, '');
+    if (!byParty.has(party)) byParty.set(party, []);
+    byParty.get(party).push(t);
+  }
+  const loners = [...(byParty.get('') || [])];
+  const sections = [];
+  for (const [party, list] of byParty) {
+    if (!party) continue;
+    if (list.length < 2) loners.push(...list);
+    else sections.push([party, list]);
+  }
+  sections.sort((a, b) => b[1][0].rating - a[1][0].rating || b[1].length - a[1].length);
+  if (loners.length) sections.push(['Released outside parties', loners.sort((a, b) => b.rating - a.rating)]);
+  const rows = [];
+  for (const [party, list] of sections) {
+    top.append(h('h3.tune-section', { style: { borderLeftColor: CHIPS[chipIndex++ % CHIPS.length] } }, party, h('span.count', {}, `${list.length} tunes`)));
+    for (const t of list) {
+      const row = tuneRow({ kind: 'csdb', id: t.id, hvsc: t.hvsc, name: t.name, sub: [t.composer, t.group, t.year || ''].filter(Boolean).join(' · '), rating: t.rating });
+      rows.push(row);
+      top.append(row);
+    }
+  }
+  // queue currently holds legend rows first; CSDb rows belong at the front
+  queue = [...rows, ...queue.filter((r) => !rows.includes(r))];
+  if (!rows.length) {
+    top.append(h('p.banner', {}, 'No playtested tunes yet: run tools/playtest. The HVSC composer shelves below still play.'));
     list.querySelector('.tune-section button')?.click();
   }
 }
@@ -581,14 +617,6 @@ function legendSection(name, dir) {
   return wrap;
 }
 
-/** Fill in composer and party for rows whose CSDb details are already cached. */
-async function enrichVisible(rows) {
-  for (const row of rows) {
-    const info = await csdb.cachedRelease(row.entry.id).catch(() => null);
-    if (info) describeRow(row, info);
-  }
-}
-
 function describeRow(row, info) {
   const who = info.musicians.map((m) => m.handle).join(' & ') || row.entry.sub;
   const where = info.event ? `${info.event}` : info.year || '';
@@ -596,10 +624,8 @@ function describeRow(row, info) {
 }
 
 async function resolveTune(entry) {
-  if (entry.kind === 'hvsc') {
-    const bytes = await hvsc.sid(entry.path);
-    return { bytes, info: null };
-  }
+  if (entry.kind === 'hvsc') return { bytes: await hvsc.sid(entry.path), info: null };
+  if (entry.hvsc) return { bytes: await hvsc.sid(entry.hvsc), info: null };
   const info = await csdb.release(entry.id);
   if (info.hvscPath) return { bytes: await hvsc.sid(info.hvscPath), info };
   // Too new for the HVSC: CSDb's own copy, when this page may download from it.
@@ -628,6 +654,10 @@ async function playRow(row, song = 0) {
     row.song = song || sidHeader(bytes).startSong;
     viz.title = row.entry.name;
     renderNowPlaying(row, info, sidHeader(bytes));
+    // the CSDb details (screenshot, real names, compo) arrive when the relay answers
+    if (!info && row.entry.kind === 'csdb') {
+      csdb.release(row.entry.id).then((full) => token === playToken && renderNowPlaying(row, full, sidHeader(bytes))).catch(() => {});
+    }
     if (radio) radioTimer = setTimeout(() => nextTune(), RADIO_MAX_MS);
     prefetchNext();
   } catch (e) {
@@ -738,7 +768,7 @@ function animate() {
     if (current === 'tunes' && !document.hidden) {
       const t = ms / 1000;
       const live = player.playing && !player.paused;
-      viz.update(live ? player.analyser : null, player.regs, t);
+      viz.update(live ? player.analyser : null, player.regs);
       viz.draw(t);
     }
     requestAnimationFrame(tick);
@@ -757,7 +787,7 @@ $('#search').addEventListener('input', (e) => {
   searchTimer = setTimeout(() => runSearch(current, term), current === 'tunes' ? 120 : 400);
 });
 
-function runSearch(tab, term) {
+async function runSearch(tab, term) {
   if (tab === 'tunes') {
     const needle = term.toLowerCase();
     for (const r of queue) r.hidden = needle && !`${r.entry.name} ${r.subEl.textContent}`.toLowerCase().includes(needle);
@@ -766,15 +796,22 @@ function runSearch(tab, term) {
   const root = $(`#${tab}`);
   const shelves = root.querySelector('.shelves');
   root.querySelector('.results')?.remove();
-  shelves.hidden = !!term;
+  if (shelves) shelves.hidden = !!term;
   if (!term) return;
-  const words = term.replace(/[^\p{L}\p{N} ]/gu, ' ').trim();
-  if (!words) return;
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  const v = await verified();
+  const list = tab === 'games' ? v.games : v.demos.map((d) => ({ ...d, csdbId: d.csdb }));
+  const hits = list.filter((x) => {
+    const hay = `${x.title} ${x.publisher || ''} ${x.group || ''} ${x.genre || ''} ${x.party || ''}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
   const results = h(`div.results${tab === 'demos' ? '.wide' : ''}`);
   root.prepend(results);
-  const coll = tab === 'games' ? ia.GAMES : ia.DEMOS;
-  const query = `collection:${coll} AND (title:(${words}) OR creator:(${words})${tab === 'demos' ? ` OR csdb_group:(${words})` : ''})`;
-  const s = iaShelf(results, `Results for “${term}”`, query, tab === 'games' ? gameCard : demoCard, { hideEmpty: false, wide: tab === 'demos' });
+  if (!hits.length) {
+    results.append(h('p.banner', {}, `Nothing playtested matches “${term}”.`));
+    return;
+  }
+  const s = listShelf(results, `Results for “${term}”`, hits, tab === 'games' ? gameCard : demoCard, { wide: tab === 'demos' });
   s.el.querySelector('.shelf-head button').click();
 }
 

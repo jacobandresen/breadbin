@@ -1,8 +1,9 @@
-// sid - the browser's SID player: an AudioWorklet running the Rust player, a
+// sid - the browser's SID player: an AudioWorklet running the engine's player, a
 // gentle output chain (DC blocker, a soft limiter and an optional Haas-style
 // stereo widening for headphones), and an analyser the visualiser reads.
 
-const WASM_URL = new URL('./sid.wasm', import.meta.url);
+import { engineBytes } from './engine.js';
+
 const WORKLET_URL = new URL('./sid-worklet.js', import.meta.url);
 
 export class SidPlayer extends EventTarget {
@@ -22,13 +23,8 @@ export class SidPlayer extends EventTarget {
     this.ready ??= (async () => {
       const ctx = new AudioContext({ latencyHint: 'playback' });
       this.ctx = ctx;
-      const [wasm] = await Promise.all([
-        fetch(WASM_URL).then((r) => {
-          if (!r.ok) throw new Error('sid.wasm is missing (run `make web`)');
-          return r.arrayBuffer();
-        }),
-        ctx.audioWorklet.addModule(WORKLET_URL),
-      ]);
+      const [engine] = await Promise.all([engineBytes(), ctx.audioWorklet.addModule(WORKLET_URL)]);
+      const wasm = engine.slice(0);
       this.node = new AudioWorkletNode(ctx, 'sid-processor', { numberOfInputs: 0, outputChannelCount: [1] });
       await new Promise((resolve, reject) => {
         this.node.port.onmessage = (e) => this.onMessage(e.data, resolve, reject);

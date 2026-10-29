@@ -76,3 +76,17 @@ export function itemUrl(id) {
 export function q(value) {
   return `"${String(value).replace(/["\\]/g, '')}"`;
 }
+
+// GameBase64's collection, as a zip of zips on the Internet Archive; single
+// members are served (with CORS) by the archive's zip viewer.
+const GB64 = 'https://archive.org/cors/gb64v19/';
+
+/** A GameBase64 game zip ("b3/BUBBLEBO_01138_02.zip"), cached for good. */
+export function gb64Game(path, onProgress) {
+  return cachedBytes(`${GB64}Games.zip/Games/${path.split('/').map(encodeURIComponent).join('/')}`, { onProgress });
+}
+
+/** GameBase64's screenshot ("B/Bubble_Bobble.png") as an image URL. */
+export function gb64Shot(path) {
+  return `https://archive.org/download/gb64v19/Screenshots.zip/Screenshots/${path.split('/').map(encodeURIComponent).join('/')}`;
+}

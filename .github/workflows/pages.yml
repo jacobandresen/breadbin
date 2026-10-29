@@ -1,15 +1,14 @@
 name: Pages
 
 # Publishes docs/ (the landing page and the browser version in docs/play) to
-# GitHub Pages, with the SID player built to WebAssembly on the way.
+# GitHub Pages, with the Rust engine built to WebAssembly on the way.
 
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "crates/breadbin-sid/**"
-      - "crates/breadbin-sid-wasm/**"
+      - "crates/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -28,11 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build the SID player for the browser
+      - name: Build the engine for the browser
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo build --release -p breadbin-sid-wasm --target wasm32-unknown-unknown
-          cp target/wasm32-unknown-unknown/release/breadbin_sid_wasm.wasm docs/play/sid.wasm
+          cargo test
+          make web
 
       - uses: actions/configure-pages@v5
 

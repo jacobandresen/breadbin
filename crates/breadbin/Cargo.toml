@@ -1,0 +1,18 @@
+[package]
+name = "breadbin"
+version = "0.3.0"
+edition = "2021"
+description = "breadbin's engine for the browser: SID player, disk images, virtual drive and visualisers, compiled to WebAssembly."
+authors = ["Jacob Andresen <jacob.andresen@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/jacobandresen/breadbin"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# MOS 6581/8580 emulation behind the SID player
+resid-rs = "1.1"
+# inflate for zip archives
+miniz_oxide = "0.8"

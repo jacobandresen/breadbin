@@ -1,0 +1,16 @@
+{
+  "name": "breadbin-playtest",
+  "private": true,
+  "type": "module",
+  "description": "Plays games, demos and tunes in the browser version and records which ones work (docs/play/verified.json).",
+  "scripts": {
+    "games": "node playtest.mjs games",
+    "demos": "node playtest.mjs demos",
+    "tunes": "node playtest.mjs tunes",
+    "write": "node playtest.mjs write"
+  },
+  "dependencies": {
+    "pngjs": "7.0.0",
+    "puppeteer-core": "23.11.1"
+  }
+}
