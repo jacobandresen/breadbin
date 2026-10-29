@@ -601,8 +601,11 @@ async function resolveTune(entry) {
     return { bytes, info: null };
   }
   const info = await csdb.release(entry.id);
-  if (!info.hvscPath) throw new Error('this tune is not in the HVSC yet');
-  return { bytes: await hvsc.sid(info.hvscPath), info };
+  if (info.hvscPath) return { bytes: await hvsc.sid(info.hvscPath), info };
+  // Too new for the HVSC: CSDb's own copy, when this page may download from it.
+  const link = info.links.find((l) => /\.sid$/i.test(l));
+  if (!link || !(await csdb.canFetchFiles())) throw new Error('this tune is not in the HVSC yet');
+  return { bytes: await csdb.fetchFile(link), info };
 }
 
 let playToken = 0;
