@@ -245,11 +245,29 @@ pub fn recent_plays(limit: Option<usize>) -> Vec<String> {
     order
 }
 
+/// A step of [`refresh`], for progress reporting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefreshStage {
+    /// Opening GameBase64, downloading it on first use.
+    GameBase,
+    /// Scanning the Internet Archive collection: (items scanned, total).
+    Archive(u64, u64),
+    /// Matching the catalogue against the local collection.
+    Index,
+}
+
 /// Re-pull the ranked IA catalogue, then rebuild c64_index.tsv. This is also the
 /// first-run bootstrap that fills a fresh user data directory.
-pub fn refresh() -> Result<(), String> {
-    disk::build_ia_index()?;
+pub fn refresh(progress: &mut dyn FnMut(RefreshStage)) -> Result<(), String> {
+    progress(RefreshStage::GameBase);
+    disk::build_ia_index(&mut |done, total| progress(RefreshStage::Archive(done, total)))?;
+    progress(RefreshStage::Index);
     build_index::build()
+}
+
+/// True once a catalogue has been built (false on a fresh install).
+pub fn has_catalogue() -> bool {
+    index_path().exists()
 }
 
 /// Resolve a local disk path for a row, downloading from the Internet Archive if

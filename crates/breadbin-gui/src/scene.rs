@@ -27,6 +27,12 @@ use crate::task::run_blocking;
 const TOP_LIMIT: usize = 20;
 /// Maximum search results per query.
 const SEARCH_LIMIT: usize = 50;
+/// With fewer local hits than this, the search also asks csdb.dk itself.
+const ONLINE_THRESHOLD: usize = 10;
+/// How many csdb.dk hits to fetch in full per online search.
+const ONLINE_LIMIT: usize = 12;
+/// Typing pause before going online, so each keystroke doesn't hit csdb.dk.
+const ONLINE_DELAY: std::time::Duration = std::time::Duration::from_millis(700);
 
 /// Disk/program image extensions VICE can autostart, best first.
 const RUN_EXTS: &[&str] = &[".d64", ".g64", ".d81", ".d71", ".prg", ".crt", ".t64", ".tap"];
@@ -427,6 +433,84 @@ fn create_release_row(release: &Release, rank: Option<usize>) -> ListBoxRow {
     row
 }
 
+/// Second search stage: ask csdb.dk itself and append its hits (fetched in full
+/// and cached locally) to the list as each arrives. Stops if a newer query starts.
+async fn search_online(
+    query: String,
+    this_gen: u64,
+    generation: Rc<Cell<u64>>,
+    results_list: &ListBox,
+    heading: &Label,
+    spinner: glib::WeakRef<Spinner>,
+    current: Rc<RefCell<Vec<Release>>>,
+) {
+    glib::timeout_future(ONLINE_DELAY).await;
+    if generation.get() != this_gen {
+        return;
+    }
+    let local = current.borrow().len();
+    heading.set_label(&format!("{local} cached result(s) for “{query}” · searching csdb.dk…"));
+    if let Some(s) = spinner.upgrade() {
+        s.start();
+    }
+
+    let known: Vec<u32> = current.borrow().iter().map(|r| r.id).collect();
+    let (tx, rx) = async_channel::unbounded::<Result<Release, String>>();
+    let q = query.clone();
+    std::thread::spawn(move || {
+        let ids = match csdb::search_page_ids(&q) {
+            Ok(ids) => ids,
+            Err(e) => {
+                let _ = tx.send_blocking(Err(e));
+                return;
+            }
+        };
+        for id in ids.into_iter().filter(|id| !known.contains(id)).take(ONLINE_LIMIT) {
+            if tx.send_blocking(csdb::fetch_and_cache(id)).is_err() {
+                return; // a newer query took over
+            }
+        }
+    });
+
+    let mut added = 0;
+    let mut failed: Option<String> = None;
+    while let Ok(next) = rx.recv().await {
+        if generation.get() != this_gen {
+            return; // dropping rx stops the worker
+        }
+        match next {
+            Ok(release) => {
+                results_list.append(&create_release_row(&release, None));
+                current.borrow_mut().push(release);
+                added += 1;
+                heading.set_label(&format!(
+                    "{} result(s) for “{query}” · {added} from csdb.dk, loading…",
+                    local + added
+                ));
+            }
+            Err(e) => failed = Some(e),
+        }
+    }
+    if let Some(s) = spinner.upgrade() {
+        s.stop();
+    }
+    let total = local + added;
+    match (total, failed) {
+        (0, Some(e)) => {
+            heading.set_label("CSDb");
+            show_message(results_list, &format!("Couldn't reach csdb.dk: {e}"), "error-label");
+        }
+        (0, None) => {
+            heading.set_label(&format!("No results for “{query}”"));
+            show_message(results_list, "Nothing on csdb.dk matches either", "dim-label");
+        }
+        _ if added > 0 => heading.set_label(&format!(
+            "{total} result(s) for “{query}” · {added} new from csdb.dk"
+        )),
+        _ => heading.set_label(&format!("{total} result(s) for “{query}”")),
+    }
+}
+
 /// Replace the list contents with a message label.
 fn show_message(results_list: &ListBox, message: &str, css_class: &str) {
     let label = Label::new(Some(message));
@@ -582,6 +666,9 @@ pub fn build_with_settings(settings: &Settings) -> Widget {
                 match outcome {
                     Ok((title, releases)) => {
                         heading.set_label(&title);
+                        let go_online = !is_browse
+                            && releases.len() < ONLINE_THRESHOLD
+                            && query.chars().count() >= 3;
                         if releases.is_empty() {
                             if is_browse {
                                 heading.set_label("CSDb");
@@ -590,7 +677,7 @@ pub fn build_with_settings(settings: &Settings) -> Widget {
                                     "No CSDb releases cached yet. Use the menu → “Sync CSDb data” to fetch the top releases from csdb.dk.",
                                     "dim-label",
                                 );
-                            } else {
+                            } else if !go_online {
                                 show_message(&results_list, "No results found", "dim-label");
                             }
                         } else {
@@ -600,6 +687,18 @@ pub fn build_with_settings(settings: &Settings) -> Widget {
                             }
                         }
                         current_releases.replace(releases);
+                        if go_online {
+                            search_online(
+                                query,
+                                this_gen,
+                                generation.clone(),
+                                &results_list,
+                                &heading,
+                                spinner.clone(),
+                                current_releases.clone(),
+                            )
+                            .await;
+                        }
                     }
                     Err(e) => {
                         eprintln!("CSDb query failed: {}", e);

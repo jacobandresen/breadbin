@@ -5,8 +5,35 @@ use gtk::gio;
 
 use crate::config::Settings;
 
-/// Load the C64 stylesheet into the default display.
+/// The Sixtyfour C64 pixel font (OFL), embedded so no install step is needed.
+const SIXTYFOUR_TTF: &[u8] = include_bytes!("../data/fonts/Sixtyfour.ttf");
+
+/// Register the embedded Sixtyfour font with the default font map. Pango loads
+/// fonts by path, so it is written once into the data dir.
+fn register_fonts() {
+    let path = breadbin_core::core::data_path("fonts/Sixtyfour.ttf");
+    let current = std::fs::metadata(&path).is_ok_and(|m| m.len() == SIXTYFOUR_TTF.len() as u64);
+    if !current {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Err(e) = std::fs::write(&path, SIXTYFOUR_TTF) {
+            eprintln!("could not install Sixtyfour font: {e}");
+            return;
+        }
+    }
+    // GTK renders through the shared default font map; any widget's context reaches it.
+    let Some(font_map) = gtk::Label::new(None).pango_context().font_map() else {
+        return;
+    };
+    if let Err(e) = font_map.add_font_file(&path) {
+        eprintln!("could not load Sixtyfour font: {e}");
+    }
+}
+
+/// Load the C64 font and stylesheet into the default display.
 pub fn load_styles() {
+    register_fonts();
     let provider = gtk::CssProvider::new();
     provider.load_from_data(include_str!("../data/style.css"));
     if let Some(display) = gdk::Display::default() {
@@ -18,10 +45,39 @@ pub fn load_styles() {
     }
 }
 
+/// The header's wordmark: "breadbin" beside the five Commodore stripes.
+fn brand_badge() -> gtk::Box {
+    let label = gtk::Label::new(Some("breadbin"));
+    label.add_css_class("brand-label");
+
+    let stripes = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(1)
+        .valign(gtk::Align::Center)
+        .build();
+    for class in ["s1", "s2", "s3", "s4", "s5"] {
+        let stripe = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        stripe.add_css_class("brand-stripe");
+        stripe.add_css_class(class);
+        stripes.append(&stripe);
+    }
+
+    let brand = gtk::Box::builder().spacing(8).valign(gtk::Align::Center).build();
+    brand.add_css_class("brand");
+    brand.append(&label);
+    brand.append(&stripes);
+    brand
+}
+
 pub fn build_ui(app: &adw::Application) {
     let settings = Settings::new();
 
-    let (kiosk_widget, kiosk_refresh) = crate::kiosk::build(&settings);
+    // Start-up screen over the whole window until the Games shelves are ready.
+    let loader = crate::loading::Loader::new(
+        &crate::kiosk::STARTUP_PHASES,
+        crate::kiosk::first_startup_phase(),
+    );
+    let (kiosk_widget, kiosk_refresh) = crate::kiosk::build(&settings, Some(loader.sender()));
 
     let stack = adw::ViewStack::new();
     stack.add_titled_with_icon(
@@ -73,6 +129,7 @@ pub fn build_ui(app: &adw::Application) {
         .build();
 
     let header = adw::HeaderBar::builder().title_widget(&switcher).build();
+    header.pack_start(&brand_badge());
     
     // Add device badges to the header bar if controllers are connected
     if let Some(device_badges) = crate::kiosk::create_device_badges() {
@@ -94,7 +151,11 @@ pub fn build_ui(app: &adw::Application) {
         .title("breadbin")
         .default_width(1100)
         .default_height(740)
-        .content(&toolbar)
+        .content(&{
+            let overlay = gtk::Overlay::builder().child(&toolbar).build();
+            overlay.add_overlay(loader.widget());
+            overlay
+        })
         .build();
     window.add_css_class("c64-font");
 
@@ -102,7 +163,7 @@ pub fn build_ui(app: &adw::Application) {
     let refresh_action = gio::SimpleAction::new("refresh", None);
     refresh_action.connect_activate(|_, _| {
         glib::spawn_future_local(async move {
-            if let Err(e) = crate::task::run_blocking(breadbin_core::games::refresh).await {
+            if let Err(e) = crate::task::run_blocking(|| breadbin_core::games::refresh(&mut |_| {})).await {
                 eprintln!("catalogue refresh failed: {e}");
             }
         });

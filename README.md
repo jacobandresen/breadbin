@@ -1,37 +1,93 @@
 # Breadbin
 
-A native Commodore 64 kiosk for Linux.
+**Your Commodore 64, on a shelf.** Breadbin is a native Linux app that turns
+a pile of `.d64` files into a cover-art kiosk. It also browses the demoscene
+and plays the best SID music ever written, with the visuals to go with it.
 
-Named after the "breadbin" — the classic beige C64 case shape.
+It's named after the "breadbin", the beige case that sat on desks in a
+million bedrooms, and it's styled after that hardware. The header is the
+case, the cards are keycaps, the Commodore rainbow stripe runs through it,
+and the text is a C64 pixel font. Pick a game and it boots in VICE:
+`LOAD"*",8,1` without the typing.
 
+![The Games tab: genre shelves of box art](docs/images/games.png)
 
-## What it does
+## A tour
 
-Breadbin turns your C64 collection into a cover-art kiosk organised by genre,
-with a demoscene browser and a SID music player — all styled with the authentic
-Pepto VIC-II colour palette.
+### Games
 
-| Tab | What it shows |
-| --- | --- |
-| **Games** | One horizontal strip per genre; click a cover to see details and play. Genres with more than 8 entries get a **Show All** button that slides open a full grid. |
-| **Demos** | Same kiosk layout, grouped by demoparty (data from CSDb). |
-| **Tunes** | SID music jukebox with a live oscilloscope visualiser. |
+Your collection and the C64 classics, ranked by GameBase64 ratings and how
+often the Internet Archive's copy gets downloaded. Shelves for *latest
+played*, the GameBase64 *classics*, curated collections and every genre.
+Joystick games carry a joystick badge and top-rated ones a star. Genres
+with more than eight games get **Show All**, which slides open the full grid.
 
-Click any card to open a detail dialog with the full box art, metadata, and
-**Play** / **Download** buttons.
+Click a cover for the box art and **Play**. Games you don't own yet get
+**Download**: breadbin fetches them from the Internet Archive and they land
+in your collection.
+
+![A game's detail dialog with Play and Hide](docs/images/game-detail.png)
+
+### Tunes
+
+A SID jukebox of CSDb's highest-rated music, grouped by the party where each
+tune was released. Breadbin downloads each SID before the row lights up, so
+every ▶ plays and dead links show a ✕ instead of an error. While a tune
+plays, the now-playing card shows what CSDb knows about it: the release
+screenshot, the composer's real name and country, the party and compo
+placing, the SID chip, and the group and its slogan.
+
+![The Tunes tab playing a SID with the Twister visualiser](docs/images/tunes.png)
+
+The visualiser is a real 320×200 C64 framebuffer in the Pepto palette. The
+border flashes on the beat and each of the SID's three voices drives its own
+raster bars. There are three effects, each a nod to a classic demo:
+
+- **Twister**, for Oxyron's *Comaland*: a raster twister with a sine scroller of greetings
+- **Filled Vectors**, for Booze Design's *Edge of Disgrace*: a shaded polyhedron over a checkerboard floor
+- **Char Plasma**, for Crest & Oxyron's *Deus Ex Machina*: a PETSCII-style plasma with SID raster bars
+
+![The three visualisers: Twister, Filled Vectors and Char Plasma](docs/images/visualisers.png)
+
+### Demos
+
+The same shelves for the demoscene, grouped by demoparty, from CSDb's
+top-rated demos. Click one to download it and run it in VICE.
+
+![The Demos tab, grouped by party](docs/images/demos.png)
+
+### Scene
+
+Search CSDb's releases by name or with filters such as `type:demo year:1994`
+or `group:oxyron`. Your local cache answers first. When it has few hits,
+breadbin asks csdb.dk itself, streams the results in and caches them, so the
+same search works offline next time.
+
+![Searching the Scene tab for Edge of Disgrace](docs/images/scene.png)
+
+### Loading screen
+
+Breadbin starts on a C64 tape-loader screen, with flickering raster stripes
+in the border and a time-left estimate. The estimate comes from how long each
+step took on your last start. On a fresh install the same screen walks you
+through the first-run catalogue build, from the GameBase64 download to the
+Internet Archive scan.
+
+![The loading screen with its time-left estimate](docs/images/loading.png)
 
 ## Requirements
 
 | Dependency | Purpose |
 | --- | --- |
-| [VICE](https://vice-emu.sourceforge.io/) (`x64sc`) | Launching games and demos |
+| [C64 Forever](https://www.c64forever.com/) | The licensed Commodore ROMs and the VICE build that plays games and demos (breadbin never downloads ROMs) |
 | GTK 4 + libadwaita | UI toolkit (usually pre-installed on modern desktops) |
 
-C64 Forever is optional — breadbin detects it automatically and uses it for ROM
-support when present. Without it, VICE's bundled free ROMs are used.
+Breadbin finds C64 Forever's bundled VICE automatically when it's installed
+under wine at `/opt/wine/.wine`. Browsing, downloading and the SID player all
+work without it. Only **Play** needs it.
 
-Point breadbin at your game collection with the `C64_LIB` environment variable
-(default `~/Games/Commodore/C64`):
+Point breadbin at your game collection with `C64_LIB` (default
+`~/Games/Commodore/C64`):
 
 ```sh
 export C64_LIB="/path/to/your/c64/games"
@@ -88,35 +144,41 @@ cargo build          # debug build — no --release needed
 
 ## How data is managed
 
-Breadbin stores everything in `~/.breadbin/` (override with `BREADBIN_HOME`).
-On first run it downloads and builds the indexes it needs — nothing is bundled
-in the binary or the package:
+Breadbin keeps everything in `~/.breadbin/` (override with `BREADBIN_HOME`).
+Nothing is bundled. The first run downloads and builds what it needs, and
+everything after that is cached:
 
 | File / folder | Contents |
 | --- | --- |
-| `c64_index.tsv` | Ranked game catalogue (GameBase64 + Internet Archive) |
-| `gb64.sqlitedb` | GameBase64 database (~17 MB, cached once) |
+| `c64_index.tsv`, `ia_index.tsv` | Ranked game catalogue (GameBase64 + Internet Archive) |
+| `gb64.sqlitedb` | GameBase64 database (~17 MB, downloaded once) |
 | `covers/` + `covers_index.tsv` | Box-art thumbnails (Libretro set) |
-| `demos_index.json` | Demoscene index from CSDb |
-| `sids/` | SID music files |
+| `demos_index.tsv`, `demos/` | Demoscene catalogue and downloads |
+| `tunes_index.tsv`, `sids/`, `tune_info/` | SID catalogue, verified SID files, CSDb details and screenshots |
+| `csdb_cache_diesel.sqlite` | Searchable CSDb release cache |
+| `played.tsv`, `hidden.tsv`, `downloaded.tsv` | Your play history, hidden games and downloads |
+| `startup_timings.tsv` | How long each start-up step took, for the loading screen's estimate |
 
-Use **Refresh catalogue** in Preferences to rebuild the game index.
+Use **Refresh catalogue** in the header menu (☰) to rebuild the game index,
+and **Sync CSDb data** to refresh the release cache.
 
 ## Configuration
 
-Open **Preferences** (the gear icon in the header bar) to set:
+Launch options are GSettings keys:
 
-- Path to your C64 game collection
-- C64 Forever ROM directory
-- Launch options: warp speed, fullscreen, drive sound
+```sh
+gsettings set io.github.jacobandresen.Breadbin warp false               # load at authentic speed
+gsettings set io.github.jacobandresen.Breadbin fullscreen-launch false  # run VICE in a window
+gsettings set io.github.jacobandresen.Breadbin drive-sound false        # silence the 1541
+```
 
 ## Command line
 
 The CSDb cache can also be managed without the GUI:
 
 ```sh
-breadbin sync [--count N]          # cache the top N CSDb demos and music (default 100)
-breadbin search <query> [--limit N]
+breadbin sync [--count N]                     # cache the top N CSDb demos and music (default 100)
+breadbin search <query> [--limit N] [--online] # search the cache, or csdb.dk with --online
 breadbin has-data
 ```
 
@@ -128,12 +190,14 @@ breadbin has-data
 | `C64_VIRTUAL_DRIVE=1` / `=0` | Force VICE's virtual drive / True Drive Emulation. By default breadbin uses the virtual drive when no 1541 ROM is installed |
 | `C64_JOYSTICK=1` / `=0` | Override joystick detection |
 
-## Where games come from
+## Credits
 
-When a game isn't in your collection, clicking **Download** in the detail dialog
-fetches it from public preservation archives:
+Game data comes from [GameBase64](https://www.gb64.com/), the
+[Internet Archive](https://archive.org/details/softwarelibrary_c64) and the
+[Libretro thumbnails](https://github.com/libretro-thumbnails/Commodore_-_64).
+Scene data comes from [CSDb](https://csdb.dk/). Thanks to everyone who keeps
+the C64 preserved.
 
-- **Internet Archive** — `softwarelibrary_c64` cracked disk dumps
-- **Ultimate Tape Archive** — tape preservation
-
-Downloads land in your collection automatically.
+The [Sixtyfour](https://github.com/jenskutilek/homecomputer-fonts) font by Jens
+Kutílek is embedded under the SIL Open Font License
+(`crates/breadbin-gui/data/fonts/OFL.txt`).

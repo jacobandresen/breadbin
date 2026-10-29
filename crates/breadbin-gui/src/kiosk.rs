@@ -9,6 +9,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::config::Settings;
+use crate::loading;
 use crate::task::run_blocking;
 
 extern crate async_channel;
@@ -41,7 +42,9 @@ impl BadgeSets {
     }
 }
 
-fn texture_from_path(path: &std::path::Path, badges: Badges) -> Option<gdk::Texture> {
+/// Decode a cover and draw its badges. Pure CPU work, so card loaders run it
+/// on a worker thread and only build the texture on the main thread.
+fn decode_cover(path: &std::path::Path, badges: Badges) -> Option<image::RgbaImage> {
     let mut rgba = image::open(path).ok()?.to_rgba8();
     if badges.top_rated {
         breadbin_core::cover::draw_rating_badge(&mut rgba);
@@ -49,6 +52,14 @@ fn texture_from_path(path: &std::path::Path, badges: Badges) -> Option<gdk::Text
     if badges.joystick {
         breadbin_core::cover::draw_joystick_badge(&mut rgba);
     }
+    Some(rgba)
+}
+
+fn texture_from_path(path: &std::path::Path, badges: Badges) -> Option<gdk::Texture> {
+    decode_cover(path, badges).map(texture_from_rgba)
+}
+
+fn texture_from_rgba(rgba: image::RgbaImage) -> gdk::Texture {
     let (w, h) = rgba.dimensions();
     let bytes = glib::Bytes::from_owned(rgba.into_raw());
     let tex = gdk::MemoryTexture::new(
@@ -58,7 +69,7 @@ fn texture_from_path(path: &std::path::Path, badges: Badges) -> Option<gdk::Text
         &bytes,
         w as usize * 4,
     );
-    Some(tex.upcast())
+    tex.upcast()
 }
 
 // ── Card widget ───────────────────────────────────────────────────────────────
@@ -341,13 +352,14 @@ fn build_game_card(
     let cidx2 = cidx.clone();
     let row_clone = row.clone();
     let pic = card.picture.clone();
+    let cover_done = cover_done.or_else(|| STARTUP_COVERS.with(|c| c.borrow().clone()));
     glib::spawn_future_local(async move {
-        let cover_path =
-            run_blocking(move || games::cover_for(&row_clone, &cidx2)).await;
-        if let Some(path) = &cover_path {
-            if let Some(texture) = texture_from_path(path, badges) {
-                pic.set_paintable(Some(&texture));
-            }
+        let rgba = run_blocking(move || {
+            games::cover_for(&row_clone, &cidx2).and_then(|p| decode_cover(&p, badges))
+        })
+        .await;
+        if let Some(rgba) = rgba {
+            pic.set_paintable(Some(&texture_from_rgba(rgba)));
         }
         if let Some(tx) = cover_done {
             tx.send(()).await.ok();
@@ -419,10 +431,11 @@ fn build_genre_section(
     let strip_scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Automatic)
         .vscrollbar_policy(gtk::PolicyType::Never)
+        .propagate_natural_height(true)
         .build();
     let strip_box = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
-        .spacing(5)
+        .spacing(8)
         .hexpand(true)
         .build();
 
@@ -601,8 +614,42 @@ fn build_genre_section(
 
 // ── Main build function ───────────────────────────────────────────────────────
 
-fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: Rc<dyn Fn()>) {
-    // Show a spinner while loading
+thread_local! {
+    /// While the start-up screen waits for the first covers, strip cards report here.
+    static STARTUP_COVERS: RefCell<Option<async_channel::Sender<()>>> = const { RefCell::new(None) };
+}
+
+/// The phases of start-up, in order, as shown on the loading screen. The first
+/// three only run on a fresh install, to build the catalogue.
+pub static STARTUP_PHASES: [loading::Phase; 8] = [
+    loading::Phase { key: "gamebase", label: "Downloading GameBase64", default_secs: 15.0 },
+    loading::Phase { key: "archive", label: "Scanning the Internet Archive", default_secs: 90.0 },
+    loading::Phase { key: "index", label: "Matching your collection", default_secs: 3.0 },
+    loading::Phase { key: "catalogue", label: "Searching for games", default_secs: 0.3 },
+    loading::Phase { key: "sections", label: "Sorting the shelves", default_secs: 0.5 },
+    loading::Phase { key: "badges", label: "Reading GameBase64 ratings", default_secs: 0.3 },
+    loading::Phase { key: "shelves", label: "Building shelves", default_secs: 1.5 },
+    loading::Phase { key: "covers", label: "Loading cover art", default_secs: 2.0 },
+];
+
+/// The first phase this start will run.
+pub fn first_startup_phase() -> &'static str {
+    if games::has_catalogue() { "catalogue" } else { "gamebase" }
+}
+
+/// Covers the loading screen waits for: about one screenful.
+const STARTUP_COVER_TARGET: usize = 24;
+/// Never hold the loading screen longer than this for covers.
+const STARTUP_COVER_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+fn populate(
+    outer: &gtk::Box,
+    launch_opts: Option<run::LaunchOpts>,
+    on_refresh: Rc<dyn Fn()>,
+    startup: Option<async_channel::Sender<loading::Msg>>,
+) {
+    use loading::Msg;
+    // Show a spinner while loading (behind the start-up screen on first load)
     while let Some(child) = outer.first_child() {
         outer.remove(&child);
     }
@@ -614,21 +661,53 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
 
     let outer_weak = outer.downgrade();
     glib::spawn_future_local(async move {
-        let (rows, cidx, sections, badge_sets) =
-            run_blocking(|| {
-                let all_rows = games::load_rows();
-                let hidden = games::load_hidden();
-                let rows: Vec<games::Row> = all_rows
-                    .into_iter()
-                    .filter(|r| !hidden.contains(&r.display))
-                    .collect();
-                let cidx = cover::load_index();
-                let sections = games::sections(&rows);
-                (rows, cidx, sections, BadgeSets::load())
-            })
-            .await;
+        let report = startup.clone();
+        let (rows, cidx, sections, badge_sets) = run_blocking(move || {
+            let say = |m: Msg| {
+                if let Some(tx) = &report {
+                    let _ = tx.send_blocking(m);
+                }
+            };
+            if report.is_some() && !games::has_catalogue() {
+                // Fresh install: build the catalogue first.
+                let mut scanning = false;
+                let built = games::refresh(&mut |stage| match stage {
+                    games::RefreshStage::GameBase => say(Msg::Phase("gamebase")),
+                    games::RefreshStage::Archive(done, total) => {
+                        if !scanning {
+                            scanning = true;
+                            say(Msg::Phase("archive"));
+                        }
+                        say(Msg::Step(done, total));
+                    }
+                    games::RefreshStage::Index => say(Msg::Phase("index")),
+                });
+                if let Err(e) = built {
+                    eprintln!("first-run catalogue build failed: {e}");
+                }
+            }
+            say(Msg::Phase("catalogue"));
+            let all_rows = games::load_rows();
+            let hidden = games::load_hidden();
+            let rows: Vec<games::Row> = all_rows
+                .into_iter()
+                .filter(|r| !hidden.contains(&r.display))
+                .collect();
+            let cidx = cover::load_index();
+            say(Msg::Phase("sections"));
+            let sections = games::sections(&rows);
+            say(Msg::Phase("badges"));
+            (rows, cidx, sections, BadgeSets::load())
+        })
+        .await;
+        let done = || {
+            if let Some(tx) = &startup {
+                let _ = tx.send_blocking(Msg::Done);
+            }
+        };
 
         let Some(outer) = outer_weak.upgrade() else {
+            done();
             return;
         };
 
@@ -643,6 +722,7 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
                 .description("Use Refresh catalogue to download the game list.")
                 .build();
             outer.append(&status);
+            done();
             return;
         }
 
@@ -660,7 +740,16 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
             .margin_end(10)
             .build();
 
-        for (section_name, row_indices) in &sections {
+        // Strip cards report finished covers while the start-up screen is up.
+        let (cover_tx, cover_rx) = async_channel::unbounded::<()>();
+        if startup.is_some() {
+            STARTUP_COVERS.with(|c| *c.borrow_mut() = Some(cover_tx));
+            if let Some(tx) = &startup {
+                let _ = tx.send(Msg::Phase("shelves")).await;
+            }
+        }
+        let total = sections.len() as u64;
+        for (i, (section_name, row_indices)) in sections.iter().enumerate() {
             let section = build_genre_section(
                 section_name,
                 row_indices,
@@ -671,15 +760,45 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
                 on_refresh.clone(),
             );
             content.append(&section);
+            if let Some(tx) = &startup {
+                let _ = tx.send(Msg::Step(i as u64 + 1, total)).await;
+                // Let the loading screen repaint between shelves.
+                glib::timeout_future(std::time::Duration::ZERO).await;
+            }
         }
 
         scrolled.set_child(Some(&content));
         outer.append(&scrolled);
+
+        if let Some(tx) = &startup {
+            STARTUP_COVERS.with(|c| c.borrow_mut().take());
+            let target = sections
+                .iter()
+                .map(|(_, idxs)| idxs.len().min(STRIP_MAX))
+                .sum::<usize>()
+                .min(STARTUP_COVER_TARGET) as u64;
+            let _ = tx.send(Msg::Phase("covers")).await;
+            let deadline = std::time::Instant::now() + STARTUP_COVER_WAIT;
+            let mut loaded = 0;
+            while loaded < target {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                match glib::future_with_timeout(left, cover_rx.recv()).await {
+                    Ok(Ok(())) => loaded += 1,
+                    _ => break, // out of time, or every card has reported
+                }
+                let _ = tx.send(Msg::Step(loaded, target)).await;
+            }
+            done();
+        }
     });
 }
 
 /// Returns the kiosk widget and a refresh callback (to rebuild after hide/unhide).
-pub fn build(settings: &Settings) -> (gtk::Widget, Rc<dyn Fn()>) {
+/// `startup` receives loading-screen progress for the first load.
+pub fn build(
+    settings: &Settings,
+    startup: Option<async_channel::Sender<loading::Msg>>,
+) -> (gtk::Widget, Rc<dyn Fn()>) {
     let launch_opts = settings.launch_opts();
 
     let outer = gtk::Box::builder()
@@ -694,12 +813,12 @@ pub fn build(settings: &Settings) -> (gtk::Widget, Rc<dyn Fn()>) {
     let real_refresh: Rc<dyn Fn()> = Rc::new(move || {
         if let Some(o) = outer_weak.upgrade() {
             let cb = cell_clone.borrow().clone();
-            populate(&o, launch_opts_clone.clone(), cb);
+            populate(&o, launch_opts_clone.clone(), cb, None);
         }
     });
     *on_refresh_cell.borrow_mut() = real_refresh.clone();
 
-    populate(&outer, launch_opts, real_refresh.clone());
+    populate(&outer, launch_opts, real_refresh.clone(), startup);
 
     (outer.upcast(), real_refresh)
 }

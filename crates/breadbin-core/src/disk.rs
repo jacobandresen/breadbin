@@ -500,7 +500,9 @@ fn gb64_meta() -> Result<HashMap<String, (i64, String)>, String> {
     Ok(out)
 }
 
-pub fn build_ia_index() -> Result<(), String> {
+/// Rebuild ia_index.tsv. `progress(scanned, total)` is called after each page of
+/// the Internet Archive scan, once GameBase64 (downloaded on first use) is loaded.
+pub fn build_ia_index(progress: &mut dyn FnMut(u64, u64)) -> Result<(), String> {
     eprintln!("loading GameBase64 ratings + genres ...");
     let meta = gb64_meta()?;
     eprintln!("games with details: {}  ·  scanning IA collection ({COLL}) ...", meta.len());
@@ -548,6 +550,7 @@ pub fn build_ia_index() -> Result<(), String> {
             }
         }
         bar.set(seen);
+        progress(seen, total.max(seen));
         cursor = json["cursor"].as_str().map(String::from);
         if cursor.is_none() {
             break;

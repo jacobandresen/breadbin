@@ -5,9 +5,11 @@ mod cli;
 mod config;
 mod demos;
 mod kiosk;
+mod loading;
 mod scene;
 mod task;
 mod tunes;
+mod viz;
 
 use adw::prelude::*;
 use std::process::ExitCode;

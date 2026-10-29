@@ -41,20 +41,25 @@ pub fn handle_cli_args() -> Option<ExitCode> {
 /// Handle the search command
 fn handle_search_command(args: &[String]) -> ExitCode {
     if args.is_empty() {
-        eprintln!("Usage: breadbin search <query> [--limit N]");
+        eprintln!("Usage: breadbin search <query> [--limit N] [--online]");
         eprintln!("Search CSDb releases by name.");
         eprintln!();
         eprintln!("Options:");
         eprintln!("  --limit N    Maximum number of results to return (default: 10)");
+        eprintln!("  --online     Search csdb.dk itself and cache the hits");
         return ExitCode::from(1);
     }
     
     let mut query = String::new();
     let mut limit: usize = 10;
+    let mut online = false;
     let mut i = 0;
     
     while i < args.len() {
-        if args[i].starts_with("--limit") && i + 1 < args.len() {
+        if args[i] == "--online" {
+            online = true;
+            i += 1;
+        } else if args[i].starts_with("--limit") && i + 1 < args.len() {
             if let Ok(n) = args[i + 1].parse::<usize>() {
                 limit = n;
                 i += 2;
@@ -77,7 +82,13 @@ fn handle_search_command(args: &[String]) -> ExitCode {
         return ExitCode::from(1);
     }
     
-    match csdb::search_csdb(&query, limit) {
+    let results = if online {
+        csdb::search_online(&query, limit)
+            .map(|rs| rs.into_iter().map(|r| (r.id, r.name)).collect())
+    } else {
+        csdb::search_csdb(&query, limit)
+    };
+    match results {
         Ok(results) => {
             if results.is_empty() {
                 println!("No results found for: {}", query);
@@ -155,7 +166,8 @@ fn handle_help_command() -> ExitCode {
     println!();
     println!("Usage:");
     println!("  breadbin                             Launch the GUI");
-    println!("  breadbin search <query> [--limit N]  Search cached CSDb releases (default 10)");
+    println!("  breadbin search <query> [--limit N] [--online]");
+    println!("                                       Search CSDb releases (cached, or csdb.dk with --online)");
     println!("  breadbin sync [--count N]            Sync the top N CSDb demos and music (default 100)");
     println!("  breadbin has-data                    Check if CSDb data is cached");
     println!("  breadbin help                        Show this help message");
