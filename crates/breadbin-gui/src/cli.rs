@@ -1,10 +1,9 @@
-// cli - Command-line interface for breadbin
-//
-// This module provides CLI commands for breadbin, allowing it to be used
-// from the command line in addition to the GUI.
+// cli - command-line subcommands for the CSDb cache; with none, the GUI starts.
 
 use std::env;
 use std::process::ExitCode;
+
+use breadbin_core::csdb;
 
 /// Handle CLI commands if present, otherwise return None to start GUI
 pub fn handle_cli_args() -> Option<ExitCode> {
@@ -19,25 +18,22 @@ pub fn handle_cli_args() -> Option<ExitCode> {
     let sub_args: Vec<String> = args[2..].to_vec();
     
     match command.as_str() {
-        "search" | "csdb-search" | "scene-search" => {
+        "search" => {
             Some(handle_search_command(&sub_args))
         }
-        "sync" | "csdb-sync" | "scene-sync" => {
+        "sync" => {
             Some(handle_sync_command(&sub_args))
         }
-        "has-data" | "csdb-has-data" => {
+        "has-data" => {
             Some(handle_has_data_command())
         }
         "help" | "--help" | "-h" => {
             Some(handle_help_command())
         }
         _ => {
-            // Unknown command or no command - check if any args were given
-            if command.starts_with('-') {
-                Some(handle_help_command())
-            } else {
-                None // Start GUI
-            }
+            eprintln!("unknown command: {command}");
+            handle_help_command();
+            Some(ExitCode::from(2))
         }
     }
 }
@@ -81,7 +77,7 @@ fn handle_search_command(args: &[String]) -> ExitCode {
         return ExitCode::from(1);
     }
     
-    match crate::scene::search(&query, limit) {
+    match csdb::search_csdb(&query, limit) {
         Ok(results) => {
             if results.is_empty() {
                 println!("No results found for: {}", query);
@@ -101,7 +97,7 @@ fn handle_search_command(args: &[String]) -> ExitCode {
 
 /// Handle the sync command
 fn handle_sync_command(args: &[String]) -> ExitCode {
-    // Parse optional --count argument (currently ignored as sync_database uses hardcoded 100)
+    // --count N: how many top demos (and top music releases) to sync
     let mut count: usize = 100;
     let mut i = 0;
     
@@ -124,16 +120,7 @@ fn handle_sync_command(args: &[String]) -> ExitCode {
     
     println!("Syncing top {} releases from CSDb...", count);
     
-    // Create a tokio runtime for the sync operation
-    let rt = match tokio::runtime::Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => {
-            eprintln!("Failed to create runtime: {}", e);
-            return ExitCode::from(1);
-        }
-    };
-    
-    match rt.block_on(async { crate::scene::sync_database().await }) {
+    match csdb::sync_top_releases(count) {
         Ok(stats) => {
             println!("Synced {} releases", stats.releases_fetched);
             if !stats.errors.is_empty() {
@@ -153,7 +140,7 @@ fn handle_sync_command(args: &[String]) -> ExitCode {
 
 /// Handle the has-data command
 fn handle_has_data_command() -> ExitCode {
-    if crate::scene::has_data() {
+    if csdb::has_csdb_data() {
         println!("CSDb data is available");
         ExitCode::SUCCESS
     } else {
@@ -167,16 +154,10 @@ fn handle_help_command() -> ExitCode {
     println!("breadbin - Commodore 64 kiosk and CSDb browser");
     println!();
     println!("Usage:");
-    println!("  breadbin                          Launch the GUI");
-    println!("  breadbin search <query>           Search CSDb releases");
-    println!("  breadbin sync                    Sync CSDb data to local database");
-    println!("  breadbin has-data                Check if CSDb data is available");
-    println!("  breadbin help                    Show this help message");
-    println!();
-    println!("GUI Options:");
-    println!("  Once the GUI is running, use the menu to:");
-    println!("  - Refresh catalogue");
-    println!("  - Sync CSDb data");
-    println!("  - Switch between Games, Tunes, Demos, and Scene views");
+    println!("  breadbin                             Launch the GUI");
+    println!("  breadbin search <query> [--limit N]  Search cached CSDb releases (default 10)");
+    println!("  breadbin sync [--count N]            Sync the top N CSDb demos and music (default 100)");
+    println!("  breadbin has-data                    Check if CSDb data is cached");
+    println!("  breadbin help                        Show this help message");
     ExitCode::SUCCESS
 }

@@ -1,14 +1,11 @@
-// tui - shared data model and actions for the two terminal UIs (c64menu and
-// c64kiosk). In the Python toolkit these helpers lived in c64menu and were
-// imported into c64kiosk via importlib; here they collapse into one module:
-// loading the ranked index, grouping by genre, resolving covers, recording and
-// replaying the play history, downloading-on-demand, and launching games.
+// games - the game library behind the Games tab: loading the ranked index,
+// grouping it into kiosk sections, resolving covers, the hidden list and play
+// history, and downloading games on demand.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
-use crate::{build_index, core, cover, disk, info, run};
+use crate::{build_index, core, cover, disk, gb64};
 
 /// Genre bucket for rows that carry no genre.
 pub const GENRE_OTHER: &str = "Other";
@@ -75,8 +72,7 @@ pub fn set_hidden(display: &str, hide: bool) {
     let _ = std::fs::write(hidden_path(), content);
 }
 
-/// Load every ranked game from c64_index.tsv (rows with < 5 fields are skipped,
-/// mirroring c64menu.load_rows).
+/// Load every ranked game from c64_index.tsv (rows with < 5 fields are skipped).
 pub fn load_rows() -> Vec<Row> {
     let mut rows = Vec::new();
     let Ok(text) = std::fs::read_to_string(index_path()) else {
@@ -101,7 +97,7 @@ pub fn load_rows() -> Vec<Row> {
 }
 
 /// Canonical cover key for a row, matching the catalogue's canon so the libretro
-/// boxart lookup lines up (c64disk.game_title applied to the row's query).
+/// boxart lookup lines up.
 pub fn canon_of(row: &Row) -> String {
     disk::game_title(&row.query)
 }
@@ -140,13 +136,15 @@ pub fn group_by_genre(rows: &[Row]) -> Vec<(String, Vec<usize>)> {
 /// predicate on the `Games` table), for matching rows via [`canon_of`]. Empty if
 /// the GB64 database can't be read.
 fn canons_where(where_clause: &str) -> HashSet<String> {
-    let con = info::connect();
     let mut set = HashSet::new();
+    let Ok(con) = gb64::connect() else {
+        return set;
+    };
     let sql = format!("SELECT Name FROM Games WHERE Name <> '' AND ({where_clause})");
     let Ok(mut stmt) = con.prepare(&sql) else {
         return set;
     };
-    let Ok(rows) = stmt.query_map([], |r| Ok(info::decode_text(r.get_ref(0)?))) else {
+    let Ok(rows) = stmt.query_map([], |r| Ok(gb64::decode_text(r.get_ref(0)?))) else {
         return set;
     };
     for name in rows.flatten().flatten() {
@@ -247,124 +245,127 @@ pub fn recent_plays(limit: Option<usize>) -> Vec<String> {
     order
 }
 
-/// Re-pull the ranked IA catalogue, then rebuild c64_index.tsv. Spawns the same
-/// binary as `disk --ia-index` and `index`, mirroring c64menu.refresh(). This is
-/// also the first-run bootstrap that fills a fresh user data directory.
+/// Re-pull the ranked IA catalogue, then rebuild c64_index.tsv. This is also the
+/// first-run bootstrap that fills a fresh user data directory.
 pub fn refresh() -> Result<(), String> {
-    // build_ia_index reports its own errors to stderr and returns an ExitCode we can't
-    // introspect; run it then rebuild the ranked index.
-    let _ = disk::build_ia_index();
-    build_index::build();
-    Ok(())
+    disk::build_ia_index()?;
+    build_index::build()
 }
 
 /// Resolve a local disk path for a row, downloading from the Internet Archive if
-/// needed (direct library calls; no subprocess). Returns None if the download
-/// produced no matching disk.
-pub fn resolve(row: &Row, _quiet: bool) -> Option<PathBuf> {
-    if row.is_local() {
-        return Some(PathBuf::from(&row.target));
+/// needed, then rebuild the index so the row shows as local. Returns None if the
+/// download produced no matching disk.
+pub fn resolve(row: &Row) -> Option<PathBuf> {
+    let path = download(row);
+    if !row.is_local() {
+        let _ = build_index::build();
     }
-    let dest = disk::dest_default();
-    let path: Option<PathBuf> = if !row.ident.is_empty() {
-        disk::download_by_id(&row.ident, &dest)
-    } else {
-        disk::download_query(&row.query, &["ia".to_string()], &dest)
-            .into_iter()
-            .next()
-    };
-    // refresh local/available state
-    build_index::build();
-
-    if let Some(p) = path {
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    // fallback: match by title against the rebuilt index
-    for f in load_rows() {
-        if f.title == row.title && f.is_local() {
-            return Some(PathBuf::from(f.target));
-        }
-    }
-    None
+    path.or_else(|| local_by_title(row))
 }
 
-/// Resolve a local disk path for a row, downloading from the Internet Archive if
-/// needed (direct library calls; no subprocess). Unlike `resolve`, this does NOT
-/// rebuild the index afterwards, making it suitable for bulk downloads where the
-/// index should be rebuilt once after all downloads complete.
+/// Like [`resolve`] but without rebuilding the index, for bulk downloads that
+/// rebuild once at the end.
 pub fn resolve_no_rebuild(row: &Row) -> Option<PathBuf> {
+    download(row).or_else(|| local_by_title(row))
+}
+
+fn download(row: &Row) -> Option<PathBuf> {
     if row.is_local() {
         return Some(PathBuf::from(&row.target));
     }
     let dest = disk::dest_default();
-    let path: Option<PathBuf> = if !row.ident.is_empty() {
+    let path = if !row.ident.is_empty() {
         disk::download_by_id(&row.ident, &dest)
     } else {
-        disk::download_query(&row.query, &["ia".to_string()], &dest)
-            .into_iter()
-            .next()
+        disk::download_query(&row.query, &["ia".to_string()], &dest).into_iter().next()
+    };
+    path.filter(|p| p.exists())
+}
+
+/// Fallback: a local game in the index with the same title.
+fn local_by_title(row: &Row) -> Option<PathBuf> {
+    load_rows()
+        .into_iter()
+        .find(|f| f.title == row.title && f.is_local())
+        .map(|f| PathBuf::from(f.target))
+}
+
+/// Synthetic label for the GB64 classics section.
+pub const CLASSICS_GENRE: &str = "classics";
+
+/// Build the ordered list of (section_name, row_indices_into_all) for the
+/// kiosk. The ordering:
+///
+/// 1. Within each genre, sort rows by downloads descending.
+/// 2. Sort genres by their most-downloaded game (descending).
+/// 3. Pin "Arcade" → 0, "Shoot'em Up" → 1, everything else → 2, "Other" → 3.
+/// 4. Prepend curated front sections: latest played, classics, named collections.
+/// 5. Return as a vec of (section_name, row_indices) pairs.
+pub fn sections(all: &[Row]) -> Vec<(String, Vec<usize>)> {
+    let mut groups = group_by_genre(all);
+
+    // Sort each genre internally by downloads descending.
+    for (_, idxs) in groups.iter_mut() {
+        idxs.sort_by_key(|&i| std::cmp::Reverse(all[i].downloads));
+    }
+
+    // Sort genres by their most-downloaded game, descending.
+    groups.sort_by_key(|(_, idxs)| {
+        std::cmp::Reverse(idxs.first().map(|&i| all[i].downloads).unwrap_or(0))
+    });
+
+    // Pin Arcade → 0, Shoot'em Up → 1, Other → 3, everything else → 2.
+    groups.sort_by_key(|(genre, _)| match genre.as_str() {
+        "Arcade" => 0i32,
+        "Shoot'em Up" => 1,
+        g if g == GENRE_OTHER => 3,
+        _ => 2,
+    });
+
+    // Helper: collect rows whose canon matches the given set, sorted by downloads.
+    let members = |canons: &std::collections::HashSet<String>| -> Vec<usize> {
+        let mut idxs: Vec<usize> = all
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| canons.contains(&canon_of(r)))
+            .map(|(i, _)| i)
+            .collect();
+        idxs.sort_by_key(|&i| std::cmp::Reverse(all[i].downloads));
+        idxs
     };
 
-    if let Some(p) = path {
-        if p.exists() {
-            return Some(p);
+    let mut front: Vec<(String, Vec<usize>)> = Vec::new();
+
+    // "latest played" section — most-recently-played first.
+    let recent = recent_plays(None);
+    if !recent.is_empty() {
+        let by_disp: HashMap<&str, usize> =
+            all.iter().enumerate().map(|(i, r)| (r.display.as_str(), i)).collect();
+        let latest: Vec<usize> =
+            recent.iter().filter_map(|d| by_disp.get(d.as_str()).copied()).collect();
+        if !latest.is_empty() {
+            front.push((LATEST_GENRE.to_string(), latest));
         }
     }
-    // fallback: match by title against the current index
-    for f in load_rows() {
-        if f.title == row.title && f.is_local() {
-            return Some(PathBuf::from(f.target));
+
+    // "classics" section (GB64-curated).
+    let classics = classic_canons();
+    if !classics.is_empty() {
+        let idxs = members(&classics);
+        if !idxs.is_empty() {
+            front.push((CLASSICS_GENRE.to_string(), idxs));
         }
     }
-    None
-}
 
-/// Launch a game in-place: spawn the emulator and wait for it to exit, keeping
-/// the caller on its alternate screen (used by the kiosk). C64_QUIET suppresses
-/// c64run's LOAD"*",8,1 banner. Returns Ok(()) when the emulator ran cleanly, or
-/// Err(message) carrying the emulator's own diagnostics (e.g. "no VICE found" or
-/// "?DEVICE NOT PRESENT") so the caller can show *why* a game wouldn't start
-/// rather than silently bouncing back to the grid. stderr is captured for that;
-/// stdout (the emulator's own chatter) is discarded.
-pub fn launch_inplace(target: &str, runopts: &[String]) -> Result<(), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let mut args: Vec<String> = vec!["play".to_string()];
-    args.extend(runopts.iter().cloned());
-    args.push(target.to_string());
-    let out = Command::new(&exe)
-        .args(&args)
-        .env("C64_QUIET", "1")
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| e.to_string())?;
-    if out.status.success() {
-        return Ok(());
+    // Named collections from collections.tsv.
+    for (name, canons) in collections() {
+        let idxs = members(&canons);
+        if !idxs.is_empty() {
+            front.push((name, idxs));
+        }
     }
-    // Surface the tail of stderr (the actual error). VICE often prints the offending
-    // option on one line and "error parsing command line option" on the next, so keep
-    // the last few non-empty lines rather than just one. Fall back to the exit status
-    // when the emulator said nothing.
-    let err = String::from_utf8_lossy(&out.stderr);
-    let mut tail: Vec<&str> = err.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
-    let n = tail.len();
-    tail = tail.split_off(n.saturating_sub(3));
-    if tail.is_empty() {
-        Err(format!("emulator exited with {}", out.status))
-    } else {
-        Err(tail.join("\n"))
-    }
-}
 
-/// Boot a game by replacing this process with the emulator (used by c64menu once
-/// the picker has exited). Records the play first. Only returns on failure.
-pub fn play_exec(target: &str, runopts: &[String], row: Option<&Row>) -> std::process::ExitCode {
-    if let Some(r) = row {
-        record_play(r);
-    }
-    let mut args: Vec<String> = runopts.to_vec();
-    args.push(target.to_string());
-    run::main(args) // execs VICE; only returns on the list-only path / error
+    // Curated sections first, then the genre groups.
+    front.append(&mut groups);
+    front
 }

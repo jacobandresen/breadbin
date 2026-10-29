@@ -124,20 +124,26 @@ fn test_search_by_name_matches_partial() {
 fn test_execute_search_query_filters() {
     setup();
 
-    let mut query = SearchQuery::default();
-    query.years = Some(1992..1993);
+    let query = SearchQuery {
+        years: Some(1992..1993),
+        ..Default::default()
+    };
     let result = execute_search_query(&query).unwrap();
     assert!(result.results.iter().all(|i| i.release.release_year == Some(1992)));
     assert!(result.results.iter().any(|i| i.release.id == 1));
 
-    let mut query = SearchQuery::default();
-    query.min_rating = Some(9.6);
+    let query = SearchQuery {
+        min_rating: Some(9.6),
+        ..Default::default()
+    };
     let result = execute_search_query(&query).unwrap();
     assert!(result.total >= 2);
     assert!(result.results.iter().all(|i| i.release.rating >= 9.6));
 
-    let mut query = SearchQuery::default();
-    query.sceners = vec!["Methos".to_string()];
+    let query = SearchQuery {
+        sceners: vec!["Methos".to_string()],
+        ..Default::default()
+    };
     let result = execute_search_query(&query).unwrap();
     assert!(result.results.iter().any(|i| i.release.id == 1));
 }
@@ -145,8 +151,10 @@ fn test_execute_search_query_filters() {
 #[test]
 fn test_search_pagination() {
     setup();
-    let mut query = SearchQuery::default();
-    query.limit = 1;
+    let mut query = SearchQuery {
+        limit: 1,
+        ..Default::default()
+    };
     let page1 = execute_search_query(&query).unwrap();
     assert_eq!(page1.results.len(), 1);
     assert!(page1.total >= 3);

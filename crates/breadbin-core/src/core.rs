@@ -1,6 +1,5 @@
-// core - shared helpers for the breadbin tools (was spread across the Python
-// scripts and loaded via importlib). Title normalisation, data-file location,
-// HTTP fetch, and a recursive file walk.
+// core - shared helpers: the C64 palette, title normalisation, data-file
+// location, HTTP fetch, URL quoting, fuzzy matching and a recursive file walk.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -9,9 +8,8 @@ use regex::{Captures, Regex};
 
 const UA: &str = "breadbin/1.0";
 
-/// The Commodore 64 colour palette (Pepto values), shared across breadbin's
-/// terminal UIs so the kiosk, menu, tunes jukebox and demo browser all render in
-/// the same authentic hues. These are the RGBs the C64's VIC-II produces; the
+/// The Commodore 64 colour palette (Pepto values), shared so the games kiosk,
+/// tunes jukebox and demo browser all render in the same authentic hues. These are the RGBs the C64's VIC-II produces; the
 /// default text-mode look is [`palette::LIGHTBLUE`] text on a [`palette::SCREEN`]
 /// background.
 pub mod palette {
@@ -46,8 +44,7 @@ pub mod palette {
 /// covers/, …). A published, standalone binary owns this directory: on first run
 /// it downloads/builds every file it needs here, so no repo or bundled assets are
 /// required. Defaults to the user data directory (see [`user_data_dir`]); set
-/// `BREADBIN_HOME` to point at an existing data set (e.g. the source repo to
-/// share files with the Python tools during the port).
+/// `BREADBIN_HOME` to point at an existing data set.
 pub fn data_dir() -> PathBuf {
     if let Some(home) = std::env::var_os("BREADBIN_HOME") {
         return PathBuf::from(home);
@@ -63,11 +60,6 @@ pub fn data_path(name: &str) -> PathBuf {
 /// Directory for cache files. Defaults to user data directory cache subdirectory.
 pub fn cache_dir() -> PathBuf {
     user_data_dir().join("cache")
-}
-
-/// A path inside the cache directory.
-pub fn cache_path(name: &str) -> PathBuf {
-    cache_dir().join(name)
 }
 
 /// Directory for mutable user data (downloads, caches). Defaults to
@@ -107,8 +99,8 @@ fn re(pattern: &str) -> Regex {
 
 /// Canonicalise a title to a comparison key: lowercase, expand a few
 /// abbreviations and roman numerals, drop articles, strip non-alphanumerics.
-/// Must stay byte-for-byte compatible with build_index.norm in Python — every
-/// match in the toolkit keys off it.
+/// Every title match in breadbin keys off this, so changing it invalidates
+/// existing indexes.
 pub fn norm(s: &str) -> String {
     static ABBREV: OnceLock<Regex> = OnceLock::new();
     static ROMAN: OnceLock<Regex> = OnceLock::new();
@@ -156,13 +148,7 @@ pub fn norm(s: &str) -> String {
     nonalnum.replace_all(&s, "").into_owned()
 }
 
-/// Cleaned leading-title key: drop a "Subtitle" after ":" or " - ", then norm.
-pub fn title_key(name: &str) -> String {
-    norm(split_before(name, r":| - "))
-}
-
 /// The substring of `s` before the first match of `pattern` (or all of `s`).
-/// Mirrors Python's `re.split(pattern, s, maxsplit=1)[0]`.
 pub fn split_before<'a>(s: &'a str, pattern: &str) -> &'a str {
     static CACHE: OnceLock<std::sync::Mutex<std::collections::HashMap<String, Regex>>> =
         OnceLock::new();
@@ -173,11 +159,6 @@ pub fn split_before<'a>(s: &'a str, pattern: &str) -> &'a str {
         Some(m) => &s[..m.start()],
         None => s,
     }
-}
-
-/// True if `cmd` is an executable on PATH (used to gate optional tools like fzf).
-pub fn command_exists(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
 }
 
 /// Sanitize a field for single-line TSV storage: tabs/newlines to spaces, trimmed.
@@ -193,16 +174,6 @@ pub fn ellipsize(s: &str, max: usize) -> String {
     let cut: String = s.chars().take(max.saturating_sub(1)).collect();
     format!("{cut}\u{2026}")
 }
-
-/// Uppercase `s` with a space between every character, for letter-spaced headings.
-pub fn spaced_upper(s: &str) -> String {
-    s.to_uppercase()
-        .chars()
-        .map(|c| c.to_string())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 
 /// Group item indices by their party series, returning `(party, indices)` sections
 /// with each party's best `top_per_party` items (ranked by `rating_of`, highest
@@ -442,7 +413,7 @@ impl Progress {
     }
 }
 
-/// Percent-encode like Python's urllib.parse.quote (default safe="/").
+/// Percent-encode everything except unreserved characters and "/".
 pub fn quote(s: &str) -> String {
     quote_with(s, b"/")
 }
@@ -493,10 +464,10 @@ fn quote_plus(s: &str) -> String {
     quote_with(s, b" ").replace(' ', "+")
 }
 
-/// Python difflib.SequenceMatcher(None, a, b).ratio(): 2*M/(len(a)+len(b)) where
+/// difflib.SequenceMatcher(None, a, b).ratio(): 2*M/(len(a)+len(b)) where
 /// M is the total size of the matching blocks. Inputs here are short title keys,
 /// so difflib's autojunk (only active for sequences > 200) never triggers and is
-/// omitted. Used by c64disk's fuzzy matcher — must track Python.
+/// omitted. Used by disk's fuzzy matcher.
 pub fn seq_ratio(a: &str, b: &str) -> f64 {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
@@ -550,9 +521,9 @@ fn find_longest_match(
 ) -> (usize, usize, usize) {
     let (mut besti, mut bestj, mut bestsize) = (alo, blo, 0usize);
     let mut j2len: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
-    for i in alo..ahi {
+    for (i, ch) in a.iter().enumerate().take(ahi).skip(alo) {
         let mut newj2len: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
-        if let Some(indices) = b2j.get(&a[i]) {
+        if let Some(indices) = b2j.get(ch) {
             for &j in indices {
                 if j < blo {
                     continue;

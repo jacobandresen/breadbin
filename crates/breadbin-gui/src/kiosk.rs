@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use adw::prelude::*;
 
-use breadbin_core::{cover, library, run, tui};
+use breadbin_core::{cover, games, run};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -17,16 +17,36 @@ const STRIP_MAX: usize = 8;
 
 // ── Cover texture ─────────────────────────────────────────────────────────────
 
-fn texture_from_path(
-    path: &std::path::Path,
+/// Badges drawn onto a game's cover.
+#[derive(Clone, Copy, Default)]
+struct Badges {
     joystick: bool,
     top_rated: bool,
-) -> Option<gdk::Texture> {
+}
+
+/// The GB64 canon sets that decide each game's [`Badges`].
+struct BadgeSets {
+    joystick: std::collections::HashSet<String>,
+    top_rated: std::collections::HashSet<String>,
+}
+
+impl BadgeSets {
+    fn load() -> Self {
+        BadgeSets { joystick: games::joystick_canons(), top_rated: games::top_rated_canons() }
+    }
+
+    fn for_row(&self, row: &games::Row) -> Badges {
+        let canon = games::canon_of(row);
+        Badges { joystick: self.joystick.contains(&canon), top_rated: self.top_rated.contains(&canon) }
+    }
+}
+
+fn texture_from_path(path: &std::path::Path, badges: Badges) -> Option<gdk::Texture> {
     let mut rgba = image::open(path).ok()?.to_rgba8();
-    if top_rated {
+    if badges.top_rated {
         breadbin_core::cover::draw_rating_badge(&mut rgba);
     }
-    if joystick {
+    if badges.joystick {
         breadbin_core::cover::draw_joystick_badge(&mut rgba);
     }
     let (w, h) = rgba.dimensions();
@@ -90,23 +110,45 @@ impl Card {
 
 // ── Section header ────────────────────────────────────────────────────────────
 
+thread_local! {
+    static CHIP_CLASSES: std::cell::RefCell<std::collections::HashSet<String>> =
+        Default::default();
+}
+
+/// CSS class painting a chip in the given colour, registered display-wide the
+/// first time each colour is seen (the palette is small, so this stays tiny).
+fn chip_color_class(r: u8, g: u8, b: u8) -> String {
+    let class = format!("chip-{r:02x}{g:02x}{b:02x}");
+    CHIP_CLASSES.with(|seen| {
+        if seen.borrow_mut().insert(class.clone()) {
+            if let Some(display) = gdk::Display::default() {
+                let provider = gtk::CssProvider::new();
+                provider.load_from_data(&format!(
+                    ".{class} {{ background-color: #{r:02x}{g:02x}{b:02x}; border-radius: 2px; }}"
+                ));
+                gtk::style_context_add_provider_for_display(
+                    &display,
+                    &provider,
+                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+        }
+    });
+    class
+}
+
 /// A full-width section header with a C64 colour-bar chip on the left.
 pub fn section_header_widget(title: &str) -> gtk::Box {
     let [r, g, b] = breadbin_core::core::palette::bar_for(title);
-    let color_css = format!("#{r:02X}{g:02X}{b:02X}");
-
     let chip = gtk::Box::builder()
         .width_request(8)
         .height_request(32)
         .build();
     chip.add_css_class("section-chip");
-    let provider = gtk::CssProvider::new();
-    provider.load_from_data(&format!("box {{ background-color: {color_css}; border-radius: 2px; }}"));
-    chip.style_context()
-        .add_provider(&provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+    chip.add_css_class(&chip_color_class(r, g, b));
 
     let label = gtk::Label::builder()
-        .label(&title.to_uppercase())
+        .label(title.to_uppercase())
         .xalign(0.0)
         .build();
     label.add_css_class("section-header");
@@ -134,10 +176,9 @@ pub fn section_header_widget(title: &str) -> gtk::Box {
 
 fn show_detail(
     parent: &gtk::Window,
-    row: tui::Row,
+    row: games::Row,
     cover_path: Option<PathBuf>,
-    joystick: bool,
-    top_rated: bool,
+    badges: Badges,
     launch_opts: Option<run::LaunchOpts>,
     on_refresh: Rc<dyn Fn()>,
 ) {
@@ -155,7 +196,7 @@ fn show_detail(
         .build();
 
     if let Some(path) = &cover_path {
-        if let Some(texture) = texture_from_path(path, joystick, top_rated) {
+        if let Some(texture) = texture_from_path(path, badges) {
             let pic = gtk::Picture::builder()
                 .paintable(&texture)
                 .content_fit(gtk::ContentFit::Contain)
@@ -175,7 +216,7 @@ fn show_detail(
 
     if !row.genre.is_empty() {
         let genre_lbl = gtk::Label::builder()
-            .label(&format!("Genre: {}", row.genre))
+            .label(format!("Genre: {}", row.genre))
             .xalign(0.0)
             .build();
         genre_lbl.add_css_class("caption");
@@ -189,7 +230,7 @@ fn show_detail(
         .build();
 
     // Hide / Unhide button
-    let is_hidden = tui::load_hidden().contains(&row.display);
+    let is_hidden = games::load_hidden().contains(&row.display);
     let hide_btn = gtk::Button::builder()
         .label(if is_hidden { "Unhide" } else { "Hide" })
         .build();
@@ -198,8 +239,8 @@ fn show_detail(
     let dialog_for_hide = dialog.clone();
     let on_refresh2 = on_refresh.clone();
     hide_btn.connect_clicked(move |_| {
-        let currently_hidden = tui::load_hidden().contains(&row_display);
-        tui::set_hidden(&row_display, !currently_hidden);
+        let currently_hidden = games::load_hidden().contains(&row_display);
+        games::set_hidden(&row_display, !currently_hidden);
         dialog_for_hide.close();
         on_refresh2();
     });
@@ -212,7 +253,7 @@ fn show_detail(
         dl_btn.connect_clicked(move |_| {
             let r = row2.clone();
             glib::spawn_future_local(async move {
-                let _ = run_blocking(move || tui::resolve(&r, true)).await;
+                let _ = run_blocking(move || games::resolve(&r)).await;
             });
             dialog2.close();
         });
@@ -254,9 +295,9 @@ fn show_detail(
                     };
                     glib::spawn_future_local(async move {
                         let r2 = r.clone();
-                        let path = run_blocking(move || tui::resolve(&r, true)).await;
+                        let path = run_blocking(move || games::resolve(&r)).await;
                         if let Some(p) = path {
-                            tui::record_play(&r2);
+                            games::record_play(&r2);
                             let _ = run::spawn(&p, &o);
                         }
                     });
@@ -286,10 +327,9 @@ fn show_detail(
 // ── Card builder (shared between strip and grid) ──────────────────────────────
 
 fn build_game_card(
-    row: &tui::Row,
+    row: &games::Row,
     cidx: std::collections::HashMap<String, String>,
-    joystick: bool,
-    top_rated: bool,
+    badges: Badges,
     launch_opts: Option<run::LaunchOpts>,
     hexpand: bool,
     cover_done: Option<async_channel::Sender<()>>,
@@ -303,9 +343,9 @@ fn build_game_card(
     let pic = card.picture.clone();
     glib::spawn_future_local(async move {
         let cover_path =
-            run_blocking(move || tui::cover_for(&row_clone, &cidx2)).await;
+            run_blocking(move || games::cover_for(&row_clone, &cidx2)).await;
         if let Some(path) = &cover_path {
-            if let Some(texture) = texture_from_path(path, joystick, top_rated) {
+            if let Some(texture) = texture_from_path(path, badges) {
                 pic.set_paintable(Some(&texture));
             }
         }
@@ -333,8 +373,8 @@ fn build_game_card(
             let row_snap2 = row_snap.clone();
             let cidx_c2 = cidx_c.clone();
             let cover_path =
-                run_blocking(move || tui::cover_for(&row_snap2, &cidx_c2)).await;
-            show_detail(&win_c, row_snap, cover_path, joystick, top_rated, launch, on_refresh4);
+                run_blocking(move || games::cover_for(&row_snap2, &cidx_c2)).await;
+            show_detail(&win_c, row_snap, cover_path, badges, launch, on_refresh4);
         });
     });
     card.root.add_controller(gesture);
@@ -347,10 +387,9 @@ fn build_game_card(
 fn build_genre_section(
     section_name: &str,
     row_indices: &[usize],
-    rows: &[tui::Row],
+    rows: &[games::Row],
     cidx: &std::collections::HashMap<String, String>,
-    joystick_canons: &std::collections::HashSet<String>,
-    top_rated_canons: &std::collections::HashSet<String>,
+    badge_sets: &BadgeSets,
     launch_opts: &Option<run::LaunchOpts>,
     on_refresh: Rc<dyn Fn()>,
 ) -> gtk::Box {
@@ -362,7 +401,7 @@ fn build_genre_section(
     let header_row = section_header_widget(section_name);
     let has_overflow = row_indices.len() > STRIP_MAX;
     let toggle_btn = gtk::Button::builder()
-        .label(&format!("Show All ({})", row_indices.len()))
+        .label(format!("Show All ({})", row_indices.len()))
         .visible(has_overflow)
         .build();
     toggle_btn.add_css_class("pill");
@@ -389,12 +428,9 @@ fn build_genre_section(
 
     for &idx in row_indices.iter().take(STRIP_MAX) {
         let row = &rows[idx];
-        let canon = tui::canon_of(row);
-        let joystick = joystick_canons.contains(&canon);
-        let top_rated = top_rated_canons.contains(&canon);
         // Cards expand to fill the strip when fewer than STRIP_MAX items
         let hexpand = row_indices.len() <= STRIP_MAX;
-        let card_widget = build_game_card(row, cidx.clone(), joystick, top_rated, launch_opts.clone(), hexpand, None, on_refresh.clone());
+        let card_widget = build_game_card(row, cidx.clone(), badge_sets.for_row(row), launch_opts.clone(), hexpand, None, on_refresh.clone());
         strip_box.append(&card_widget);
     }
 
@@ -424,7 +460,7 @@ fn build_genre_section(
 
     let overflow_count = row_indices.len().saturating_sub(STRIP_MAX);
     let loading_label = gtk::Label::builder()
-        .label(&format!("Loading covers — 0 / {overflow_count}"))
+        .label(format!("Loading covers — 0 / {overflow_count}"))
         .build();
     loading_label.add_css_class("caption");
 
@@ -454,15 +490,9 @@ fn build_genre_section(
     section_box.append(&stack);
 
     // Snapshot what the grid needs; owned data so the closure is 'static.
-    let grid_rows: Vec<(tui::Row, bool, bool)> = row_indices
+    let grid_rows: Vec<(games::Row, Badges)> = row_indices
         .iter()
-        .map(|&idx| {
-            let row = rows[idx].clone();
-            let canon = tui::canon_of(&row);
-            let joystick = joystick_canons.contains(&canon);
-            let top_rated = top_rated_canons.contains(&canon);
-            (row, joystick, top_rated)
-        })
+        .map(|&idx| (rows[idx].clone(), badge_sets.for_row(&rows[idx])))
         .collect();
     let cidx_for_grid = cidx.clone();
     let launch_for_grid = launch_opts.clone();
@@ -488,12 +518,11 @@ fn build_genre_section(
                 // Use same hexpand logic as strip for consistent sizing.
                 let hexpand_first_row = row_count <= STRIP_MAX;
                 if let Some(first_row) = first_row_weak.upgrade() {
-                    for (row, joystick, top_rated) in grid_rows.iter().take(STRIP_MAX) {
+                    for (row, badges) in grid_rows.iter().take(STRIP_MAX) {
                         let card = build_game_card(
                             row,
                             cidx_for_grid.clone(),
-                            *joystick,
-                            *top_rated,
+                            *badges,
                             launch_for_grid.clone(),
                             hexpand_first_row,
                             None,
@@ -542,12 +571,11 @@ fn build_genre_section(
                             }
                         });
 
-                        for (row, joystick, top_rated) in grid_rows.iter().skip(STRIP_MAX) {
+                        for (row, badges) in grid_rows.iter().skip(STRIP_MAX) {
                             let card = build_game_card(
                                 row,
                                 cidx_for_grid.clone(),
-                                *joystick,
-                                *top_rated,
+                                *badges,
                                 launch_for_grid.clone(),
                                 false,
                                 Some(tx.clone()),
@@ -586,19 +614,17 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
 
     let outer_weak = outer.downgrade();
     glib::spawn_future_local(async move {
-        let (rows, cidx, sections, joystick_canons, top_rated_canons) =
+        let (rows, cidx, sections, badge_sets) =
             run_blocking(|| {
-                let all_rows = tui::load_rows();
-                let hidden = tui::load_hidden();
-                let rows: Vec<tui::Row> = all_rows
+                let all_rows = games::load_rows();
+                let hidden = games::load_hidden();
+                let rows: Vec<games::Row> = all_rows
                     .into_iter()
                     .filter(|r| !hidden.contains(&r.display))
                     .collect();
                 let cidx = cover::load_index();
-                let sections = library::sections(&rows);
-                let joystick_canons = tui::joystick_canons();
-                let top_rated_canons = tui::top_rated_canons();
-                (rows, cidx, sections, joystick_canons, top_rated_canons)
+                let sections = games::sections(&rows);
+                (rows, cidx, sections, BadgeSets::load())
             })
             .await;
 
@@ -640,8 +666,7 @@ fn populate(outer: &gtk::Box, launch_opts: Option<run::LaunchOpts>, on_refresh: 
                 row_indices,
                 &rows,
                 &cidx,
-                &joystick_canons,
-                &top_rated_canons,
+                &badge_sets,
                 &launch_opts,
                 on_refresh.clone(),
             );
@@ -750,9 +775,9 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
     glib::spawn_future_local(async move {
         // Load rows + cover index
         let (rows, cidx) = run_blocking(|| {
-            let all_rows = tui::load_rows();
-            let hidden = tui::load_hidden();
-            let visible: Vec<tui::Row> = all_rows
+            let all_rows = games::load_rows();
+            let hidden = games::load_hidden();
+            let visible: Vec<games::Row> = all_rows
                 .into_iter()
                 .filter(|r| !hidden.contains(&r.display))
                 .collect();
@@ -761,7 +786,7 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
         })
         .await;
 
-        let non_local: Vec<tui::Row> =
+        let non_local: Vec<games::Row> =
             rows.iter().filter(|r| !r.is_local()).cloned().collect();
         let total_games = non_local.len();
         let total_covers = rows.len();
@@ -782,7 +807,7 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
                 ));
             }
             let r = row.clone();
-            run_blocking(move || tui::resolve_no_rebuild(&r)).await;
+            run_blocking(move || games::resolve_no_rebuild(&r)).await;
             done += 1;
             if let Some(bar) = progress_weak.upgrade() {
                 bar.set_fraction(done as f64 / total as f64);
@@ -796,7 +821,9 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
             if let Some(lbl) = status_weak.upgrade() {
                 lbl.set_label("Rebuilding index…");
             }
-            run_blocking(breadbin_core::build_index::build).await;
+            if let Err(e) = run_blocking(breadbin_core::build_index::build).await {
+                eprintln!("index rebuild failed: {e}");
+            }
         }
 
         // Phase 2: fetch covers for all visible games
@@ -814,7 +841,7 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
             }
             let r = row.clone();
             let c = cidx.clone();
-            run_blocking(move || tui::cover_for(&r, &c)).await;
+            run_blocking(move || games::cover_for(&r, &c)).await;
             done += 1;
             if let Some(bar) = progress_weak.upgrade() {
                 bar.set_fraction(done as f64 / total as f64);
@@ -841,7 +868,7 @@ pub fn show_download_all_dialog(parent: &impl IsA<gtk::Widget>, on_done: Rc<dyn 
 /// Show a dialog listing all hidden games with an Unhide button for each.
 pub fn show_hidden_dialog(parent: &impl IsA<gtk::Widget>, on_refresh: Rc<dyn Fn()>) {
     let hidden: Vec<String> = {
-        let mut v: Vec<String> = tui::load_hidden().into_iter().collect();
+        let mut v: Vec<String> = games::load_hidden().into_iter().collect();
         v.sort();
         v
     };
@@ -885,7 +912,7 @@ pub fn show_hidden_dialog(parent: &impl IsA<gtk::Widget>, on_refresh: Rc<dyn Fn(
             let dialog2 = dialog.clone();
             let on_refresh2 = on_refresh.clone();
             unhide_btn.connect_clicked(move |_| {
-                tui::set_hidden(&d, false);
+                games::set_hidden(&d, false);
                 dialog2.close();
                 on_refresh2();
             });

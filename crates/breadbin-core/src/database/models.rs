@@ -139,23 +139,6 @@ pub struct IAMapping {
     pub last_checked: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IAItem {
-    pub identifier: String,
-    pub title: String,
-    pub collection: String,
-    pub date: Option<String>,
-    pub description: Option<String>,
-    pub files: Vec<IAFile>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IAFile {
-    pub name: String,
-    pub size: Option<u64>,
-    pub format: Option<String>,
-}
-
 // Search types
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -297,72 +280,4 @@ pub struct SearchFacets {
     pub countries: HashMap<String, u64>,
     pub types: HashMap<String, u64>,
     pub credit_types: HashMap<String, u64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SearchSuggestion {
-    pub text: String,
-    pub display: String,
-    pub category: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct SyncReport {
-    pub full_sync: bool,
-    pub groups_added: u64,
-    pub groups_updated: u64,
-    pub sceners_added: u64,
-    pub sceners_updated: u64,
-    pub events_added: u64,
-    pub events_updated: u64,
-    pub releases_added: u64,
-    pub releases_updated: u64,
-    pub start_time: std::time::Instant,
-    pub end_time: std::time::Instant,
-    pub errors: Vec<String>,
-}
-
-impl SyncReport {
-    pub fn new() -> Self {
-        Self {
-            full_sync: false,
-            groups_added: 0,
-            groups_updated: 0,
-            sceners_added: 0,
-            sceners_updated: 0,
-            events_added: 0,
-            events_updated: 0,
-            releases_added: 0,
-            releases_updated: 0,
-            start_time: std::time::Instant::now(),
-            end_time: std::time::Instant::now(),
-            errors: Vec::new(),
-        }
-    }
-    
-    pub fn start_full_sync(&mut self) {
-        self.full_sync = true;
-        self.start_time = std::time::Instant::now();
-    }
-    
-    pub fn start_incremental_sync(&mut self) {
-        self.full_sync = false;
-        self.start_time = std::time::Instant::now();
-    }
-    
-    pub fn complete_full_sync(&mut self) {
-        self.end_time = std::time::Instant::now();
-    }
-    
-    pub fn complete_incremental_sync(&mut self) {
-        self.end_time = std::time::Instant::now();
-    }
-    
-    pub fn add_error(&mut self, error: String) {
-        self.errors.push(error);
-    }
-    
-    pub fn duration(&self) -> std::time::Duration {
-        self.end_time.duration_since(self.start_time)
-    }
 }

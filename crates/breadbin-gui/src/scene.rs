@@ -101,7 +101,7 @@ fn find_vice_download_candidates(release: &Release) -> Vec<String> {
         .iter()
         .filter(|d| d.url.to_lowercase().ends_with(".zip"))
         .collect();
-    zips.sort_by(|a, b| b.downloads.cmp(&a.downloads));
+    zips.sort_by_key(|d| std::cmp::Reverse(d.downloads));
     urls.extend(zips.into_iter().map(|d| d.url.clone()));
 
     // If no VICE-compatible CSDb download, try crawling itch.io (including related pages)
@@ -288,7 +288,7 @@ fn show_loading_dialog(parent: &gtk::Window, release_name: &str) -> adw::Dialog 
     spinner.set_halign(gtk::Align::Center);
 
     let status_label = Label::builder()
-        .label(&format!("Downloading {}…", release_name))
+        .label(format!("Downloading {}…", release_name))
         .wrap(true)
         .build();
     status_label.add_css_class("caption");
@@ -626,19 +626,4 @@ pub fn build_with_settings(settings: &Settings) -> Widget {
     run_query(String::new());
 
     overlay.upcast::<Widget>()
-}
-
-/// Simple synchronous search function for CLI usage
-pub fn search(query: &str, limit: usize) -> Result<Vec<(u32, String)>, String> {
-    breadbin_core::csdb::search_csdb(query, limit)
-}
-
-/// Check if CSDb data is available
-pub fn has_data() -> bool {
-    breadbin_core::csdb::has_csdb_data()
-}
-
-/// Initialize/sync CSDb database
-pub async fn sync_database() -> Result<breadbin_core::csdb::CollectionStats, String> {
-    breadbin_core::csdb::initialize_csdb_database().await
 }

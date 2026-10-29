@@ -112,12 +112,6 @@ pub struct Vis {
 }
 
 impl Vis {
-    /// Voice `v` (0..3) frequency register as a 0.0..1.0 fraction of full scale.
-    pub fn voice_freq(&self, v: usize) -> f32 {
-        let base = v * 7;
-        let f = (self.regs[base] as u16) | ((self.regs[base + 1] as u16) << 8);
-        f as f32 / 65535.0
-    }
     /// Voice `v` gate bit (note on).
     pub fn voice_gate(&self, v: usize) -> bool {
         self.regs[v * 7 + 4] & 0x01 != 0

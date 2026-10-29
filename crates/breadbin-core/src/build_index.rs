@@ -1,11 +1,9 @@
 // build_index - match the ranked IA catalogue (ia_index.tsv) against the local
 // collection and write c64_index.tsv (display<TAB>status<TAB>target<TAB>title
-// <TAB>query<TAB>identifier<TAB>genre<TAB>downloads), ordered by popularity. Port of
-// build_index.py's main(); norm() lives in core.
+// <TAB>query<TAB>identifier<TAB>genre<TAB>downloads), ordered by popularity.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -101,13 +99,8 @@ fn has_image_ext(name: &str) -> bool {
     EXTS.iter().any(|e| lower.ends_with(e))
 }
 
-/// Rebuild c64_index.tsv from ia_index.tsv + the local library. Library entry point
-/// for the GUI (replaces re-exec'ing the `index` subcommand).
-pub fn build() {
-    let _ = main(Vec::new());
-}
-
-pub fn main(_argv: Vec<String>) -> ExitCode {
+/// Rebuild c64_index.tsv from ia_index.tsv + the local library.
+pub fn build() -> Result<(), String> {
     let out_path = core::data_path("c64_index.tsv");
     let ia_index = core::data_path("ia_index.tsv");
     let downloaded_path = core::data_path("downloaded.tsv");
@@ -123,11 +116,11 @@ pub fn main(_argv: Vec<String>) -> ExitCode {
     });
 
     if !ia_index.exists() {
-        eprintln!("no ia_index.tsv yet (run: c64menu --refresh); keeping existing index");
-        return ExitCode::SUCCESS; // don't wipe a shipped index
+        eprintln!("no ia_index.tsv yet (use Refresh catalogue); keeping existing index");
+        return Ok(()); // don't wipe a shipped index
     }
 
-    // games downloaded via c64disk --id, matched by exact IA identifier
+    // games downloaded by IA item id, matched by exact IA identifier
     let mut downloaded: HashMap<String, String> = HashMap::new();
     if let Ok(text) = std::fs::read_to_string(&downloaded_path) {
         for line in text.lines() {
@@ -141,10 +134,7 @@ pub fn main(_argv: Vec<String>) -> ExitCode {
 
     let ia_text = match std::fs::read_to_string(&ia_index) {
         Ok(t) => t,
-        Err(e) => {
-            eprintln!("build_index: cannot read {}: {e}", ia_index.display());
-            return ExitCode::from(1);
-        }
+        Err(e) => return Err(format!("cannot read {}: {e}", ia_index.display())),
     };
 
     let (mut n_local, mut n_avail) = (0u32, 0u32);
@@ -179,14 +169,12 @@ pub fn main(_argv: Vec<String>) -> ExitCode {
         ));
     }
 
-    if let Err(e) = std::fs::write(&out_path, out) {
-        eprintln!("build_index: cannot write {}: {e}", out_path.display());
-        return ExitCode::from(1);
-    }
+    std::fs::write(&out_path, out)
+        .map_err(|e| format!("cannot write {}: {e}", out_path.display()))?;
     eprintln!(
         "{n_local} local + {n_avail} downloadable = {} games (IA · details, ranked) -> {}",
         n_local + n_avail,
         out_path.display()
     );
-    ExitCode::SUCCESS
+    Ok(())
 }

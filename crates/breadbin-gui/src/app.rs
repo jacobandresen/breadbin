@@ -102,7 +102,9 @@ pub fn build_ui(app: &adw::Application) {
     let refresh_action = gio::SimpleAction::new("refresh", None);
     refresh_action.connect_activate(|_, _| {
         glib::spawn_future_local(async move {
-            crate::task::run_blocking(|| breadbin_core::tui::refresh()).await.ok();
+            if let Err(e) = crate::task::run_blocking(breadbin_core::games::refresh).await {
+                eprintln!("catalogue refresh failed: {e}");
+            }
         });
     });
     app.add_action(&refresh_action);
@@ -121,7 +123,7 @@ pub fn build_ui(app: &adw::Application) {
     let sync_csdb_action = gio::SimpleAction::new("sync-csdb", None);
     sync_csdb_action.connect_activate(|_, _| {
         glib::spawn_future_local(async move {
-            match crate::scene::sync_database().await {
+            match crate::task::run_blocking(|| breadbin_core::csdb::sync_top_releases(100)).await {
                 Ok(stats) => {
                     eprintln!("CSDb sync complete: {} releases fetched", stats.releases_fetched);
                     if !stats.errors.is_empty() {
@@ -141,7 +143,7 @@ pub fn build_ui(app: &adw::Application) {
     about_action.connect_activate(move |_, _| {
         let dialog = adw::AboutDialog::builder()
             .application_name("breadbin")
-            .version("0.2.0")
+            .version(env!("CARGO_PKG_VERSION"))
             .developer_name("Jacob Andresen")
             .build();
         if let Some(w) = win_weak.upgrade() {

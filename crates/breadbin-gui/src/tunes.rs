@@ -19,7 +19,6 @@ type RadioState = Rc<RefCell<bool>>;
 
 /// Draw different visualizers based on the selected type
 fn visualizer_draw(
-    _area: &gtk::DrawingArea,
     cr: &cairo::Context,
     w: i32,
     h: i32,
@@ -984,12 +983,12 @@ pub fn build() -> gtk::Widget {
     // Start time for animations
     let start_time = std::time::Instant::now();
     
-    scope.set_draw_func(move |area, cr, w, h| {
+    scope.set_draw_func(move |_, cr, w, h| {
         let samples = scope_samples_draw.borrow().clone();
         let visualizer_type = *visualizer_state_draw.borrow();
         let elapsed = start_time.elapsed().as_secs_f64();
         let tune_desc = now_title_draw.text().to_string();
-        visualizer_draw(area, cr, w, h, &samples, visualizer_type, &tune_desc, elapsed);
+        visualizer_draw(cr, w, h, &samples, visualizer_type, &tune_desc, elapsed);
     });
 
     let btn_box = gtk::Box::builder()
@@ -1224,7 +1223,7 @@ pub fn build() -> gtk::Widget {
             header_row.set_activatable(false);
             header_row.add_css_class("tunes-party-header");
             let header_label = gtk::Label::builder()
-                .label(&party_name.to_uppercase())
+                .label(party_name.to_uppercase())
                 .xalign(0.0)
                 .build();
             header_row.set_child(Some(&header_label));
@@ -1259,7 +1258,7 @@ pub fn build() -> gtk::Widget {
                 meta.append(&composer_lbl_row);
 
                 let rating_lbl = gtk::Label::builder()
-                    .label(&format!("{:.1}★", tune.rating))
+                    .label(format!("{:.1}★", tune.rating))
                     .valign(gtk::Align::Center)
                     .build();
                 rating_lbl.add_css_class("caption");

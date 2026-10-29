@@ -1,7 +1,6 @@
 // cover - box-art lookup from the libretro-thumbnails Commodore 64 set
-// (Named_Boxarts), plus the Internet Archive item-image fallback. Port of
-// bb-cover's index/fetch logic and c64menu.ia_cover; the fzf preview CLI is not
-// ported (the ratatui TUIs render covers directly).
+// (Named_Boxarts), plus the Internet Archive item-image fallback, and the badges
+// drawn onto covers.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

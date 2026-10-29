@@ -856,20 +856,6 @@ pub fn get_stats() -> QueryResult<DatabaseStats> {
     Ok(DatabaseStats { table_counts, total_records })
 }
 
-/// Clear all data from the database (except the version metadata).
-pub fn clear_database() -> QueryResult<()> {
-    let mut conn = get_conn()?;
-    for table in TABLES.iter().filter(|t| **t != "_meta") {
-        diesel::sql_query(format!("DELETE FROM {}", table))
-            .execute(&mut conn)
-            .map_err(|e| format!("Failed to clear {}: {}", table, e))?;
-    }
-    diesel::sql_query("DELETE FROM _meta WHERE key != 'version'")
-        .execute(&mut conn)
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 // ============================================================================
 // Search
 //

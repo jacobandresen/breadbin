@@ -1,6 +1,6 @@
 // tunes - the SID-tune catalogue backend: ranked CSDb "C64 Music" releases grouped by
-// party, cached to tunes_index.tsv, with on-demand .sid download. The terminal UI and
-// visualisers are gone; the GUI builds its own player on top of this + crate::audio.
+// party, cached to tunes_index.tsv, with on-demand .sid download. The GUI's player builds on
+// this and crate::audio.
 
 use std::path::PathBuf;
 
@@ -14,9 +14,6 @@ pub const DEFAULT_LIMIT: usize = 600;
 const MIN_PER_PARTY: usize = 2;
 /// Each party section is capped at this many tunes.
 const TOP_PER_PARTY: usize = 30;
-
-/// How long radio lingers on one tune (seconds of playback) before picking the next.
-pub const RADIO_SECS: u64 = 90;
 
 /// One ranked tune from CSDb.
 #[derive(Clone)]
@@ -246,7 +243,7 @@ pub fn load_tunes_from_db() -> Vec<Tune> {
             })
             .collect(),
         Err(e) => {
-            log::warn!("Failed to load tunes from Diesel DB: {}", e);
+            eprintln!("Failed to load tunes from Diesel DB: {}", e);
             Vec::new()
         }
     }
@@ -358,7 +355,7 @@ pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Re
         };
 
         if let Err(e) = save_tune_to_db(&tune) {
-            log::warn!("Failed to save tune {}: {}", id, e);
+            eprintln!("Failed to save tune {}: {}", id, e);
         }
 
         out.push_str(&format!(

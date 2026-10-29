@@ -110,6 +110,24 @@ Open **Preferences** (the gear icon in the header bar) to set:
 - C64 Forever ROM directory
 - Launch options: warp speed, fullscreen, drive sound
 
+## Command line
+
+The CSDb cache can also be managed without the GUI:
+
+```sh
+breadbin sync [--count N]          # cache the top N CSDb demos and music (default 100)
+breadbin search <query> [--limit N]
+breadbin has-data
+```
+
+### Troubleshooting launches
+
+| Variable | Effect |
+| --- | --- |
+| `C64_VICE_LOG=1` (or a path) | VICE writes a verbose log to `~/.breadbin/vice.log` (or that path) |
+| `C64_VIRTUAL_DRIVE=1` / `=0` | Force VICE's virtual drive / True Drive Emulation. By default breadbin uses the virtual drive when no 1541 ROM is installed |
+| `C64_JOYSTICK=1` / `=0` | Override joystick detection |
+
 ## Where games come from
 
 When a game isn't in your collection, clicking **Download** in the detail dialog
@@ -119,9 +137,3 @@ fetches it from public preservation archives:
 - **Ultimate Tape Archive** — tape preservation
 
 Downloads land in your collection automatically.
-
----
-
-## Development
-
-This project uses AI-assisted development tools (Mistral Vibe) to help with coding tasks, including implementation, refactoring, and bug fixing.

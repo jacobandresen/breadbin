@@ -1,9 +1,8 @@
-# Diesel Database Layer
+# Database Layer
 
-The CSDb cache is stored in SQLite and accessed through Diesel ORM. The
-migration from the legacy rusqlite layer is **complete**: the old
-`database::{operations, search, schema}` modules are gone, and
-`crate::database` now only holds the shared domain models.
+The CSDb cache is stored in SQLite and accessed through Diesel ORM.
+`crate::database` holds the shared domain models; `diesel_db` does all
+persistence and search.
 
 ## Architecture
 
@@ -24,8 +23,8 @@ crates/breadbin-core/
   first used. No Diesel CLI needed at runtime.
 - **Location:** `core::data_path("csdb_cache_diesel.sqlite")` — normally
   `~/.breadbin/`, overridable via `BREADBIN_HOME` / `BREADBIN_USER_DATA`.
-- `rusqlite` remains a dependency only for reading the external GameBase64
-  database (`info.rs`, `disk.rs`).
+- `rusqlite` is used only to read the external GameBase64 database
+  (`gb64.rs`, `disk.rs`).
 
 ## Public API (`diesel_db`)
 
@@ -34,15 +33,14 @@ crates/breadbin-core/
   `get_top_releases(limit)`, `list_releases(&[type_ids])` (joined with group
   and event names), `has_data()`
 - Search: `parse_search_query`, `execute_search_query`,
-  `count_search_results`, `search_by_name` — Diesel query-builder port of
-  the old FTS5 search (LIKE-based; relevance falls back to rating)
+  `count_search_results`, `search_by_name` — LIKE-based search built with
+  Diesel's query builder (relevance falls back to rating)
 - Metadata: `get_meta_value` / `set_meta_value`, `get_db_version` /
   `set_db_version`
-- Maintenance: `get_stats()`, `clear_database()`,
-  `initialize_default_release_types()`
+- Maintenance: `get_stats()`, `initialize_default_release_types()`
 
 Consumers: `csdb` (sync + search), `tunes`/`demos` (catalogue backends),
-and the GUI's scene search.
+the GUI's scene search and the `breadbin search|sync|has-data` subcommands.
 
 ## Schema Changes
 

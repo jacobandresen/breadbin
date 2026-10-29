@@ -193,48 +193,9 @@ pub fn find_itchio_downloads(page_html: &str, page_url: &str) -> Vec<String> {
     downloads
 }
 
-/// Try to find and resolve itch.io download URLs from a release's website URL.
-/// Returns a vector of potential download URLs for VICE-compatible files.
-pub fn find_downloads_from_website(website_url: &str) -> Result<Vec<String>, String> {
-    if !website_url.contains("itch.io") {
-        return Ok(Vec::new());
-    }
-    
-    // Fetch the itch.io page
-    let html = match core::fetch(website_url, &[]) {
-        Ok(body) => String::from_utf8_lossy(&body).into_owned(),
-        Err(e) => return Err(format!("Failed to fetch {}: {}", website_url, e)),
-    };
-    
-    // Extract download links
-    let downloads = find_itchio_downloads(&html, website_url);
-    
-    Ok(downloads)
-}
-
 /// Test if a URL looks like an itch.io page URL.
 pub fn is_itchio_url(url: &str) -> bool {
     url.contains("itch.io") && !url.contains("/download/")
-}
-
-/// Try to find the actual download URL from an itch.io game page.
-/// Itch.io pages often have the download file mentioned in the page but not as a direct link.
-/// This function looks for file references and constructs plausible download URLs.
-pub fn resolve_itchio_file_url(page_url: &str, filename: &str) -> String {
-    // Try different URL patterns that itch.io uses
-    let base = page_url.trim_end_matches('/');
-    
-    // Pattern 1: /download/<filename>
-    let url1 = format!("{}/download/{}", base, filename);
-    
-    // Pattern 2: itch.io sometimes uses /files/<hash>/<filename>
-    // We can't know the hash, so we return pattern 1 as the most likely
-    url1
-}
-
-/// Get the filename from a URL.
-pub fn filename_from_url(url: &str) -> Option<String> {
-    url.rsplit('/').next().map(|s| s.to_string())
 }
 
 /// Extract related game URLs from an itch.io page.

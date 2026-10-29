@@ -1,53 +1,11 @@
-// c64run - boot a Commodore 64 game straight into the emulator, no launcher GUI.
+// run - boot a Commodore 64 game or demo in VICE as a child of the GUI.
 //
-// Auto-picks a VICE emulator, preferring C64 Forever for its extra GUI options:
-//   1. Cloanto C64 Forever's x64.exe (wine) — extra GUI, licensed ROMs
-//   2. native x64sc / x64 on PATH          — free VICE, its own bundled ROMs
-//   3. the net.sf.VICE flatpak             — free VICE, bundled ROMs
-// Override with  C64_EMU="..."  (e.g. C64_EMU='x64' or a full flatpak command).
+// Uses C64 Forever's bundled VICE under wine when installed, else native VICE
+// (x64sc / x64 on PATH, or the net.sf.VICE flatpak) with its own ROMs.
 // VICE's -autostart is the emulator equivalent of typing  LOAD"*",8,1  then  RUN.
 
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
-
-const WINE_X64: &str =
-    "/opt/wine/.wine/drive_c/Program Files (x86)/Cloanto/C64 Forever/VICE/x64.exe";
-
-// Recognised C64 image types.
-const EXTS: &[&str] = &[
-    ".d64", ".d71", ".d81", ".t64", ".tap", ".prg", ".crt", ".g64", ".nib", ".p00", ".x64",
-];
-
-const HELP: &str = "\
-c64run - boot a Commodore 64 game straight into the emulator, no launcher GUI.
-
-Usage:
-  c64run <game-file>             launch an exact .d64/.tap/.crt/.t64/.prg ...
-  c64run <search words>          search your collection, launch the match
-  c64run -W | --no-warp <s>      load at authentic speed (don't fast-forward)
-  c64run -r | --real <s>         authentic-speed load (alias of --no-warp)
-  c64run --windowed <s>          run in a window instead of fullscreen
-  c64run -k | --keyboard <s>     force keyboard for both players (ignore any joystick)
-  c64run --drive-sound <s>       play the authentic 1541 drive loading sound (default)
-  c64run --no-drive-sound <s>    silence the emulated drive
-  c64run -l | --list <s>         just list matches, don't launch
-  (-w / --warp and -f / --fullscreen are accepted too, but are now the default)
-";
-
-fn die(msg: &str) -> ! {
-    eprintln!("c64run: {msg}");
-    std::process::exit(1);
-}
-
-/// Where your games live. Override the root with C64_LIB="/path/to/c64".
-fn lib_dirs() -> Vec<PathBuf> {
-    let root = std::env::var("C64_LIB").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_default();
-        format!("{home}/Games/Commodore/C64")
-    });
-    vec![PathBuf::from(root)]
-}
+use std::process::Command;
 
 /// Check for a flatpak app by looking at known install paths — no subprocess.
 fn flatpak_installed(app_id: &str) -> bool {
@@ -57,42 +15,6 @@ fn flatpak_installed(app_id: &str) -> bool {
         "/var/lib/flatpak/app".to_string(),
     ];
     roots.iter().any(|r| Path::new(r).join(app_id).is_dir())
-}
-
-/// Return the emulator command as an argv list (C64 Forever first for its extra GUI options).
-fn pick_emulator() -> Vec<String> {
-    if let Ok(env) = std::env::var("C64_EMU") {
-        if let Some(parts) = shlex::split(&env) {
-            return parts;
-        }
-        die("could not parse C64_EMU");
-    }
-    if Path::new(WINE_X64).is_file() {
-        // SAFETY: single-threaded at this point; just defaulting env for the child.
-        if std::env::var_os("WINEPREFIX").is_none() {
-            unsafe { std::env::set_var("WINEPREFIX", "/opt/wine/.wine") };
-        }
-        if std::env::var_os("WINEDEBUG").is_none() {
-            unsafe { std::env::set_var("WINEDEBUG", "-all") };
-        }
-        return vec!["wine".to_string(), WINE_X64.to_string()];
-    }
-    for exe in ["x64sc", "x64"] {
-        if which::which(exe).is_ok() {
-            return vec![exe.to_string()];
-        }
-    }
-    if which::which("flatpak").is_ok() && flatpak_installed("net.sf.VICE") {
-        return ["flatpak", "run", "--command=x64sc", "net.sf.VICE"]
-            .map(String::from)
-            .to_vec();
-    }
-    die("no VICE found - install C64 Forever, 'vice', or the net.sf.VICE flatpak");
-}
-
-fn has_image_ext(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    EXTS.iter().any(|e| lower.ends_with(e))
 }
 
 /// The emulator's `-help` text (stdout + stderr), used to probe which option
@@ -195,7 +117,7 @@ fn drive_sound_flags(help: &str, cli: Option<bool>) -> Vec<String> {
 /// and `LOAD"*",8,1` fails with `?DEVICE NOT PRESENT ERROR`. The flatpak and the
 /// Cloanto/wine build bundle their own ROMs, and on macOS the Homebrew cask does
 /// too, so this only fires for a bare distro `vice` package missing the non-free
-/// drive ROM (see install_vice_roms in setup-dependencies.sh).
+/// drive ROM.
 fn missing_tde_rom(emu: &[String]) -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -236,51 +158,6 @@ fn tde_rom_available() -> bool {
             })
             .unwrap_or(false)
     })
-}
-
-/// Walk the library roots for image files whose name contains the query.
-fn find_matches(query: &str) -> Vec<PathBuf> {
-    let ql = query.to_lowercase();
-    let mut out = Vec::new();
-    for root in lib_dirs() {
-        crate::core::walk_files(&root, &mut |p| {
-            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                if has_image_ext(name) && name.to_lowercase().contains(&ql) {
-                    out.push(p.to_path_buf());
-                }
-            }
-        });
-    }
-    out.sort();
-    out
-}
-
-/// Resolve multiple matches: interactive numbered pick on a tty, else bail.
-fn choose(matches: &[PathBuf], query: &str) -> PathBuf {
-    use std::io::{IsTerminal, Write};
-    eprintln!("Multiple matches for \"{query}\":");
-    if !std::io::stdin().is_terminal() {
-        for m in matches {
-            eprintln!("  {}", m.display());
-        }
-        die("be more specific, or pass the full path");
-    }
-    for (i, m) in matches.iter().enumerate() {
-        eprintln!("  {}) {}", i + 1, m.display());
-    }
-    loop {
-        eprint!("# ? ");
-        let _ = std::io::stderr().flush();
-        let mut line = String::new();
-        if std::io::stdin().read_line(&mut line).unwrap_or(0) == 0 {
-            std::process::exit(0); // EOF
-        }
-        if let Ok(n) = line.trim().parse::<usize>() {
-            if (1..=matches.len()).contains(&n) {
-                return matches[n - 1].clone();
-            }
-        }
-    }
 }
 
 /// True if a game controller (joystick / gamepad) appears to be connected.
@@ -350,7 +227,7 @@ pub fn joystick_present() -> bool {
 }
 
 /// One human-readable line per player for the current input scheme, for the
-/// kiosk's pre-launch dialog and c64run's own banner.
+/// kiosk's pre-launch dialog.
 pub fn controls_description(joystick: bool) -> Vec<String> {
     if joystick {
         vec![
@@ -537,8 +414,7 @@ fn controller_name() -> String {
 
 /// A little controller icon for the controls report, themed by what's plugged in:
 /// the THEC64 stick gets a sparkle-wreathed glowing halo; the DualSense gets a plain,
-/// unglamorous pad. Plain Unicode (no ANSI) so it renders both in c64run's banner and
-/// in the kiosk's ratatui controls dialog.
+/// unglamorous pad. Plain Unicode so it renders in any label.
 fn controller_icon() -> String {
     match controller_kind() {
         ControllerKind::TheC64 => "·✦· 🕹 ·✦·".to_string(),   // glowing halo
@@ -768,14 +644,21 @@ pub fn spawn(game: &Path, opts: &LaunchOpts) -> std::io::Result<std::process::Ch
                 Vec::new(),
                 wine_prefix.clone(),
             ),
-            crate::roms::Forever::RomDir(dir) => (native_vice_cmd(), Vec::new(), Some(dir.clone())),
+            crate::roms::Forever::RomDir(_) => (native_vice_cmd(), Vec::new(), None),
         };
     let help = emu_help(&emu);
     if let crate::roms::Forever::RomDir(dir) = &opts.forever {
         rom = rom_args(dir, &help);
     }
 
-    let mut args: Vec<String> = drive_flags(&help, false); // TDE always (licensed ROMs present)
+    // True Drive Emulation needs a 1541 ROM; a bare distro VICE without one fails
+    // every LOAD with ?DEVICE NOT PRESENT, so fall back to the virtual drive there.
+    // C64_VIRTUAL_DRIVE overrides (truthy forces virtual, 0/false/no forces TDE).
+    let virtual_drive = match std::env::var("C64_VIRTUAL_DRIVE") {
+        Ok(v) => !matches!(v.trim(), "" | "0" | "false" | "no"),
+        Err(_) => missing_tde_rom(&emu),
+    };
+    let mut args: Vec<String> = drive_flags(&help, virtual_drive);
     args.extend(drive_sound_flags(&help, opts.drive_sound));
     if opts.warp {
         args.push("-autostart-warp".into());
@@ -794,121 +677,8 @@ pub fn spawn(game: &Path, opts: &LaunchOpts) -> std::io::Result<std::process::Ch
     args.extend(control_flags(joystick));
     args.extend(rom);
 
-    #[cfg(target_os = "linux")]
-    if std::env::var_os("SDL_VIDEODRIVER").is_none() {
-        // SAFETY: setting a default env for the child; called before threads spawn here.
-        unsafe { std::env::set_var("SDL_VIDEODRIVER", "x11") };
-    }
-
-    let mut cmd = Command::new(&emu[0]);
-    cmd.args(&emu[1..]).args(&args).arg("-autostart").arg(game);
-    if let Some(pfx) = wine_prefix {
-        cmd.env("WINEPREFIX", pfx).env("WINEDEBUG", "-all");
-    }
-    cmd.spawn()
-}
-
-pub fn main(argv: Vec<String>) -> ExitCode {
-    let (mut warp, mut fullscreen, mut list_only, mut keyboard) = (true, true, false, false);
-    let mut drive_sound: Option<bool> = None; // None = env/default; Some = CLI override
-    let mut words: Vec<String> = Vec::new();
-
-    let mut i = 0;
-    while i < argv.len() {
-        let a = argv[i].as_str();
-        match a {
-            "-w" | "--warp" => warp = true, // default; back-compat
-            "-W" | "--no-warp" => warp = false,
-            "-r" | "--real" => warp = false, // authentic-speed load
-            "-f" | "--fullscreen" => fullscreen = true, // default; back-compat
-            "--windowed" => fullscreen = false,
-            "-k" | "--keyboard" => keyboard = true,
-            "--drive-sound" => drive_sound = Some(true),
-            "--no-drive-sound" => drive_sound = Some(false),
-            "-l" | "--list" => list_only = true,
-            "-h" | "--help" => {
-                print!("{HELP}");
-                return ExitCode::SUCCESS;
-            }
-            "--" => {
-                words.extend(argv[i + 1..].iter().cloned());
-                break;
-            }
-            _ if a.starts_with('-') => die(&format!("unknown option: {a} (try --help)")),
-            _ => words.push(a.to_string()),
-        }
-        i += 1;
-    }
-
-    if words.is_empty() {
-        die("give a game file or search words (try --help)");
-    }
-
-    // A single argument that is an existing file is taken verbatim; otherwise the
-    // words form a search query against the collection.
-    let game: PathBuf = if words.len() == 1 && Path::new(&words[0]).is_file() {
-        PathBuf::from(&words[0])
-    } else {
-        let query = words.join(" ");
-        let matches = find_matches(&query);
-        match matches.len() {
-            0 => die(&format!("no game matching: {query}")),
-            _ if list_only => {
-                for m in &matches {
-                    println!("{}", m.display());
-                }
-                return ExitCode::SUCCESS;
-            }
-            1 => matches.into_iter().next().unwrap(),
-            _ => choose(&matches, &query),
-        }
-    };
-
-    let emu = pick_emulator();
-    let help = emu_help(&emu);
-
-    // Drive mode: hardware True Drive Emulation by default, but a native Linux VICE
-    // installed without the (non-free) 1541 drive ROM can't run it — every
-    // LOAD"*",8,1 then fails with `?DEVICE NOT PRESENT ERROR`. Auto-fall back to the
-    // ROM-less virtual drive in that case. C64_VIRTUAL_DRIVE overrides either way
-    // (set it truthy to force virtual, or 0/false/no to force TDE).
-    let virtual_drive = match std::env::var("C64_VIRTUAL_DRIVE") {
-        Ok(v) => !matches!(v.trim(), "" | "0" | "false" | "no"),
-        Err(_) => {
-            let auto = missing_tde_rom(&emu);
-            if auto && std::env::var_os("C64_QUIET").is_none() {
-                eprintln!(
-                    "note: no 1541 drive ROM found for VICE; using its virtual drive \
-                     (in-game fastloaders may not work). Install the ROM, or set \
-                     C64_VIRTUAL_DRIVE=0 to force True Drive Emulation."
-                );
-            }
-            auto
-        }
-    };
-    let mut opts: Vec<String> = drive_flags(&help, virtual_drive);
-    opts.extend(drive_sound_flags(&help, drive_sound));
-    if warp {
-        opts.push("-autostart-warp".into()); // fast-forward loading, then normal speed
-    }
-    if fullscreen {
-        if help.contains("-VICIIfull") {
-            opts.push("-VICIIfull".into());
-        } else if help.contains("-fullscreen") {
-            opts.push("-fullscreen".into());
-        } // VIC-II (C64) fullscreen
-    }
-    if help.contains("-confirmexit") {
-        opts.push("+confirmexit".into()); // close window quits immediately, no dialog
-    }
-    // Controls: a connected joystick is Player 1, the keyboard is Player 2; with no
-    // joystick both players are on the keyboard. -k forces keyboard-only.
-    let joystick = !keyboard && joystick_present();
-    opts.extend(control_flags(joystick));
-
-    // Optional VICE diagnostics: C64_VICE_LOG=<path> (or =1 for vice.log in the data
-    // dir) makes VICE write a verbose log of the launch, so a game that won't start
-    // can be inspected. Propagates through the kiosk/menu, which exec c64run.
+    // C64_VICE_LOG=<path> (or =1 for vice.log in the data dir) makes VICE write a
+    // verbose log, so a game that won't start can be inspected.
     if let Some(spec) = std::env::var_os("C64_VICE_LOG") {
         let spec = spec.to_string_lossy();
         let path = if spec == "1" || spec.eq_ignore_ascii_case("true") {
@@ -916,39 +686,19 @@ pub fn main(argv: Vec<String>) -> ExitCode {
         } else {
             spec.into_owned()
         };
-        opts.push("-verbose".into());
-        opts.push("-logfile".into());
-        opts.push(path);
+        args.extend(["-verbose".to_string(), "-logfile".to_string(), path]);
     }
 
-    // On Linux, force the X11 backend so VICE doesn't end up on a Wayland renderer
-    // (an SDL issue). Never do this elsewhere: on macOS there is no X server by
-    // default, so SDL_VIDEODRIVER=x11 makes VICE fail to open a window and exit
-    // (which looked like "VICE never starts").
+    let mut cmd = Command::new(&emu[0]);
+    cmd.args(&emu[1..]).args(&args).arg("-autostart").arg(game);
+    // Force SDL's X11 backend on Linux so VICE doesn't land on a broken Wayland
+    // renderer. Set on the child only: mutating our own env is unsound with GTK's threads.
     #[cfg(target_os = "linux")]
     if std::env::var_os("SDL_VIDEODRIVER").is_none() {
-        // SAFETY: single-threaded; setting a default for the exec'd child.
-        unsafe { std::env::set_var("SDL_VIDEODRIVER", "x11") };
+        cmd.env("SDL_VIDEODRIVER", "x11");
     }
-
-    if std::env::var_os("C64_QUIET").is_none() {
-        let emu_name = Path::new(&emu[0])
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| emu[0].clone());
-        let game_name = game
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        eprintln!("LOAD\"*\",8,1 : RUN   ->  {game_name}   [{emu_name}]");
-        for line in controls_description(joystick) {
-            eprintln!("  {line}");
-        }
+    if let Some(pfx) = wine_prefix {
+        cmd.env("WINEPREFIX", pfx).env("WINEDEBUG", "-all");
     }
-
-    // Replace this process with the emulator (no shell, no return path).
-    let mut cmd = Command::new(&emu[0]);
-    cmd.args(&emu[1..]).args(&opts).arg("-autostart").arg(&game);
-    let err = cmd.exec(); // only returns on failure
-    die(&format!("could not exec {}: {err}", emu[0]));
+    cmd.spawn()
 }

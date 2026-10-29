@@ -250,7 +250,7 @@ fn build_party_section(
     let header_row = crate::kiosk::section_header_widget(party_name);
     let has_overflow = idxs.len() > STRIP_MAX;
     let toggle_btn = gtk::Button::builder()
-        .label(&format!("Show All ({})", idxs.len()))
+        .label(format!("Show All ({})", idxs.len()))
         .visible(has_overflow)
         .build();
     toggle_btn.add_css_class("pill");
@@ -306,7 +306,7 @@ fn build_party_section(
 
     let overflow_count = idxs.len().saturating_sub(STRIP_MAX);
     let loading_label = gtk::Label::builder()
-        .label(&format!("Loading covers — 0 / {overflow_count}"))
+        .label(format!("Loading covers — 0 / {overflow_count}"))
         .build();
     loading_label.add_css_class("caption");
 
@@ -486,7 +486,7 @@ pub fn build(settings: &Settings) -> gtk::Widget {
 
             if let Err(e) = result {
                 let lbl = gtk::Label::builder()
-                    .label(&format!("Failed to build demos index: {e}"))
+                    .label(format!("Failed to build demos index: {e}"))
                     .wrap(true)
                     .margin_top(60)
                     .build();

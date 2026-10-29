@@ -1,6 +1,5 @@
 // demos - the demoscene catalogue backend: ranked CSDb demos grouped by party, cached
-// to demos_index.tsv, with screenshot caching and download-and-prepare for VICE. The
-// terminal UI is gone; the GUI builds its screenshot grid on top of this.
+// to demos_index.tsv, with screenshot caching and download-and-prepare for VICE.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -295,7 +294,7 @@ pub fn load_demos_from_db() -> Vec<Demo> {
             })
             .collect(),
         Err(e) => {
-            log::warn!("Failed to load demos from Diesel DB: {}", e);
+            eprintln!("Failed to load demos from Diesel DB: {}", e);
             Vec::new()
         }
     }
@@ -368,7 +367,7 @@ pub fn build_index_to_db(limit: usize, progress: &mut dyn FnMut(u64, u64)) -> Re
         
         // Save to Diesel database
         if let Err(e) = save_demo_to_db(&demo) {
-            log::warn!("Failed to save demo {}: {}", id, e);
+            eprintln!("Failed to save demo {}: {}", id, e);
         }
     }
     

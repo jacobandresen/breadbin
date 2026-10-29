@@ -15,7 +15,6 @@ path = "src/lib.rs"
 [dependencies]
 image = "0.25"
 which = "7"
-shlex = "1"
 regex = "1"
 # default-features off to disable ureq's automatic gzip/x-gzip response decoding:
 # the GameBase64 DB is served as a .gz with Content-Encoding: x-gzip, and we want
@@ -32,9 +31,7 @@ md5 = "0.7"
 # audio device via cpal. No external SID player (sidplayfp/vice) is required.
 resid-rs = "1.1"
 cpal = "0.15"
-tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
-log = "0.4"
 
 # Diesel ORM for type-safe database access
 [dependencies.diesel]
