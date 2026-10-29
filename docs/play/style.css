@@ -56,7 +56,7 @@ img { display: block; }
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
 }
 
-.c64, .brand-label, .shelf-title, .key.pill, .tab, .boot-screen, .emu-title, .rank {
+.brand-label, .shelf-title, .key.pill, .tab, .boot-screen, .emu-title {
   font-family: var(--c64-font);
   /* solid pixels: Sixtyfour's default CRT scanlines blur at UI sizes */
   font-variation-settings: "SCAN" 100, "BLED" 0;
@@ -183,7 +183,6 @@ main { flex: 1; min-height: 0; position: relative; }
 .shelf-chip { width: 6px; height: 22px; border-radius: 2px; flex: none; box-shadow: 0 0 8px rgb(255 255 255 / 0.08); }
 .shelf-title { font-size: 15px; letter-spacing: 2px; text-transform: uppercase; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shelf-rule { flex: 1; height: 1px; background: rgb(239 230 210 / 0.08); }
-.shelf-count { color: var(--cream-dim); font-size: 12px; }
 
 .row {
   display: grid;
@@ -296,15 +295,12 @@ main { flex: 1; min-height: 0; position: relative; }
 .tune:hover { background: var(--well-hi); }
 .tune.current { background: #2b241f; box-shadow: inset 3px 0 0 var(--yellow); }
 .tune .play { color: var(--yellow); font-size: 14px; text-align: center; }
-.tune.dead { cursor: default; opacity: 0.5; }
-.tune.dead .play { color: var(--red); }
 .tune.loading .play { animation: blink 0.6s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0.2; } }
 .tune > div { min-width: 0; }
 .tune-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tune-sub { font-size: 12px; color: var(--cream-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tune-rating { font-size: 12px; color: var(--cream); font-variant-numeric: tabular-nums; }
-.rank { font-size: 9px; color: var(--cream-dim); margin-right: 6px; }
 
 .tune-player { display: flex; flex-direction: column; gap: 12px; padding: 14px; overflow-y: auto; min-height: 0; }
 .now-playing {
@@ -360,7 +356,6 @@ dialog.sheet::backdrop { background: rgb(10 8 6 / 0.72); backdrop-filter: blur(3
 dialog[open] { animation: rise 160ms ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
 .sheet-body { display: grid; grid-template-columns: 260px 1fr; gap: 22px; padding: 22px; }
-.sheet-body.wide-art { grid-template-columns: 1fr; }
 .sheet-art { border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 0 5px var(--key-edge), 0 6px 18px rgb(0 0 0 / 0.6); align-self: start; }
 .sheet-art img { width: 100%; }
 .sheet h2 { font: 20px/1.2 var(--c64-font); font-variation-settings: "SCAN" 100, "BLED" 0; color: var(--yellow); margin: 0 0 8px; }
@@ -555,7 +550,6 @@ dialog[open] { animation: rise 160ms ease-out; }
   .tune-player { order: -1; overflow: visible; flex: none; }
   .tune-list { flex: none; }
   .shelf-head .n { display: none; }
-  .shelf-count { display: none; }
   .shelf-head .key.pill { padding: 8px 10px 10px; font-size: 10px; }
   .tune-list { overflow: visible; border-right: 0; }
   .now-playing { grid-template-columns: 120px 1fr; }

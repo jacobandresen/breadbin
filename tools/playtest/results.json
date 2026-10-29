@@ -412,7 +412,42 @@
    "testedAt": "2026-10-29T21:15:06.687Z"
   }
  },
- "demos": {},
+ "demos": {
+  "Edge_of_Disgrace_2008_Booze_Design_Side_A": {
+   "csdb": 72550,
+   "title": "Edge of Disgrace",
+   "group": "Booze Design",
+   "rating": 9.65,
+   "onefile": 0,
+   "id": "Edge_of_Disgrace_2008_Booze_Design_Side_A",
+   "party": "X'2008",
+   "year": 2008,
+   "drive": [
+    "EDGE OF DISGRACE@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "blank screen (likely a fast loader)",
+   "testedAt": "2026-10-29T21:47:11.345Z"
+  },
+  "Lunatico_2016-10-29_Lft_Side_A": {
+   "csdb": 151273,
+   "title": "Lunatico",
+   "group": "Lft",
+   "rating": 9.54,
+   "onefile": 0,
+   "id": "Lunatico_2016-10-29_Lft_Side_A",
+   "party": "X'2016",
+   "year": 2016,
+   "drive": [
+    "LUNATICO@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "stayed at BASIC",
+   "testedAt": "2026-10-29T21:47:57.869Z"
+  }
+ },
  "tunes": {
   "137344": {
    "id": 137344,
