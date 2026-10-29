@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breadbin</title>
+<meta name="description" content="Breadbin in your browser: C64 games, demos and SID music from the Internet Archive, CSDb and HVSC, running on free Open ROMs.">
+<link rel="icon" type="image/svg+xml" href="../images/breadbin.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://archive.org">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Sixtyfour:BLED,SCAN@0..100,-53..100&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="boot" class="boot" aria-hidden="true">
+  <div class="boot-screen">
+    <p>PRESS PLAY ON TAPE</p>
+    <p>OK</p>
+    <p>&nbsp;</p>
+    <p>SEARCHING</p>
+    <p>FOUND BREADBIN</p>
+    <p id="boot-status">LOADING</p>
+  </div>
+</div>
+
+<header class="case">
+  <a class="brand" href="#games" aria-label="breadbin">
+    <span class="brand-label">breadbin</span>
+    <span class="brand-stripes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+  </a>
+  <nav class="tabs" role="tablist">
+    <a class="key tab" role="tab" href="#games" data-tab="games"><span class="tab-icon">🕹</span>Games</a>
+    <a class="key tab" role="tab" href="#tunes" data-tab="tunes"><span class="tab-icon">♫</span>Tunes</a>
+    <a class="key tab" role="tab" href="#demos" data-tab="demos"><span class="tab-icon">▣</span>Demos</a>
+  </nav>
+  <div class="case-tools">
+    <label class="search key-well">
+      <span class="visually-hidden">Search</span>
+      <input id="search" type="search" placeholder="Search…" autocomplete="off" spellcheck="false">
+    </label>
+    <button class="key icon" id="open-settings" title="Settings" aria-label="Settings">☰</button>
+  </div>
+</header>
+
+<main>
+  <section id="games" class="view" hidden></section>
+  <section id="demos" class="view" hidden></section>
+  <section id="tunes" class="view tunes" hidden>
+    <div class="tune-list" id="tune-list"></div>
+    <aside class="tune-player">
+      <div class="now-playing" id="now-playing"></div>
+      <div class="screen-bezel"><canvas id="viz" aria-label="Visualiser"></canvas></div>
+      <div class="player-controls">
+        <select id="viz-kind" class="key select" aria-label="Visualiser"></select>
+        <div class="buttons">
+          <button class="key pill" id="btn-pause">Pause</button>
+          <button class="key pill" id="btn-stop">Stop</button>
+          <button class="key pill" id="btn-skip">» Skip</button>
+          <button class="key pill" id="btn-radio" aria-pressed="false">📻 Radio</button>
+        </div>
+        <div class="subtune" id="subtune" hidden>
+          <button class="key icon small" id="sub-prev" aria-label="Previous sub-tune">‹</button>
+          <span id="sub-label"></span>
+          <button class="key icon small" id="sub-next" aria-label="Next sub-tune">›</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<dialog id="detail" class="sheet"></dialog>
+
+<div id="emu" class="emu" hidden>
+  <div class="emu-bar">
+    <span class="emu-title" id="emu-title"></span>
+    <span class="emu-status" id="emu-status"></span>
+    <button class="key pill" id="emu-full">Fullscreen</button>
+    <button class="key pill" id="emu-close">Close</button>
+  </div>
+  <div class="emu-stage" id="emu-stage"></div>
+  <p class="emu-note" id="emu-note"></p>
+</div>
+
+<dialog id="settings" class="sheet settings"></dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

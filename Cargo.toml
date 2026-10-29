@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/breadbin-core", "crates/breadbin-gui"]
+members = ["crates/breadbin-core", "crates/breadbin-gui", "crates/breadbin-sid", "crates/breadbin-sid-wasm"]
 
 [profile.release]
 strip = true

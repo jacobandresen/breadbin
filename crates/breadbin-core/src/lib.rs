@@ -8,7 +8,7 @@ pub mod gb64;
 pub mod build_index;
 pub mod run;
 pub mod roms;
-pub mod sid;
+pub use breadbin_sid as sid;
 pub mod audio;
 pub mod tunes;
 pub mod demos;

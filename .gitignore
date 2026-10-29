@@ -5,3 +5,6 @@
 covers/
 __pycache__/
 gschemas.compiled
+
+# built by `make web` / the Pages workflow
+docs/play/sid.wasm

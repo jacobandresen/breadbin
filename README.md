@@ -75,6 +75,34 @@ Internet Archive scan.
 
 ![The loading screen with its time-left estimate](docs/images/loading.png)
 
+## In your browser
+
+**[jacobandresen.github.io/breadbin/play](https://jacobandresen.github.io/breadbin/play/)** runs
+breadbin in a web page, with nothing to install and no Commodore ROMs needed:
+
+- **Games and demos** start in [vc64web](https://vc64web.github.io/) (VirtualC64 compiled
+  to WebAssembly), booting the free [MEGA65 Open ROMs](https://github.com/MEGA65/open-roms).
+  Without a 1541 drive ROM, breadbin serves the disk itself: its virtual drive answers the
+  KERNAL's LOAD from the D64 image, so single-file games, intros and KERNAL-loading titles
+  run. Titles with their own fast loader need a real drive ROM; if you own the ROMs, add
+  them under Settings (they stay in your browser).
+- **Tunes** play through breadbin's own SID player (reSID plus a 6502 driver, compiled to
+  WebAssembly) with the same three visualisers.
+- **Nothing is bundled.** Each shelf is one small request made when it scrolls into view:
+  the Internet Archive for games and demos, CSDb for rankings and scene details, hvsc.de for
+  SID files, and libretro-thumbnails for box art. Everything is cached in the browser.
+
+csdb.dk only lets sites on its allowlist read it from a web page, so CSDb requests go
+through a relay: [r.jina.ai](https://jina.ai/reader/) by default (text only, about 20
+requests a minute), or your own. `docs/play/relay/worker.js` is a Cloudflare Worker that
+also passes CSDb's demo downloads through; set its URL under Settings.
+
+To work on it locally:
+
+```sh
+make serve-web   # builds the SID player to WebAssembly, serves docs/ on :8064
+```
+
 ## Requirements
 
 | Dependency | Purpose |

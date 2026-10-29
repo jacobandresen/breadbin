@@ -1,0 +1,13 @@
+[package]
+name = "breadbin-sid-wasm"
+version = "0.2.0"
+edition = "2021"
+description = "breadbin's SID player as a WebAssembly module for the browser version."
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+breadbin-sid = { path = "../breadbin-sid" }

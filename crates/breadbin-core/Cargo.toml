@@ -27,9 +27,9 @@ encoding_rs = "0.8"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 md5 = "0.7"
 # Pure-Rust SID playback: resid-rs is the MOS6581/8580 chip emulator; breadbin
-# supplies its own 6502 + PSID driver (src/sid.rs) and streams the samples to the
+# supplies its own 6502 + PSID driver (crates/breadbin-sid) and streams the samples to the
 # audio device via cpal. No external SID player (sidplayfp/vice) is required.
-resid-rs = "1.1"
+breadbin-sid = { path = "../breadbin-sid" }
 cpal = "0.15"
 serde = { version = "1", features = ["derive"] }
 

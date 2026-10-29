@@ -20,7 +20,9 @@
 // of the High Voltage SID Collection. Multi-speed/CIA-timed exotica is played at
 // a flat 50Hz, which is correct for almost everything and close enough otherwise.
 
-use resid::{ChipModel, SamplingMethod, Sid};
+use resid::{ChipModel, Sid};
+
+pub use resid::SamplingMethod;
 
 /// PAL system clock; one video frame is this many cycles at 50.04Hz.
 const PAL_CLOCK: u32 = 985_248;
@@ -612,6 +614,17 @@ impl Player {
     /// Build a player for `song` (1-based) of the given .sid bytes, generating
     /// audio at `sample_rate` Hz (mono).
     pub fn new(bytes: &[u8], song: u16, sample_rate: u32) -> Result<Player, String> {
+        Player::with_sampling(bytes, song, sample_rate, SamplingMethod::Interpolate)
+    }
+
+    /// Like [`Player::new`] with an explicit reSID sampling method. `Resample`
+    /// band-limits properly (no aliasing on bright waveforms) at a higher CPU cost.
+    pub fn with_sampling(
+        bytes: &[u8],
+        song: u16,
+        sample_rate: u32,
+        method: SamplingMethod,
+    ) -> Result<Player, String> {
         let f = parse(bytes)?;
         let model = if f.is_8580 {
             ChipModel::Mos8580
@@ -619,7 +632,7 @@ impl Player {
             ChipModel::Mos6581
         };
         let mut sid = Sid::new(model);
-        sid.set_sampling_parameters(SamplingMethod::Interpolate, PAL_CLOCK, sample_rate);
+        sid.set_sampling_parameters(method, PAL_CLOCK, sample_rate);
         let mut cpu = Cpu::new(sid);
 
         // Load the C64 image into RAM at its load address.
