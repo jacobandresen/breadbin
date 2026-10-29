@@ -76,12 +76,6 @@ export async function cachedJSON(url, maxAgeMs) {
   return JSON.parse(await cachedText(url, maxAgeMs));
 }
 
-/** True when `url` has a cached copy (of any age). */
-export async function isCached(url) {
-  const cache = await openCache(JSON_CACHE);
-  return !!(cache && (await cache.match(url)));
-}
-
 /** Store or read a user-supplied file (their own ROMs) under a fixed key. */
 export async function putBlob(key, bytes) {
   const cache = await openCache(FILES);

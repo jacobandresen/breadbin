@@ -50,7 +50,11 @@ const CHROME = process.env.CHROME || '/usr/bin/chromium';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = fs.existsSync(RESULTS) ? JSON.parse(fs.readFileSync(RESULTS, 'utf8')) : {};
 for (const k of ['games', 'demos', 'tunes']) results[k] ??= {};
-const saveResults = () => fs.writeFileSync(RESULTS, JSON.stringify(results, null, 1));
+/** Write back `kind`'s results only: other runs may be saving theirs. */
+const saveResults = (kind) => {
+  const onDisk = fs.existsSync(RESULTS) ? JSON.parse(fs.readFileSync(RESULTS, 'utf8')) : {};
+  fs.writeFileSync(RESULTS, JSON.stringify({ ...onDisk, [kind]: results[kind] }, null, 1));
+};
 
 /** GET `url`, keeping a copy in cache/ for `days`. */
 async function cached(name, url, days, transform = (b) => b) {
@@ -162,9 +166,12 @@ const csdbRelease = async (id) =>
 const field = (xml, tag) => new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml)?.[1]?.trim() || '';
 const party = (xml) => (xml.includes('<ReleasedAt>') ? field(xml.slice(xml.indexOf('<ReleasedAt>')), 'Name') : '');
 
-/** CSDb's top demos that the Internet Archive has, with party and year. */
+/** CSDb's top demos and one-file demos that the Internet Archive has, with party and year. */
 async function demoCandidates() {
-  const top = (await csdbToplist(1)).map((d) => ({ csdb: d.id, title: d.name, group: d.group, rating: d.rating }));
+  const [demos, onefile] = await Promise.all([csdbToplist(1), csdbToplist(2)]);
+  const top = [...demos.map((d) => ({ ...d, onefile: 0 })), ...onefile.map((d) => ({ ...d, onefile: 1 }))]
+    .sort((a, b) => b.rating - a.rating)
+    .map((d) => ({ csdb: d.id, title: d.name, group: d.group, rating: d.rating, onefile: d.onefile }));
   const out = [];
   for (let i = 0; i < top.length && out.length < TOP; i += 40) {
     const chunk = top.slice(i, i + 40);
@@ -329,7 +336,7 @@ async function runBrowserTests(kind, candidates) {
       executablePath: CHROME,
       headless: 'new',
       protocolTimeout: 180000,
-      userDataDir: path.join(os.tmpdir(), `breadbin-playtest-${w}`),
+      userDataDir: path.join(os.tmpdir(), `breadbin-playtest-${kind}-${w}`),
       args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--mute-audio'],
     });
   await Promise.all(
@@ -350,7 +357,7 @@ async function runBrowserTests(kind, candidates) {
           if (!res.harness) break;
         }
         results[kind][item.id] = { ...item, ...res, testedAt: new Date().toISOString() };
-        saveResults();
+        saveResults(kind);
         console.log(`${res.ok ? 'PASS' : 'FAIL'}  ${item.title.slice(0, 40).padEnd(40)} ${res.reason || ''} ${res.drive?.join(' ') || ''}`);
       }
       await browser.close().catch(() => {});
@@ -404,7 +411,7 @@ async function testTunes() {
       res = { ok: false, reason: e.message };
     }
     results.tunes[t.id] = { ...t, ...res, testedAt: new Date().toISOString() };
-    saveResults();
+    saveResults('tunes');
     console.log(`${res.ok ? 'PASS' : 'FAIL'}  ${t.name.slice(0, 40).padEnd(40)} ${res.reason || res.hvsc}`);
   }
 }
@@ -425,7 +432,7 @@ function writeVerified() {
         compact({ gb, run, ia, title, rating, classic, genre, sub, year, publisher, shot })),
     demos: ok('demos')
       .sort((a, b) => b.rating - a.rating)
-      .map(({ id, title, group, rating, party, year, csdb }) => ({ id, title, group, rating, party, year, csdb })),
+      .map(({ id, title, group, rating, party, year, csdb, onefile }) => compact({ id, title, group, rating, party, year, csdb, onefile })),
     tunes: ok('tunes')
       .sort((a, b) => b.rating - a.rating)
       .map(({ id, name, composer, group, rating, year, party, hvsc }) => ({ id, name, composer, group, rating, year, party, hvsc })),
