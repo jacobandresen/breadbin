@@ -418,6 +418,94 @@ dialog[open] { animation: rise 160ms ease-out; }
 .emu-error { color: var(--cream); max-width: 520px; text-align: center; font-size: 14px; }
 .emu-error b { display: block; font: 14px var(--c64-font); color: var(--red); margin-bottom: 8px; }
 
+/* ── Touch pad: a stick and fire button beside the screen ────────── */
+
+.pad { display: none; }
+.emu.touch .pad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "keys keys" "stick fire";
+  gap: 10px;
+  flex: 1;
+  min-height: 200px;
+  padding: 6px 14px calc(14px + env(safe-area-inset-bottom));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.emu.touch .emu-stage { flex: none; padding: 10px 10px 4px; }
+.emu.touch .emu-note { display: none; }
+.pad-keys { grid-area: keys; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.key.pill.pad-key { font-size: 9px; padding: 8px 9px 10px; touch-action: none; }
+.pad-port { color: var(--yellow); }
+
+.pad-stick {
+  grid-area: stick;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 50%, rgb(255 255 255 / 0.03), transparent 70%);
+  touch-action: none;
+}
+.stick-base {
+  width: 128px; height: 128px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 45%, #2a2420, var(--key-edge) 70%);
+  box-shadow: inset 0 3px 10px rgb(0 0 0 / 0.75), 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 6px #2b2420;
+  transition: transform 120ms ease;
+}
+.pad-stick.active .stick-base { transition: none; }
+.stick-knob {
+  width: 62px; height: 62px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff8a7d, var(--red) 45%, #8f1d14 80%);
+  box-shadow: 0 6px 10px rgb(0 0 0 / 0.6), inset 0 -4px 0 rgb(0 0 0 / 0.25);
+  transition: transform 90ms ease;
+}
+.pad-stick.active .stick-knob { transition: none; }
+.pad-hint {
+  position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;
+  font: 9px var(--c64-font); font-variation-settings: "SCAN" 100, "BLED" 0;
+  letter-spacing: 2px; color: rgb(239 230 210 / 0.25); text-transform: uppercase;
+}
+.pad-fire {
+  grid-area: fire;
+  justify-self: center; align-self: center;
+  width: min(136px, 34vw); aspect-ratio: 1; border: 0; border-radius: 50%;
+  font: 13px var(--c64-font); font-variation-settings: "SCAN" 100, "BLED" 0; letter-spacing: 2px;
+  color: #fff3; text-shadow: 0 1px 0 rgb(0 0 0 / 0.4);
+  background: radial-gradient(circle at 35% 30%, #ff8a7d, var(--red) 45%, #8f1d14 85%);
+  box-shadow: inset 0 -9px 0 #6d150e, 0 0 0 8px #2b2420, 0 0 0 10px var(--key-edge), 0 10px 18px rgb(0 0 0 / 0.6);
+  touch-action: none;
+  transition: transform 60ms ease, box-shadow 60ms ease;
+}
+.pad-fire span { color: rgb(255 255 255 / 0.75); }
+.pad-fire.on {
+  transform: translateY(5px);
+  box-shadow: inset 0 -3px 0 #6d150e, 0 0 0 8px #2b2420, 0 0 0 10px var(--key-edge), 0 3px 6px rgb(0 0 0 / 0.6);
+  filter: brightness(1.15);
+}
+
+/* Landscape phones: the screen in the middle, stick left, fire right. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .emu.touch .emu-bar { padding: 6px 12px 9px; }
+  .emu.touch .emu-stage { flex: 1; padding: 6px; }
+  .emu.touch .emu-frame { width: calc((100vh - 110px) * 1.333); box-shadow: 0 0 0 6px #2b2420, 0 0 0 8px var(--key-edge); }
+  .emu.touch .pad {
+    position: absolute; inset: 50px 0 0 0;
+    grid-template-columns: 1fr calc((100vh - 110px) * 1.333 + 30px) 1fr;
+    grid-template-rows: 1fr auto;
+    grid-template-areas: "stick . fire" "keys keys keys";
+    padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+    pointer-events: none;
+  }
+  .emu.touch .pad > * { pointer-events: auto; }
+  .stick-base { width: 112px; height: 112px; }
+  .pad-fire { width: min(112px, 22vh * 2); }
+}
+
 /* ── Boot screen: a tape loader with raster bars in the border ───── */
 
 .boot {
@@ -477,6 +565,10 @@ dialog[open] { animation: rise 160ms ease-out; }
   .field, .rom-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
+  .emu-bar { gap: 6px; padding: 8px 10px 11px; }
+  .emu-title { flex: 1; min-width: 0; font-size: 11px; }
+  .emu-status { display: none; }
+  .emu-bar .key.pill { padding: 8px 9px 10px; font-size: 9px; }
   .brand-stripes { display: none; }
   .search input { width: 110px; }
   .tab-icon { display: none; }

@@ -11,12 +11,13 @@ import * as store from './store.js';
 import * as emu from './emu.js';
 import { boxartIndex, canon } from './covers.js';
 import { pickFile, prepare } from './media.js';
+import { createPad } from './touch.js';
 import { SidPlayer, sidHeader } from './sid.js';
 import { Viz, NAMES } from './viz.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const CHIPS = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)'];
-const DEFAULTS = { hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0 };
+const DEFAULTS = { hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0, pad: matchMedia('(pointer: coarse)').matches };
 let settings = { ...DEFAULTS, ...store.load('settings', {}) };
 
 /** Tiny element builder: h('div.card', { onclick }, child, ...). */
@@ -426,7 +427,6 @@ async function launch({ kind, item }) {
     store.recordPlay({ kind, id: item.id || `csdb-${item.csdbId}`, item });
     session = emu.run(stage, file, {
       roms,
-      touch: matchMedia('(pointer: coarse)').matches,
       onState: (s) => (status.textContent = s.running ? (s.warping ? 'warp' : 'running') : 'paused'),
       onDrive: (d) => {
         if (d.event === 'load') status.textContent = `loaded ${d.name}`;
@@ -434,6 +434,7 @@ async function launch({ kind, item }) {
       },
     });
     status.textContent = 'starting…';
+    setPad(settings.pad);
   } catch (e) {
     stage.replaceChildren(h('div.emu-error', {}, h('b', {}, '?LOAD ERROR'), e.message));
   }
@@ -455,7 +456,23 @@ async function csdbFile(id, progress) {
   return { name: decodeURIComponent(url.split('/').pop()), bytes: await csdb.fetchFile(url, progress) };
 }
 
+let pad = null;
+
+/** Show or hide the on-screen joystick for the running session. */
+function setPad(on) {
+  pad?.destroy();
+  pad = null;
+  $('#emu').classList.toggle('touch', on);
+  $('#emu-pad').setAttribute('aria-pressed', String(on));
+  if (on && session) pad = createPad($('#emu'), (m) => session.send(m));
+}
+$('#emu-pad').addEventListener('click', () => {
+  saveSettings({ pad: !settings.pad });
+  setPad(settings.pad);
+});
+
 function closeEmu() {
+  setPad(false);
   session?.stop();
   session = null;
   $('#emu').hidden = true;

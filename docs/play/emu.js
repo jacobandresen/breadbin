@@ -4,6 +4,7 @@
 // following vc64web's own embedding protocol (js/vc64web_player.js).
 
 import { bootScript, driveScript } from './drive.js';
+import { PAD_LISTENER } from './touch.js';
 
 const VC64WEB = 'https://vc64web.github.io/';
 const ORIGIN = new URL(VC64WEB).origin;
@@ -14,7 +15,7 @@ const ORIGIN = new URL(VC64WEB).origin;
  * mounted. `roms` optionally carries the user's own { kernal, basic, charset,
  * floppy }. Returns { frame, stop() }.
  */
-export function run(host, file, { roms = {}, touch = false, onState, onDrive } = {}) {
+export function run(host, file, { roms = {}, onState, onDrive } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -26,7 +27,6 @@ export function run(host, file, { roms = {}, touch = false, onState, onDrive } =
     wide: false,
     border: 0.3,
     dark: true,
-    touch,
   };
   const frame = document.createElement('iframe');
   frame.className = 'emu-frame';
@@ -55,6 +55,7 @@ export function run(host, file, { roms = {}, touch = false, onState, onDrive } =
         if (roms.floppy) load.floppy_rom = roms.floppy;
         frame.contentWindow.postMessage(load, ORIGIN);
         // these run inside vc64web via its scripting API
+        script(PAD_LISTENER);
         if (file.vdrive) {
           script(driveScript(file.bytes));
           script(bootScript());
