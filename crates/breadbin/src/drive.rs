@@ -10,7 +10,8 @@
 //! page 2), so before copying, the CPU is parked in a second loop outside the
 //! file's range: the stub's spin is patched into a JMP there, and the copy
 //! happens once the park code reports in. A stub that was loaded over moves
-//! to a free spot for the program's own LOADs.
+//! to a free spot for the program's own LOADs. Neither goes where an earlier
+//! file landed: the program may be running there (a loader calling LOAD).
 
 use crate::disk::{petscii, sys_stub, D64};
 
@@ -28,7 +29,10 @@ pub enum Event {
 
 const STUB_LEN: u16 = 19;
 /// Where the entry stub goes, the first one free of the programs loaded over it.
-const STUB_SPOTS: [u16; 4] = [0x02a7, 0x0360, 0xcfc0, 0x9fc0];
+/// After page 2, the bottom of the stack page, which only very deep stacks reach;
+/// programs wipe the rest (WarGames fills the tape buffer with $80 and $7D40-$FFFF
+/// with $60).
+const STUB_SPOTS: [u16; 5] = [0x02a7, 0x0120, 0xcfc0, 0x9fc0, 0x0360];
 const SPIN: u16 = 11; // offset of the stub's wait loop
 const PARK_LEN: u16 = 24;
 const PARK_SPOTS: [u16; 5] = [0x02c8, 0x033c, 0x0110, 0xcfe0, 0x9fe0];
@@ -86,6 +90,8 @@ pub struct Drive {
     own_vectors: [u16; 26],
     stub: u16,
     job: Option<Job>,
+    /// Where the files served so far landed.
+    used: Vec<(u16, u16)>,
     pub loads: u32,
     /// Address of the first program's SYS stub, for the boot script.
     pub sys: u16,
@@ -108,9 +114,14 @@ impl Drive {
         for (i, v) in own_vectors.iter_mut().enumerate() {
             *v = peek16(m, 0x300 + 2 * i as u16);
         }
-        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, stub: STUB_SPOTS[0], job: None, loads: 0, sys: 0 };
+        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, stub: STUB_SPOTS[0], job: None, used: vec![], loads: 0, sys: 0 };
         d.install(m);
         Ok(d)
+    }
+
+    /// Whether `len` bytes at `at` stay clear of every file loaded so far.
+    fn clear(&self, at: u16, len: u16) -> bool {
+        self.used.iter().all(|&(a, e)| !overlaps(at, at + len, a, e))
     }
 
     fn flag(&self) -> u16 {
@@ -153,9 +164,11 @@ impl Drive {
             (n, d, addr, end)
         });
         let (addr, end) = file.as_ref().map(|f| (f.2, f.3)).unwrap_or((0, 0));
+        let fits = |p: u16| !overlaps(p, p + PARK_LEN, addr, end) && !overlaps(p, p + PARK_LEN, self.stub, self.stub + STUB_LEN);
         let spot = PARK_SPOTS
             .into_iter()
-            .find(|&p| !overlaps(p, p + PARK_LEN, addr, end) && !overlaps(p, p + PARK_LEN, self.stub, self.stub + STUB_LEN))
+            .find(|&p| fits(p) && self.clear(p, PARK_LEN))
+            .or_else(|| PARK_SPOTS.into_iter().find(|&p| fits(p)))
             .unwrap_or(PARK_SPOTS[0]);
         poke_all(m, spot, &park(spot, self.flag()));
         m.poke(self.stub + SPIN, 0x4c); // JMP park
@@ -184,7 +197,11 @@ impl Drive {
         let parked = job.spot..job.spot + PARK_LEN;
         let free = |s: u16| !overlaps(s, s + STUB_LEN, addr, end) && !overlaps(s, s + STUB_LEN, parked.start, parked.end);
         if !free(self.stub) {
-            self.stub = STUB_SPOTS.into_iter().find(|&s| free(s)).unwrap_or(self.stub);
+            self.stub = STUB_SPOTS
+                .into_iter()
+                .find(|&s| free(s) && self.clear(s, STUB_LEN))
+                .or_else(|| STUB_SPOTS.into_iter().find(|&s| free(s)))
+                .unwrap_or(self.stub);
         }
         if m.peek(0x93) == 0 {
             poke_all(m, addr, &data[2..]);
@@ -206,6 +223,7 @@ impl Drive {
                 poke16(m, 0x330, self.stub);
             }
         }
+        self.used.push((addr, end));
         self.loads += 1;
         m.poke(done, 0x00); // release
         m.event(Event::Load { name, addr, end });
@@ -286,6 +304,20 @@ mod tests {
         assert_eq!(d.stub, STUB_SPOTS[1]);
         assert_eq!(peek16(&mut ram, 0x330), STUB_SPOTS[1]);
         assert_eq!(ram.0[STUB_SPOTS[1] as usize..][..STUB_LEN as usize], entry(STUB_SPOTS[1]));
+    }
+
+    #[test]
+    fn parks_away_from_a_loader_that_loads() {
+        // like WarGames: a loader at $02A7-$0303 that LOADs the next part itself
+        let (mut d, mut ram) = load_first(crate::disk::d64(&[(b"L".to_vec(), [&[0xa7, 0x02][..], &[0xea; 93]].concat())]));
+        ram.0[0xb9] = 0;
+        ram.0[0xc3] = 0x00;
+        ram.0[0xc4] = 0x10;
+        let flag = d.flag() as usize;
+        ram.0[flag] = 0x80;
+        d.tick(&mut ram);
+        let spot = d.job.as_ref().unwrap().spot;
+        assert!(!overlaps(spot, spot + PARK_LEN, 0x02a7, 0x0304), "parked at {spot:04x}, inside the loader");
     }
 
     #[test]

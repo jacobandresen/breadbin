@@ -49,7 +49,7 @@ export async function launch(kind, item) {
     bar.style.width = '100%';
     const roms = await loadRoms();
     const kernal = roms.kernal ? null : await patchedKernal(store.cachedBytes);
-    const file = await prepare(name, bytes, { canMount: !!roms.floppy, prefer: item.run || '' });
+    const file = { ...(await prepare(name, bytes, { canMount: !!roms.floppy, prefer: item.run || '' })), boot: item.boot };
     port = item.port || 2;
     store.recordPlay({ kind, id: item.id, item });
     session = emu.run(stage, file, {

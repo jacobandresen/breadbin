@@ -36,11 +36,12 @@ async function attach(engineB64, diskB64) {
 }
 
 /**
- * Types LOAD"*",8,1 once the drive is attached, then, as a person would, RUN
- * (or the SYS a one-line crack stub was going to do) if READY comes back.
+ * Types LOAD"*",8,1 (or the named file) once the drive is attached, then, as a
+ * person would, RUN (or the SYS a one-line crack stub was going to do) if READY
+ * comes back.
  * Autostarting loaders never return to READY, so they're left alone.
  */
-async function boot() {
+async function boot(file) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const readies = () => {
     let n = 0;
@@ -52,7 +53,7 @@ async function boot() {
   for (let i = 0; i < 600 && !window.breadbinDrive; i++) await sleep(100);
   const drive = window.breadbinDrive;
   const before = readies();
-  wasm_auto_type('load"*",8,1:\n');
+  wasm_auto_type(`load"${file.toLowerCase()}",8,1:\n`); // unshifted letters type PETSCII capitals
   for (let i = 0; i < 300 && !drive.bb_drive_loads(); i++) await sleep(100);
   for (let i = 0; i < 30; i++) {
     await sleep(100);
@@ -71,6 +72,6 @@ const b64 = (bytes) => {
 };
 
 /** Script sources for vc64web's {cmd: "script"}: attach the drive, then boot. */
-export function driveScripts(engine, disk) {
-  return [`(${attach})(${JSON.stringify(b64(new Uint8Array(engine)))}, ${JSON.stringify(b64(disk))});`, `(${boot})();`];
+export function driveScripts(engine, disk, file = '*') {
+  return [`(${attach})(${JSON.stringify(b64(new Uint8Array(engine)))}, ${JSON.stringify(b64(disk))});`, `(${boot})(${JSON.stringify(file)});`];
 }

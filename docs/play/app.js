@@ -40,16 +40,17 @@ async function openItem(tab, id) {
     const v = await verified();
     const known = (tab === 'games' ? v.games : v.demos).find((x) => x.id === id);
     if (known) return tab === 'games' ? showGame(known) : showDemo(known);
+    const boot = new URLSearchParams(location.search).get('boot') || '';
     if (id.startsWith('gb64:')) {
       await coversReady;
       const gb = id.slice(5);
-      return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: new URLSearchParams(location.search).get('run') || '' });
+      return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: new URLSearchParams(location.search).get('run') || '', boot });
     }
     const m = (await ia.metadata(id)).metadata;
     if (!m) throw new Error('no such item');
     const first = (x) => (Array.isArray(x) ? x[0] : x);
     const title = ia.displayTitle(String(first(m.title) || id));
-    const item = { id, ia: id, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || '') };
+    const item = { id, ia: id, boot, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || '') };
     return tab === 'games' ? showGame(item) : showDemo(item);
   } catch (e) {
     toast(`Couldn't open ${id}: ${e.message}`);

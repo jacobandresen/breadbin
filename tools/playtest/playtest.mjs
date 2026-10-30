@@ -42,7 +42,13 @@ const flag = (name, fallback) => {
 /** games.txt: the titles breadbin offers, in order. */
 const PICK_LINES = fs.readFileSync(path.join(HERE, 'games.txt'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#'));
 const PICKS = PICK_LINES.map((l) => l.split(' = ')[0].trim());
-const PINS = new Map(PICK_LINES.filter((l) => l.includes(' = ')).map((l) => [canon(l.split(' = ')[0]), l.split(' = ')[1].trim()]));
+/** "Title = source > file": a GameBase64 path or an Internet Archive id, and the disk file to boot. */
+const PINS = new Map(
+  PICK_LINES.filter((l) => l.includes(' = ')).map((l) => {
+    const [source, boot = ''] = l.split(' = ')[1].split(' > ').map((x) => x.trim());
+    return [canon(l.split(' = ')[0]), { source, boot }];
+  }),
+);
 const TOP = Number(flag('top', cmd === 'tunes' ? 200 : 150));
 const WORKERS = Number(flag('workers', 2));
 const RETEST = rest.includes('--retest');
@@ -141,10 +147,17 @@ async function gameCandidates() {
       shot: slash(r.shot), ia: pop.id, downloads: pop.downloads,
     };
     const old = best.get(key);
-    if (PINS.has(key) ? PINS.get(key) === g.gb : !old || g.rating + g.classic > old.rating + old.classic) best.set(key, g);
+    const pin = PINS.get(key)?.source;
+    if (pin?.includes('/') ? pin === g.gb : !old || g.rating + g.classic > old.rating + old.classic) best.set(key, g);
   }
   const missing = PICKS.filter((t) => !best.has(canon(t)));
   if (missing.length) console.log(`not in GameBase64 (or needing true drive emulation): ${missing.join(', ')}`);
+  // a pinned Internet Archive copy stands in for GameBase64's, keeping its facts
+  for (const [key, { source, boot }] of PINS) {
+    const g = best.get(key);
+    if (g && !source.includes('/')) best.set(key, { ...g, id: source, ia: source, gb: '', run: '', boot });
+    else if (g && boot) g.boot = boot;
+  }
   return PICKS.map((t) => best.get(canon(t))).filter(Boolean);
 }
 
@@ -242,17 +255,17 @@ const BASIC_BLUE = [54, 51, 165];
  * screen (SPACE, F1, a trainer's Y/N...) are answered first; a title screen
  * gets FIRE, then the usual start keys, between tries.
  */
-async function controlledPort({ inFrame, joy, key, screenText }) {
+async function controlledPort({ inFrame, joy, key, screenText, proof }) {
   const look = () =>
     inFrame('look', () => {
       const on = wasm_peek(0xd015), msb = wasm_peek(0xd010);
       const sprites = Array.from({ length: 8 }, (_, i) => (on & (1 << i) ? [wasm_peek(0xd000 + 2 * i) + (msb & (1 << i) ? 256 : 0), wasm_peek(0xd001 + 2 * i)] : null));
       return { sprites, scroll: (wasm_peek(0xd016) & 7) * 8 + (wasm_peek(0xd011) & 7) };
     });
-  // hold `cmd` (or nothing) for 1.2 s: how far each sprite moved, how often the screen scrolled
-  const hold = async (port, cmd, axis) => {
+  // hold the stick (`dirs`, none for idle) for 1.2 s: how far each sprite moved, how often the screen scrolled
+  const hold = async (port, dirs, axis) => {
     const first = await look();
-    if (cmd) await joy(port + cmd);
+    for (const d of dirs) await joy(port + d);
     let last = first, scrolls = 0;
     for (let t = 0; t < 12; t++) {
       await sleep(100);
@@ -260,13 +273,20 @@ async function controlledPort({ inFrame, joy, key, screenText }) {
       if (now.scroll !== last.scroll) scrolls++;
       last = now;
     }
-    if (cmd) await joy(port + (axis ? 'RELEASE_Y' : 'RELEASE_X'));
+    if (dirs.length) await joy(port + 'RELEASE_XY');
     return { moved: first.sprites.map((p, i) => (p && last.sprites[i] ? last.sprites[i][axis] - p[axis] : 0)), scrolls };
   };
-  // twice each way, so a sprite that happens to drift with the stick doesn't count
+  // each way twice, so a sprite that happens to drift with the stick doesn't count;
+  // diagonals for games like Q*bert that only move that way
+  const WAYS = [
+    [['PULL_RIGHT'], ['PULL_LEFT'], 0],
+    [['PULL_DOWN'], ['PULL_UP'], 1],
+    [['PULL_RIGHT', 'PULL_DOWN'], ['PULL_LEFT', 'PULL_UP'], 0],
+    [['PULL_RIGHT', 'PULL_UP'], ['PULL_LEFT', 'PULL_DOWN'], 0],
+  ];
   const responds = async (port) => {
-    const idle = await hold(port, '', 0);
-    for (const [plus, minus, axis] of [['PULL_RIGHT', 'PULL_LEFT', 0], ['PULL_DOWN', 'PULL_UP', 1]]) {
+    const idle = await hold(port, [], 0);
+    for (const [plus, minus, axis] of WAYS) {
       const [a, b, c, d] = [await hold(port, plus, axis), await hold(port, minus, axis), await hold(port, plus, axis), await hold(port, minus, axis)];
       if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${a.moved}|${b.moved}|${c.moved}|${d.moved} scrolls ${a.scrolls},${b.scrolls},${c.scrolls},${d.scrolls} idle ${idle.moved} (${idle.scrolls})`);
       const sprite = a.moved.some((m, i) => m >= 6 && c.moved[i] >= 6 && b.moved[i] <= -6 && d.moved[i] <= -6 && Math.abs(idle.moved[i]) < 6);
@@ -302,10 +322,12 @@ async function controlledPort({ inFrame, joy, key, screenText }) {
   const prompts = [
     [/START GAME/, startGame],
     [/RUN.?STOP\]? TO (START|PLAY)/, () => key(7, 7)],
-    [/YOUR NAME|ENTER NAME|NAME\s*[?:]/, () => type('breadbin\n')],
+    [/HAVE AN ACCOUNT/, () => type('n')],
+    [/YOUR NAME|ENTER NAME|NAME[^?:]{0,16}[?:]\s*$/, () => type('breadbin\n')],
+    [/\[L\]OAD OR \[R\]ESTORE/, () => type('r')],
     [/H\/T|\[H\]IGH ?SCORE/, () => type('h')],
     [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, () => type('n')],
-    [/^[^?]{0,80}\?{1,2}$/, () => type('n')], // one short question on the screen
+    [/^[^?]{0,160}\?{1,2}$/, () => type('n')], // one short question on the screen
     [/SPACE/, () => key(7, 4)],
     [/F7/, () => key(0, 3)],
     [/F1/, () => key(0, 4)],
@@ -332,7 +354,7 @@ async function controlledPort({ inFrame, joy, key, screenText }) {
     }
     await starts[next++]();
     await sleep(2500);
-    for (const port of [2, 1]) if (await responds(port)) return port;
+    for (const port of [2, 1]) if (await responds(port)) return (await proof(), port);
   }
   return 0;
 }
@@ -354,7 +376,7 @@ async function playtest(browser, kind, item) {
   let jammed = false;
   page.on('dialog', (d) => ((jammed ||= /jammed/.test(d.message())), d.dismiss().catch(() => {})));
   try {
-    const run = item.run ? `?run=${encodeURIComponent(item.run)}` : '';
+    const run = item.run ? `?run=${encodeURIComponent(item.run)}` : item.boot ? `?boot=${encodeURIComponent(item.boot)}` : '';
     await page.goto(`${BASE}${run}#${kind}/${encodeURIComponent(item.id)}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#detail[open] .primary', { timeout: 45000 });
     await page.click('#detail[open] .primary');
@@ -406,7 +428,8 @@ async function playtest(browser, kind, item) {
         await sleep(400);
       }
       await shot('fire');
-      r.port = await controlledPort({ inFrame, joy, key, screenText });
+      // a screenshot of the moment the stick was shown to work, for review
+      r.port = await controlledPort({ inFrame, joy, key, screenText, proof: () => shot('control') });
       await sleep(1500);
     } else {
       await sleep(8000);
@@ -461,10 +484,16 @@ async function runBrowserTests(kind, candidates) {
         for (let attempt = 0; attempt < 2; attempt++) {
           if (!browser.connected) browser = await launch(w);
           res = await playtest(browser, kind, item);
-          // GameBase64's version failed: try the Internet Archive's copy
-          if (!res.ok && !res.harness && item.gb && item.ia) {
-            const alt = await playtest(browser, kind, { ...item, id: item.ia, gb: '', run: '' });
-            if (alt.ok) res = { ...alt, gb: '', run: '' };
+          // GameBase64's version failed: try the Internet Archive's copies
+          if (kind === 'games' && !res.ok && !res.harness) {
+            const alts = [...new Set([item.ia, ...(await archiveCopies(item.title))])].filter((id) => id && id !== item.id).slice(0, 4);
+            for (const id of alts) {
+              const alt = await playtest(browser, kind, { ...item, id, ia: id, gb: '', run: '' });
+              if (alt.ok) {
+                res = { ...alt, ia: id, gb: '', run: '' };
+                break;
+              }
+            }
           }
           if (!res.harness) break;
         }
@@ -550,14 +579,18 @@ const compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v 
  * titles are looked up in the whole C64 software library.
  */
 async function onlineCopy(g) {
-  if (g.ia) return g.ia;
+  return g.ia || (await archiveCopies(g.title))[0] || '';
+}
+
+/** Internet Archive C64 items titled like `title` that run in its emulator, most downloaded first. */
+async function archiveCopies(title) {
   // the main title only: subtitles and roman numerals are spelled many ways
-  const words = g.title.split(/:| - /)[0].replace(/[^\w ]|\b[IVX]+\b/g, ' ').trim();
+  const words = title.split(/:| - /)[0].replace(/[^\w ]|\b[IVX]+\b/g, ' ').trim();
   const params = new URLSearchParams([['q', `collection:softwarelibrary_c64 AND emulator:vice* AND title:(${words})`],
     ['fl[]', 'identifier'], ['fl[]', 'title'], ['sort[]', 'downloads desc'], ['rows', '50'], ['output', 'json']]);
-  const res = JSON.parse(await cached(`online-${canon(g.title)}.json`, `https://archive.org/advancedsearch.php?${params}`, 30));
-  const keys = [canon(g.title), canon(g.title.replace(/:| - /g, ' '))];
-  return res.response.docs.find((d) => keys.includes(canon(String(d.title))))?.identifier || '';
+  const res = JSON.parse(await cached(`online-${canon(title)}.json`, `https://archive.org/advancedsearch.php?${params}`, 30));
+  const keys = [canon(title), canon(title.replace(/:| - /g, ' '))];
+  return res.response.docs.filter((d) => keys.includes(canon(String(d.title).replace(/^Commodore 64: /, '')))).map((d) => d.identifier);
 }
 
 /** Write the allowlist the web UI reads: working items only, best first. */
@@ -569,8 +602,8 @@ async function writeVerified() {
     games: ok('games')
       .filter((g) => PICKS.some((t) => canon(t) === canon(g.title)))
       .sort((a, b) => PICKS.findIndex((t) => canon(t) === canon(a.title)) - PICKS.findIndex((t) => canon(t) === canon(b.title)))
-      .map(({ gb, run, ia, online, port, title, rating, classic, genre, sub, year, publisher, shot }) =>
-        compact({ gb, run, ia, online: online === ia ? '' : online, port: port === 1 ? 1 : 0, title, rating, classic, genre, sub, year, publisher, shot })),
+      .map(({ gb, run, boot, ia, online, port, title, rating, classic, genre, sub, year, publisher, shot }) =>
+        compact({ gb, run, boot, ia, online: online === ia ? '' : online, port: port === 1 ? 1 : 0, title, rating, classic, genre, sub, year, publisher, shot })),
     demos: ok('demos')
       .sort((a, b) => b.rating - a.rating)
       .map(({ id, title, group, rating, party, year, csdb, onefile }) => compact({ id, title, group, rating, party, year, csdb, onefile })),

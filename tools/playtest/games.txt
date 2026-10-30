@@ -1,6 +1,7 @@
 # The games breadbin offers, in shelf order. tools/playtest tests each one and
 # docs/play/verified.json keeps those whose joystick controls the player.
-# "Title = path" pins one GameBase64 version when several share the title.
+# "Title = source > file" pins a version: a GameBase64 path or an Internet Archive
+# id, and optionally the file on its disk to boot.
 Bruce Lee
 Gauntlet
 Airwolf
@@ -10,7 +11,7 @@ Wizard of Wor
 Turrican II
 Q*bert = q/Q-BERT1_06058_03.zip
 Bubble Bobble
-WarGames = w/WARGAME2_11014_02.zip
+WarGames = Compilation_Wargames_Gyruss_Dragonfire_Laser_Cycle_Alcazar_Boulderdash_Jungle_Hu > WARGAMES
 Ghosts'n Goblins
 Last Ninja 2
 Creatures II - Torture Trouble
