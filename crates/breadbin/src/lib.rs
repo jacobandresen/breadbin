@@ -99,6 +99,7 @@ pub unsafe extern "C" fn bb_pick(names: *const u8, names_len: usize, start: *con
 // ── virtual drive (runs inside the emulator frame) ──────────────────────────
 
 #[cfg(target_arch = "wasm32")]
+#[link(wasm_import_module = "env")]
 extern "C" {
     fn host_peek(addr: u32) -> u32;
     fn host_poke(addr: u32, value: u32);
