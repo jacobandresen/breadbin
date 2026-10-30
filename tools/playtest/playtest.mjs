@@ -146,6 +146,8 @@ async function gameCandidates() {
 }
 
 /** A CSDb toplist: [{ id, name, group, rating }] in rank order. */
+const unescape = (s) => s.replace(/&amp;/g, '&').trim();
+
 async function csdbToplist(subtype) {
   const html = (await cached(`csdb-top-${subtype}.html`, `https://csdb.dk/toplist.php?type=release&subtype=(${subtype})`, 1)).toString();
   const out = [];
@@ -153,9 +155,9 @@ async function csdbToplist(subtype) {
     const m = /\/release\/\?id=(\d+)"[^>]*>([^<]+)<\/a>/.exec(tr);
     if (!m || out.some((r) => r.id === Number(m[1]))) continue;
     const by = tr.slice(tr.indexOf('</a>')).split('</td>')[0];
-    const group = [...by.matchAll(/>([^<]+)<\/a>/g)].map((g) => g[1]).join(', ');
+    const group = [...by.matchAll(/>([^<]+)<\/a>/g)].map((g) => unescape(g[1])).join(', ');
     const rating = Number(/<font size="?1"?>\s*([\d.]+)/.exec(tr)?.[1]) || 0;
-    out.push({ id: Number(m[1]), name: m[2].replace(/&amp;/g, '&').trim(), group, rating });
+    out.push({ id: Number(m[1]), name: unescape(m[2]), group, rating });
   }
   return out;
 }
@@ -437,7 +439,7 @@ function writeVerified() {
       .sort((a, b) => b.rating - a.rating)
       .map(({ id, name, composer, group, rating, year, party, hvsc }) => ({ id, name, composer, group, rating, year, party, hvsc })),
   };
-  fs.writeFileSync(VERIFIED, JSON.stringify(out));
+  fs.writeFileSync(VERIFIED, JSON.stringify(out).replace(/&amp;/g, '&')); // CSDb names arrive escaped
   console.log(`wrote ${path.relative(REPO, VERIFIED)}: ${out.games.length} games, ${out.demos.length} demos, ${out.tunes.length} tunes`);
 }
 
