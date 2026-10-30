@@ -1,6 +1,6 @@
 //! breadbin's engine, compiled to WebAssembly for the browser version
-//! (docs/play): the SID player, disk images, the virtual drive and the
-//! visualisers. JavaScript keeps only the DOM and browser APIs.
+//! (docs/play): the SID player, disk images, the virtual drive, KERNAL
+//! patches and the visualisers. JavaScript keeps only the DOM and browser APIs.
 //!
 //! The ABI is plain C: the host copies bytes in through `bb_alloc`, and
 //! results come back through one output buffer (`bb_out_*`) and one text
@@ -14,6 +14,7 @@
 pub mod cpu;
 pub mod disk;
 pub mod drive;
+pub mod rom;
 pub mod sid;
 pub mod viz;
 
@@ -94,6 +95,17 @@ pub unsafe extern "C" fn bb_prepare(name: *const u8, name_len: usize, data: *con
 pub unsafe extern "C" fn bb_pick(names: *const u8, names_len: usize, start: *const u8, start_len: usize) {
     let names: Vec<&str> = text(names, names_len).lines().collect();
     set_text(disk::pick(&names, text(start, start_len)).unwrap_or(""));
+}
+
+// ── KERNAL ──────────────────────────────────────────────────────────────────
+
+/// Patch the Open ROMs KERNAL at `ptr` in place (see `rom`). Returns 1 if patched.
+#[no_mangle]
+pub unsafe extern "C" fn bb_patch_kernal(ptr: *mut u8, len: usize) -> u32 {
+    if len == 0 {
+        return 0;
+    }
+    rom::patch_kernal(std::slice::from_raw_parts_mut(ptr, len)) as u32
 }
 
 // ── virtual drive (runs inside the emulator frame) ──────────────────────────

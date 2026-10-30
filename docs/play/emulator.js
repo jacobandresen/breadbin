@@ -5,7 +5,7 @@
 import * as ia from './ia.js';
 import * as emu from './emu.js';
 import * as store from './store.js';
-import { pick, prepare } from './engine.js';
+import { pick, prepare, patchedKernal } from './engine.js';
 import { createPad } from './touch.js';
 import { pollGamepads } from './gamepad.js';
 import { settings, save, loadRoms } from './settings.js';
@@ -48,11 +48,13 @@ export async function launch(kind, item) {
       : await archiveFile(item.ia || item.id, progress);
     bar.style.width = '100%';
     const roms = await loadRoms();
+    const kernal = roms.kernal ? null : await patchedKernal(store.cachedBytes);
     const file = await prepare(name, bytes, { canMount: !!roms.floppy, prefer: item.run || '' });
     port = item.port || 2;
     store.recordPlay({ kind, id: item.id, item });
     session = emu.run(stage, file, {
       roms,
+      kernal,
       port,
       onState: (s) => (status.textContent = s.running ? (s.warping ? 'warp' : 'running') : 'paused'),
       onDrive: (d) => {

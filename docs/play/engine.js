@@ -52,6 +52,22 @@ export async function prepare(name, data, { prefer = '', canMount = false } = {}
   return { name: file, bytes: out(w), vdrive: vdrive === '1' };
 }
 
+/** The MEGA65 Open ROMs KERNAL with breadbin's compatibility patches (rom.rs), or
+ *  null if it can't be fetched or isn't the build the patches are for. */
+export async function patchedKernal(fetchBytes) {
+  try {
+    const w = await engine();
+    const [p, n, free] = put(w, await fetchBytes(OPEN_KERNAL));
+    const ok = w.bb_patch_kernal(p, n);
+    const rom = new Uint8Array(w.memory.buffer, p, n).slice();
+    free();
+    return ok ? rom : null;
+  } catch {
+    return null;
+  }
+}
+export const OPEN_KERNAL = 'https://mega65.github.io/open-roms/bin/kernal_generic.rom';
+
 /** The file to boot among `names` (`start` is the archive's own choice). */
 export async function pick(names, start = '') {
   const w = await engine();

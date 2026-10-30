@@ -19,10 +19,11 @@ const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)'
  * Start `file` ({ name, bytes, vdrive? }) in a new vc64web frame inside `host`.
  * With `vdrive` the D64 is served by breadbin's virtual drive instead of being
  * mounted. `roms` optionally carries the user's own { kernal, basic, charset,
- * floppy }; `port` is the joystick port (1 or 2) the controls drive.
+ * floppy }; without them, `kernal` is the patched Open ROMs KERNAL. `port` is
+ * the joystick port (1 or 2) the controls drive.
  * Returns { frame, send(), stop() }.
  */
-export function run(host, file, { roms = {}, port = 2, onState, onDrive, onAlert } = {}) {
+export function run(host, file, { roms = {}, kernal = null, port = 2, onState, onDrive, onAlert } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -60,22 +61,40 @@ export function run(host, file, { roms = {}, port = 2, onState, onDrive, onAlert
         clearInterval(poll);
         script(ALERTS);
         script(SID_QUALITY);
-        const load = { cmd: 'load' };
-        if (!file.vdrive) Object.assign(load, { file_name: file.name, file: file.bytes });
-        if (roms.kernal) Object.assign(load, { kernal_rom: roms.kernal, basic_rom: roms.basic, charset_rom: roms.charset });
-        if (roms.floppy) load.floppy_rom = roms.floppy;
-        frame.contentWindow.postMessage(load, ORIGIN);
-        // these run inside vc64web via its scripting API
-        script(PAD_LISTENER);
-        frame.contentWindow.postMessage({ bbport: port }, ORIGIN);
-        if (file.vdrive) {
-          engineBytes().then((engine) => driveScripts(engine, file.bytes).forEach(script));
-        } else if (disk) {
-          script('wasm_auto_type(\'load"*",8,1:\\n\'); await disk_loading_finished(); wasm_auto_type("\\nrun:\\n");');
-        }
-        frame.focus();
+        // a patched Open ROMs KERNAL resets the C64; the program goes in after it boots
+        if (kernal && !roms.kernal) {
+          frame.contentWindow.postMessage({ cmd: 'load', kernal_rom: kernal }, ORIGIN);
+          setTimeout(start, 1500);
+        } else start();
       }
     }
+  };
+  const start = () => {
+    const load = { cmd: 'load' };
+    if (!file.vdrive) Object.assign(load, { file_name: file.name, file: file.bytes });
+    if (roms.kernal) Object.assign(load, { kernal_rom: roms.kernal, basic_rom: roms.basic, charset_rom: roms.charset });
+    if (roms.floppy) load.floppy_rom = roms.floppy;
+    frame.contentWindow.postMessage(load, ORIGIN);
+    // these run inside vc64web via its scripting API
+    script(PAD_LISTENER);
+    frame.contentWindow.postMessage({ bbport: port }, ORIGIN);
+    if (file.vdrive) {
+      engineBytes().then((engine) => driveScripts(engine, file.bytes).forEach(script));
+    } else if (/\.tap$/i.test(file.name)) {
+      // insert past vc64web's tape dialog, then LOAD from device 1 (the Open ROMs'
+      // bare LOAD means the disk drive) and press PLAY
+      script(`(async () => {
+        for (let i = 0; i < 100 && !$('#modal_file_slot').is(':visible'); i++) await new Promise((r) => setTimeout(r, 100));
+        $('#auto_load').prop('checked', false);
+        $('#auto_press_play').prop('checked', false);
+        $('#button_insert_file').click();
+        wasm_auto_type('load"",1\\n');
+        setTimeout(wasm_press_play, 800);
+      })();`);
+    } else if (disk) {
+      script('wasm_auto_type(\'load"*",8,1:\\n\'); await disk_loading_finished(); wasm_auto_type("\\nrun:\\n");');
+    }
+    frame.focus();
   };
   addEventListener('message', onMessage);
   frame.addEventListener('load', () => {

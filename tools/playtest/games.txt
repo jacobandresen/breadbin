@@ -10,7 +10,7 @@ Wizard of Wor
 Turrican II
 Q*bert = q/Q-BERT1_06058_03.zip
 Bubble Bobble
-WarGames = w/WARGAME1_08489_02.zip
+WarGames = w/WARGAME2_11014_02.zip
 Ghosts'n Goblins
 Last Ninja 2
 Creatures II - Torture Trouble

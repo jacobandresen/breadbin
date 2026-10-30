@@ -263,40 +263,70 @@ async function controlledPort({ inFrame, joy, key, screenText }) {
     if (cmd) await joy(port + (axis ? 'RELEASE_Y' : 'RELEASE_X'));
     return { moved: first.sprites.map((p, i) => (p && last.sprites[i] ? last.sprites[i][axis] - p[axis] : 0)), scrolls };
   };
+  // twice each way, so a sprite that happens to drift with the stick doesn't count
   const responds = async (port) => {
     const idle = await hold(port, '', 0);
     for (const [plus, minus, axis] of [['PULL_RIGHT', 'PULL_LEFT', 0], ['PULL_DOWN', 'PULL_UP', 1]]) {
-      const up = await hold(port, plus, axis);
-      const down = await hold(port, minus, axis);
-      if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${up.moved} (${up.scrolls}) / ${down.moved} (${down.scrolls}), idle scrolls ${idle.scrolls}`);
-      if (up.moved.some((d, i) => d >= 6 && down.moved[i] <= -6)) return true;
-      if (idle.scrolls <= 1 && Math.max(up.scrolls, down.scrolls) >= 4) return true;
+      const [a, b, c, d] = [await hold(port, plus, axis), await hold(port, minus, axis), await hold(port, plus, axis), await hold(port, minus, axis)];
+      if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${a.moved}|${b.moved}|${c.moved}|${d.moved} scrolls ${a.scrolls},${b.scrolls},${c.scrolls},${d.scrolls} idle ${idle.moved} (${idle.scrolls})`);
+      const sprite = a.moved.some((m, i) => m >= 6 && c.moved[i] >= 6 && b.moved[i] <= -6 && d.moved[i] <= -6 && Math.abs(idle.moved[i]) < 6);
+      const scroll = idle.scrolls <= 1 && ((a.scrolls >= 4 && c.scrolls >= 4) || (b.scrolls >= 4 && d.scrolls >= 4));
+      if (sprite || scroll) return true;
     }
     return false;
   };
-  // what the screen asks for, else the usual ways past a title screen
+  const type = (c) => inFrame('type', (c) => wasm_auto_type(c), c);
+  const fire = async (p) => (await joy(p + 'PRESS_FIRE'), await sleep(200), await joy(p + 'RELEASE_FIRE'));
+  // a trainer menu: cursor from the highlighted (reversed) line down to START GAME, RETURN
+  const startGame = async (text) => {
+    const rows = text.match(/.{40}/g) || [];
+    const target = rows.findIndex((r) => /START GAME/.test(r));
+    const reversed = await inFrame('menu', () => {
+      const base = (3 - (wasm_peek(0xdd00) & 3)) * 0x4000 + (wasm_peek(0xd018) >> 4) * 0x400;
+      return Array.from({ length: 25 }, (_, r) => Array.from({ length: 40 }, (_, c) => wasm_peek(base + r * 40 + c) >= 0x80).filter(Boolean).length);
+    });
+    const marked = reversed.findIndex((n) => n >= 4);
+    const from = marked >= 0 && marked <= target ? marked : rows.findIndex((r) => /\?|YES|NO\b|ON\b|OFF\b/.test(r));
+    const steps = target - Math.max(from, 0);
+    for (let i = 0; i < steps; i++) await key(0, 7), await sleep(250);
+    await key(0, 1);
+    await sleep(1500);
+    // menus driven by the joystick instead
+    for (const port of [2, 1]) {
+      if (!/START GAME/.test(await screenText())) return;
+      for (let i = 0; i < steps; i++) await joy(port + 'PULL_DOWN'), await sleep(200), await joy(port + 'RELEASE_Y'), await sleep(200);
+      await fire(port);
+      await sleep(1500);
+    }
+  };
   const prompts = [
-    [/H\/T/, () => type('h')],
+    [/START GAME/, startGame],
+    [/RUN.?STOP\]? TO (START|PLAY)/, () => key(7, 7)],
+    [/YOUR NAME|ENTER NAME|NAME\s*[?:]/, () => type('breadbin\n')],
+    [/H\/T|\[H\]IGH ?SCORE/, () => type('h')],
     [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, () => type('n')],
+    [/^[^?]{0,80}\?{1,2}$/, () => type('n')], // one short question on the screen
     [/SPACE/, () => key(7, 4)],
     [/F7/, () => key(0, 3)],
     [/F1/, () => key(0, 4)],
     [/RETURN/, () => key(0, 1)],
   ];
-  const type = (c) => inFrame('type', (c) => wasm_auto_type(c), c);
-  const fire = async (p) => (await joy(p + 'PRESS_FIRE'), await sleep(200), await joy(p + 'RELEASE_FIRE'));
   const starts = [() => {}, () => fire(2), () => fire(1), () => key(7, 4), () => key(0, 4), () => key(0, 3), () => key(0, 1)];
   // after each answered prompt the start keys begin again
-  let asked = 0;
+  // each screen's prompt is answered at most twice (its text may stay on screen)
+  const answered = new Map();
   for (let next = 0; next < starts.length; ) {
     const text = await screenText();
     if (/READY\.|BYTES FREE/.test(text)) return 0; // back at BASIC: nothing to control
-    const prompt = asked < 6 && prompts.find(([re]) => re.test(text));
+    // prompts are only read off screens of text, not graphics shown as characters
+    const wordy = (text.match(/[A-Z ]/g) || []).length > text.length * 0.7;
+    const screen = text.replace(/\s+/g, ' ').trim();
+    const prompt = wordy && (answered.get(screen) || 0) < 2 && prompts.find(([re]) => re.test(screen));
     if (process.env.DEBUG) console.log(`  ${prompt ? 'answer ' + prompt[0] : 'start ' + next} | ${text.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
     if (prompt) {
-      asked++;
+      answered.set(screen, (answered.get(screen) || 0) + 1);
       next = 0;
-      await prompt[1]();
+      await prompt[1](text);
       await sleep(2500);
       continue;
     }

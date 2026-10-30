@@ -6,7 +6,7 @@
 
 import * as emu from './emu.js';
 import * as store from './store.js';
-import { prepare } from './engine.js';
+import { prepare, patchedKernal } from './engine.js';
 import { $, h } from './ui.js';
 
 const raw = (repo, sha, dir = '') => `https://raw.githubusercontent.com/${repo}/${sha}/${dir}`;
@@ -149,7 +149,7 @@ export function initHack() {
     if (!prg) return;
     session?.stop();
     const run = await prepare('hack.prg', prg, { canMount: false });
-    session = emu.run(stage, run);
+    session = emu.run(stage, run, { kernal: await patchedKernal(store.cachedBytes) });
   };
   const download = () => {
     const blob = new Blob([isText(path) ? editor.value : files[path]]);
