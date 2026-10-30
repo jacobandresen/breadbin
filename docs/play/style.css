@@ -356,6 +356,7 @@ dialog.sheet::backdrop { background: rgb(10 8 6 / 0.72); backdrop-filter: blur(3
 dialog[open] { animation: rise 160ms ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
 .sheet-body { display: grid; grid-template-columns: 260px 1fr; gap: 22px; padding: 22px; }
+.sheet-body:has(.sheet-art.wide) { grid-template-columns: 340px 1fr; }
 .sheet-art { border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 0 0 5px var(--key-edge), 0 6px 18px rgb(0 0 0 / 0.6); align-self: start; }
 .sheet-art img { width: 100%; }
 .sheet h2 { font: 20px/1.2 var(--c64-font); font-variation-settings: "SCAN" 100, "BLED" 0; color: var(--yellow); margin: 0 0 8px; }
@@ -557,6 +558,8 @@ dialog[open] { animation: rise 160ms ease-out; }
   .screen-bezel { min-height: 0; aspect-ratio: 4 / 3; flex: none; }
   .sheet-body { grid-template-columns: 1fr; padding: 18px; }
   .sheet-art { max-width: 240px; }
+  .sheet-body:has(.sheet-art.wide) { grid-template-columns: 1fr; }
+  .sheet-art.wide { max-width: none; }
   .field, .rom-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {

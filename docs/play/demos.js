@@ -43,7 +43,7 @@ export async function showDemo(d) {
   const shots = h('div.shots');
   let hero = art(cover(d, ''), d.title);
   dlg.replaceChildren(closeButton(dlg), h('div.sheet-body', {},
-    h('div.sheet-art', {}, hero),
+    h('div.sheet-art.wide', {}, hero),
     h('div', {},
       h('h2', {}, d.title),
       h('p.by', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')),
@@ -58,7 +58,15 @@ export async function showDemo(d) {
   info.add('Party', d.party);
   try {
     const meta = await ia.metadata(d.id);
-    const pics = (meta.files || []).map((f) => f.name).filter((n) => /^screenshot_\d+\.jpg$/.test(n)).slice(0, 12);
+    // the archive's first captures are usually the C64 loading the demo, and
+    // a still picture yields the same capture over and over (same file size)
+    const all = (meta.files || []).filter((f) => /^screenshot_\d+\.jpg$/.test(f.name));
+    const sizes = new Set();
+    const pics = all
+      .slice(all.length > 8 ? 3 : 0)
+      .filter((f) => !sizes.has(f.size) && sizes.add(f.size))
+      .map((f) => f.name)
+      .slice(0, 12);
     for (const p of pics) {
       shots.append(h('img', { src: ia.fileUrl(d.id, p.replace('.jpg', '_thumb.jpg')), alt: '', loading: 'lazy', onclick: () => hero.replaceWith((hero = art([ia.fileUrl(d.id, p)], d.title))) }));
     }
