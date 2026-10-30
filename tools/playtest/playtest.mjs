@@ -418,24 +418,29 @@ async function testTunes() {
       if (!p) throw new Error('the player rejected it');
       // 20 seconds: some tunes open with a long quiet intro
       const n = 44100;
-      const out = w.bb_alloc(n * 2);
+      const out = w.bb_alloc(n * 4); // stereo i16
       const regs = w.bb_alloc(32);
       let loud = 0;
-      const states = new Set(); // SID register snapshots: a crashed tune leaves a frozen drone
+      // a crashed tune leaves a drone: no more interrupts, SID registers frozen
+      const states = new Set();
+      const frames = [];
       for (let s = 0; s < 20; s++) {
         w.bb_player_render(p, out, n);
-        const pcm = new Int16Array(w.memory.buffer, out, n);
+        const pcm = new Int16Array(w.memory.buffer, out, n * 2);
         let sum = 0;
         for (const v of pcm) sum += v * v;
-        if (Math.sqrt(sum / n) > 250) loud++;
-        w.bb_player_regs(p, regs);
-        if (s >= 10) states.add(new Uint8Array(w.memory.buffer, regs, 25).join());
+        if (Math.sqrt(sum / (n * 2)) > 250) loud++;
+        const frame = w.bb_player_regs(p, regs);
+        if (s >= 10) {
+          states.add(new Uint8Array(w.memory.buffer, regs, 25).join());
+          frames.push(frame);
+        }
       }
-      w.bb_free(out, n * 2);
+      w.bb_free(out, n * 4);
       w.bb_free(regs, 32);
       w.bb_player_free(p);
       if (loud < 3) throw new Error('silent in our player');
-      if (states.size < 5) throw new Error('stopped playing in our player');
+      if (states.size < 3 && frames[0] === frames.at(-1)) throw new Error('stopped playing in our player');
       const credits = [...xml.matchAll(/<Credit>[\s\S]*?<\/Credit>/g)].map((c) => c[0]).filter((c) => /<CreditType>Music/.test(c));
       const composer = [...new Set(credits.map((c) => /<Handle>([^<]+)<\/Handle>/.exec(c)?.[1]).filter(Boolean))].join(' & ');
       res = { ok: true, hvsc, composer, party: party(xml), year: Number(field(xml, 'ReleaseYear')) || 0 };

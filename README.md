@@ -31,8 +31,9 @@ phone or tablet the emulator gets an on-screen joystick.
   into one first), handles autostarting loaders and steps around the few places
   where the Open ROMs differ from the originals. Titles with their own fast loader need a real drive ROM; if you own
   the ROMs, add them under Settings (they stay in your browser).
-- **Engine**: the virtual drive, disk-image handling, SID player (reSID plus a
-  6502 driver) and visualisers are Rust, compiled to WebAssembly
+- **Engine**: the virtual drive, disk-image handling, SID player (reSID driven
+  by a small cycle-counted C64: 6502, CIAs and raster interrupt, enough for
+  digi tricks; 2SID and 3SID tunes play in stereo) and visualisers are Rust, compiled to WebAssembly
   (`crates/breadbin`). JavaScript (`docs/play`) does the page and browser APIs.
 - **Data**: nothing is bundled. Each shelf loads when it scrolls into view and
   the browser caches what it fetches: game files from GameBase64's collection on
@@ -47,9 +48,10 @@ phone or tablet the emulator gets an on-screen joystick.
 ## Playtests
 
 `tools/playtest` decides what the shelves offer. It plays each candidate in
-headless Chromium against a local copy of the site (pressing FIRE, SPACE, F1 and
-moving the stick), classifies the screenshots, and plays tunes through the
-WebAssembly SID player, then writes the ones that work to `verified.json`:
+headless Chromium against a local copy of the site (pressing FIRE, SPACE, F1,
+saying no to trainer menus and moving the stick), classifies the screenshots,
+and plays tunes through the WebAssembly SID player (they must stay audible and
+keep changing), then writes the ones that work to `verified.json`:
 
 ```sh
 make serve-web &                       # build the engine, serve docs/ on :8064

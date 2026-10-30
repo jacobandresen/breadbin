@@ -40,7 +40,9 @@ pub struct SidFile {
     load_addr: u16,
     /// Bit n set: song n+1 is timed by CIA 1 instead of the video frame.
     speed: u32,
-    is_8580: bool,
+    /// The SID chips: base address and whether it's an 8580 (2SID and 3SID
+    /// tunes have more than one).
+    chips: Vec<(u16, bool)>,
     body: Vec<u8>,
 }
 
@@ -79,6 +81,17 @@ pub fn parse(data: &[u8]) -> Result<SidFile, String> {
     if init_addr == 0 {
         init_addr = load_addr;
     }
+    let flags = if version >= 2 { be16(data, 0x76) } else { 0 };
+    let is_8580 = flags & 0x30 == 0x20;
+    let mut chips = vec![(0xd400, is_8580)];
+    // v3 adds a second SID ($Dxx0 as one byte), v4 a third; unknown models follow the first
+    for (n, at) in [(3, 0x7a), (4, 0x7b)] {
+        let b = data[at];
+        if version >= n && b & 1 == 0 && ((0x42..=0x7e).contains(&b) || b >= 0xe0) {
+            let model = (flags >> (2 * n)) & 3; // bits 6-7, then 8-9
+            chips.push((0xd000 | (b as u16) << 4, if model == 0 { is_8580 } else { model == 2 }));
+        }
+    }
     Ok(SidFile {
         name: cstr(data, 0x16, 32),
         author: cstr(data, 0x36, 32),
@@ -89,7 +102,7 @@ pub fn parse(data: &[u8]) -> Result<SidFile, String> {
         play_addr: be16(data, 0x0c),
         load_addr,
         speed: u32::from_be_bytes([data[0x12], data[0x13], data[0x14], data[0x15]]),
-        is_8580: version >= 2 && data.len() >= 0x78 && (be16(data, 0x76) & 0x30) == 0x20,
+        chips,
         body,
     })
 }
@@ -212,11 +225,13 @@ struct C64 {
     /// $E000-$FFFF when the KERNAL is banked in: RTS everywhere, plus the
     /// interrupt entry and exit points.
     kernal: Box<[u8; 0x2000]>,
-    sid: Sid,
-    regs: [u8; NUM_REGS],
-    /// SID writes made by the current instruction, applied once reSID has been
-    /// clocked up to it.
-    writes: Vec<(u8, u8)>,
+    sids: Vec<Sid>,
+    /// Where each SID sits (the first also answers in its mirrors up to $D7FF).
+    bases: Vec<u16>,
+    regs: Vec<[u8; NUM_REGS]>,
+    /// SID writes (chip, register, value) made by the current instruction,
+    /// applied once reSID has been clocked up to it.
+    writes: Vec<(u8, u8, u8)>,
     cia: [Cia; 2],
     raster: u32, // cycle within the frame
     raster_compare: u16,
@@ -233,7 +248,7 @@ struct C64 {
 }
 
 impl C64 {
-    fn new(sid: Sid) -> C64 {
+    fn new(sids: Vec<Sid>, bases: Vec<u16>) -> C64 {
         let mut kernal = Box::new([0x60u8; 0x2000]); // RTS
         let mut put = |addr: u16, bytes: &[u8]| {
             let o = (addr - 0xe000) as usize;
@@ -258,7 +273,14 @@ impl C64 {
         cia[0].counter[0] = KERNAL_TIMER;
         cia[0].control[0] = 0x01;
         cia[0].mask = 0x01;
-        C64 { ram, kernal, sid, regs: [0; NUM_REGS], writes: Vec::new(), cia, raster: 0, raster_compare: 0, vic_irq: 0, vic_mask: 0, vic_ctrl: 0x1b, nmi_was: false, nmi_pending: false, nmi_late: false, access: 0 }
+        let regs = vec![[0; NUM_REGS]; sids.len()];
+        C64 { ram, kernal, sids, bases, regs, writes: Vec::new(), cia, raster: 0, raster_compare: 0, vic_irq: 0, vic_mask: 0, vic_ctrl: 0x1b, nmi_was: false, nmi_pending: false, nmi_late: false, access: 0 }
+    }
+
+    /// The SID answering at I/O address `a`.
+    fn chip_at(&self, a: u16) -> Option<usize> {
+        let extra = self.bases.iter().skip(1).position(|&b| a & !0x1f == b).map(|i| i + 1);
+        extra.or((0xd400..=0xd7ff).contains(&a).then_some(0))
     }
 
     fn port(&self) -> u8 {
@@ -299,20 +321,20 @@ impl Bus for C64 {
     fn read(&mut self, a: u16) -> u8 {
         self.access += 1;
         match a {
-            0xd000..=0xdfff if self.io_visible() => match a {
-                0xd400..=0xd7ff => match a & 0x1f {
-                    0x1b | 0x1c => self.sid.read((a & 0x1f) as u8),
-                    r => self.regs[r as usize],
-                },
-                0xd000..=0xd3ff => match a & 0x3f {
+            0xd000..=0xdfff if self.io_visible() => match (a, self.chip_at(a)) {
+                (_, Some(c)) => {
+                    let r = (a & 0x1f) as u8;
+                    if matches!(r, 0x1b | 0x1c) { self.sids[c].read(r) } else { self.regs[c][r as usize] }
+                }
+                (0xd000..=0xd3ff, _) => match a & 0x3f {
                     0x11 => (self.vic_ctrl & 0x7f) | ((self.line() >> 1) as u8 & 0x80),
                     0x12 => self.line() as u8,
                     0x19 => self.vic_irq | if self.vic_irq & self.vic_mask & 0x0f != 0 { 0xf0 } else { 0x70 },
                     0x1a => self.vic_mask | 0xf0,
                     _ => 0,
                 },
-                0xdc00..=0xdcff => self.cia[0].read(a, self.access - 1),
-                0xdd00..=0xddff => self.cia[1].read(a, self.access - 1),
+                (0xdc00..=0xdcff, _) => self.cia[0].read(a, self.access - 1),
+                (0xdd00..=0xddff, _) => self.cia[1].read(a, self.access - 1),
                 _ => 0,
             },
             0xe000..=0xffff if self.port() & 2 != 0 => self.kernal[(a - 0xe000) as usize],
@@ -323,13 +345,13 @@ impl Bus for C64 {
     fn write(&mut self, a: u16, v: u8) {
         self.access += 1;
         if (0xd000..=0xdfff).contains(&a) && self.io_visible() {
-            match a {
-                0xd400..=0xd7ff => {
+            match (a, self.chip_at(a)) {
+                (_, Some(c)) => {
                     let r = (a & 0x1f) as u8;
-                    self.regs[r as usize] = v;
-                    self.writes.push((r, v));
+                    self.regs[c][r as usize] = v;
+                    self.writes.push((c as u8, r, v));
                 }
-                0xd000..=0xd3ff => match a & 0x3f {
+                (0xd000..=0xd3ff, _) => match a & 0x3f {
                     0x11 => {
                         self.vic_ctrl = v;
                         self.raster_compare = (self.raster_compare & 0xff) | ((v as u16 & 0x80) << 1);
@@ -339,8 +361,8 @@ impl Bus for C64 {
                     0x1a => self.vic_mask = v & 0x0f,
                     _ => {}
                 },
-                0xdc00..=0xdcff => self.cia[0].write(a, v),
-                0xdd00..=0xddff => self.cia[1].write(a, v),
+                (0xdc00..=0xdcff, _) => self.cia[0].write(a, v),
+                (0xdd00..=0xddff, _) => self.cia[1].write(a, v),
                 _ => {}
             }
         } else {
@@ -368,6 +390,8 @@ pub struct Player {
     until_play: i64,
     /// Cycles clocked by the CPU that reSID hasn't produced audio for yet.
     pending: u32,
+    /// Per-chip samples waiting to be mixed.
+    scratch: Vec<Vec<i16>>,
     frame: u64,
     pub name: String,
     pub author: String,
@@ -394,9 +418,17 @@ impl Player {
     /// band-limits properly (no aliasing on bright waveforms) at a higher CPU cost.
     pub fn with_sampling(bytes: &[u8], song: u16, sample_rate: u32, method: SamplingMethod) -> Result<Player, String> {
         let f = parse(bytes)?;
-        let mut sid = Sid::new(if f.is_8580 { ChipModel::Mos8580 } else { ChipModel::Mos6581 });
-        sid.set_sampling_parameters(method, PAL_CLOCK, sample_rate);
-        let mut c64 = C64::new(sid);
+        let sids = f
+            .chips
+            .iter()
+            .map(|&(_, is_8580)| {
+                let mut sid = Sid::new(if is_8580 { ChipModel::Mos8580 } else { ChipModel::Mos6581 });
+                sid.set_sampling_parameters(method, PAL_CLOCK, sample_rate);
+                sid
+            })
+            .collect::<Vec<_>>();
+        let scratch = vec![Vec::new(); sids.len()];
+        let mut c64 = C64::new(sids, f.chips.iter().map(|c| c.0).collect());
         for (i, b) in f.body.iter().enumerate() {
             if let Some(cell) = c64.ram.get_mut(f.load_addr as usize + i) {
                 *cell = *b;
@@ -423,6 +455,7 @@ impl Player {
             period: if cia_timed { 0 } else { FRAME_CYCLES },
             until_play: 0,
             pending: 0,
+            scratch,
             frame: 0,
             name: f.name,
             author: f.author,
@@ -466,20 +499,31 @@ impl Player {
         cycles + taken
     }
 
-    /// Fill `out` (mono i16) with the next samples.
+    /// Fill `out` (interleaved stereo i16) with the next samples.
     pub fn render(&mut self, out: &mut [i16]) -> Vis {
+        let frames = out.len() / 2;
         let mut idx = 0;
-        while idx < out.len() {
+        while idx < frames {
             if self.pending > 0 {
-                let (n, left) = self.c64.sid.sample(self.pending, &mut out[idx..], 1);
+                let want = frames - idx;
+                // every chip is clocked alike, so each yields the same number of samples
+                let mut made = (0, 0);
+                for (sid, buf) in self.c64.sids.iter_mut().zip(&mut self.scratch) {
+                    if buf.len() < want {
+                        buf.resize(want, 0);
+                    }
+                    made = sid.sample(self.pending, &mut buf[..want], 1);
+                }
+                let (n, left) = made;
+                self.mix(&mut out[idx * 2..(idx + n) * 2]);
                 idx += n;
                 self.pending = left;
                 if left > 0 {
                     break; // buffer full; the rest is produced next time
                 }
             } else if !self.c64.writes.is_empty() {
-                for (r, v) in std::mem::take(&mut self.c64.writes) {
-                    self.c64.sid.write(r, v);
+                for (c, r, v) in std::mem::take(&mut self.c64.writes) {
+                    self.c64.sids[c as usize].write(r, v);
                 }
             } else {
                 self.pending = self.step();
@@ -488,8 +532,26 @@ impl Player {
         self.snapshot()
     }
 
+    /// Mix the chips into stereo frames: one SID in the middle, two apart, a
+    /// third between them.
+    fn mix(&self, out: &mut [i16]) {
+        const PAN: [&[(f32, f32)]; 3] = [&[(1.0, 1.0)], &[(0.75, 0.3), (0.3, 0.75)], &[(0.6, 0.2), (0.2, 0.6), (0.4, 0.4)]];
+        let pan = PAN[self.scratch.len().min(3) - 1];
+        for (f, frame) in out.chunks_exact_mut(2).enumerate() {
+            let (mut l, mut r) = (0.0, 0.0);
+            for (buf, (pl, pr)) in self.scratch.iter().zip(pan) {
+                l += buf[f] as f32 * pl;
+                r += buf[f] as f32 * pr;
+            }
+            frame[0] = l.clamp(-32768.0, 32767.0) as i16;
+            frame[1] = r.clamp(-32768.0, 32767.0) as i16;
+        }
+    }
+
     pub fn snapshot(&self) -> Vis {
-        Vis { regs: self.c64.regs, frame: self.frame }
+        // the first chip in use (some 2SID tunes leave the first one silent)
+        let regs = self.c64.regs.iter().find(|r| r.iter().any(|&v| v != 0)).unwrap_or(&self.c64.regs[0]);
+        Vis { regs: *regs, frame: self.frame }
     }
 }
 
@@ -531,7 +593,7 @@ mod tests {
     #[test]
     fn psid_play_runs_every_frame() {
         let mut p = Player::new(&psid(false), 0, 44100).unwrap();
-        let mut buf = vec![0i16; 44100];
+        let mut buf = vec![0i16; 2 * 44100];
         let vis = p.render(&mut buf);
         assert!((48..=51).contains(&vis.frame), "frames: {}", vis.frame);
         assert_eq!(vis.regs[0x18] as u64, vis.frame & 0xff);
@@ -540,11 +602,24 @@ mod tests {
     #[test]
     fn rsid_interrupts_drive_the_tune() {
         let mut p = Player::new(&psid(true), 0, 44100).unwrap();
-        let mut buf = vec![0i16; 44100];
+        let mut buf = vec![0i16; 2 * 44100];
         let vis = p.render(&mut buf);
         // the KERNAL's 60Hz CIA timer fires the tune's IRQ handler
         assert!((58..=62).contains(&vis.frame), "irqs: {}", vis.frame);
         assert!(vis.regs[0x18] > 50);
+    }
+
+    #[test]
+    fn a_second_sid_gets_its_own_writes() {
+        let mut f = psid(false);
+        f[5] = 3; // v3 header
+        f[0x7a] = 0x42; // second SID at $D420
+        let body = f.len() - 7;
+        f[body + 4..body + 6].copy_from_slice(&[0x38, 0xd4]); // play: INC $D438
+        let mut p = Player::new(&f, 0, 44100).unwrap();
+        p.render(&mut vec![0i16; 2 * 4410]);
+        assert!(p.c64.regs[1][0x18] > 0);
+        assert_eq!(p.c64.regs[0][0x18], 0);
     }
 
     /// What cycle-exact digi players rely on: code run from the timer and

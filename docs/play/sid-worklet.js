@@ -5,6 +5,11 @@
 
 const REPORT_EVERY = 6; // quanta between register reports (~16ms at 48kHz)
 const SILENCE_LIMIT = 4; // seconds of silence that count as "the tune ended"
+// Auto-level: tunes differ a lot in loudness, so each is eased toward a common
+// level over a few seconds (never boosted more than 3x, held during silence).
+const TARGET_RMS = 0.13;
+const LEVEL_RATE = 0.001; // per quantum: averages over ~3 s
+const GAIN_RATE = 0.002;
 
 class SidProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -15,6 +20,8 @@ class SidProcessor extends AudioWorkletProcessor {
     this.quanta = 0;
     this.silent = 0;
     this.ended = false;
+    this.level = TARGET_RMS ** 2;
+    this.gain = 1;
     this.port.onmessage = (e) => this.onMessage(e.data);
   }
 
@@ -24,7 +31,7 @@ class SidProcessor extends AudioWorkletProcessor {
       const env = { host_peek: () => 0, host_poke() {}, host_event() {} };
       const { instance } = await WebAssembly.instantiate(m.wasm, { env });
       this.wasm = instance.exports;
-      this.buf = this.wasm.bb_alloc(256);
+      this.buf = this.wasm.bb_alloc(1024); // stereo i16 frames for one 128-frame quantum
       this.regs = this.wasm.bb_alloc(32);
       this.port.postMessage({ type: 'ready' });
     } else if (m.type === 'load') {
@@ -37,6 +44,8 @@ class SidProcessor extends AudioWorkletProcessor {
       this.paused = false;
       this.silent = 0;
       this.ended = false;
+      this.level = TARGET_RMS ** 2;
+      this.gain = 1;
       this.port.postMessage(
         this.player
           ? { type: 'loaded', songs: w.bb_player_songs(this.player) }
@@ -55,19 +64,29 @@ class SidProcessor extends AudioWorkletProcessor {
   }
 
   process(_inputs, outputs) {
-    const out = outputs[0][0];
+    const [left, right = left] = outputs[0];
     if (!this.player || this.paused) return true;
     const w = this.wasm;
-    w.bb_player_render(this.player, this.buf, out.length);
-    const pcm = new Int16Array(w.memory.buffer, this.buf, out.length);
+    w.bb_player_render(this.player, this.buf, left.length);
+    const pcm = new Int16Array(w.memory.buffer, this.buf, left.length * 2);
     let peak = 0;
-    for (let i = 0; i < out.length; i++) {
-      const v = pcm[i] / 32768;
-      out[i] = v;
-      const a = v < 0 ? -v : v;
-      if (a > peak) peak = a;
+    let power = 0;
+    const g = this.gain / 32768;
+    for (let i = 0; i < left.length; i++) {
+      const l = pcm[2 * i];
+      const r = pcm[2 * i + 1];
+      left[i] = l * g;
+      right[i] = r * g;
+      peak = Math.max(peak, Math.abs(l), Math.abs(r));
+      power += l * l + r * r;
     }
-    for (let c = 1; c < outputs[0].length; c++) outputs[0][c].set(out);
+    peak /= 32768;
+    power /= 2 * left.length * 32768 * 32768;
+    if (power > 1e-5) {
+      this.level += (power - this.level) * LEVEL_RATE;
+      const want = Math.min(3, Math.max(0.5, TARGET_RMS / Math.sqrt(this.level)));
+      this.gain += (want - this.gain) * GAIN_RATE;
+    }
 
     this.silent = peak < 0.002 ? this.silent + out.length : 0;
     if (!this.ended && this.silent > sampleRate * SILENCE_LIMIT) {

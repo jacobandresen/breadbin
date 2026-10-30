@@ -8,7 +8,7 @@ import * as store from './store.js';
 import { pick, prepare } from './engine.js';
 import { createPad } from './touch.js';
 import { settings, save, loadRoms } from './settings.js';
-import { $, h } from './ui.js';
+import { $, h, pixel } from './ui.js';
 
 let session = null;
 let pad = null;
@@ -26,7 +26,7 @@ export async function launch(kind, item) {
   $('#detail').close();
   dispatchEvent(new Event('breadbin:launch'));
   const [stage, status, note] = [$('#emu-stage'), $('#emu-status'), $('#emu-note')];
-  $('#emu-title').textContent = item.title;
+  $('#emu-title').textContent = pixel(item.title);
   note.textContent = status.textContent = '';
   const bar = h('i');
   const label = h('div', {}, `SEARCHING FOR ${item.title.toUpperCase()}`);

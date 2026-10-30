@@ -11,6 +11,9 @@ const VC64WEB = 'https://vc64web.github.io/';
 const ORIGIN = new URL(VC64WEB).origin;
 // vc64web reports problems (a jammed CPU, say) with alert(), which would freeze the frame
 const ALERTS = "window.alert = (text) => parent.postMessage({ msg: 'breadbin_alert', text: String(text) }, '*');";
+// vc64web defaults to reSID's fast (aliasing) sampling; resample sounds clean,
+// interpolate is the lighter choice for phones
+const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)').matches ? 'interpolate' : 'resample'}');`;
 
 /**
  * Start `file` ({ name, bytes, vdrive? }) in a new vc64web frame inside `host`.
@@ -55,6 +58,7 @@ export function run(host, file, { roms = {}, onState, onDrive, onAlert } = {}) {
         sent = true;
         clearInterval(poll);
         script(ALERTS);
+        script(SID_QUALITY);
         const load = { cmd: 'load' };
         if (!file.vdrive) Object.assign(load, { file_name: file.name, file: file.bytes });
         if (roms.kernal) Object.assign(load, { kernal_rom: roms.kernal, basic_rom: roms.basic, charset_rom: roms.charset });

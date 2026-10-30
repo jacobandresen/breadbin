@@ -9,7 +9,7 @@ import { verified } from './catalogue.js';
 import { settings, save } from './settings.js';
 import { SidPlayer, sidHeader } from './sid.js';
 import { Viz, NAMES } from './viz.js';
-import { $, h, toast, fmt, nextChip } from './ui.js';
+import { $, h, toast, fmt, nextChip, pixel } from './ui.js';
 
 const RADIO_MAX_MS = 4 * 60e3;
 let player;
@@ -78,7 +78,7 @@ export async function initTunes() {
   for (const [party, items] of byParty(tunes)) {
     const section = items.map(tuneRow);
     rows.push(...section);
-    list.append(h('h3.tune-section', { style: { borderLeftColor: nextChip() } }, party, h('span.count', {}, `${items.length} tunes`)), ...section);
+    list.append(h('h3.tune-section', { style: { borderLeftColor: nextChip() } }, pixel(party), h('span.count', {}, `${items.length} tunes`)), ...section);
   }
   if (!rows.length) list.append(h('p.banner', {}, 'No playtested tunes yet: run tools/playtest to build verified.json.'));
 }
@@ -169,7 +169,7 @@ function renderNowPlaying(row, info, header) {
   np.replaceChildren(
     h('div.np-shot', {}, info?.screenshot ? h('img', { src: info.screenshot, alt: '', referrerPolicy: 'no-referrer' }) : sidArt(header)),
     h('div', {},
-      h('h2.np-title', {}, t.name),
+      h('h2.np-title', {}, pixel(t.name)),
       h('p.np-artist', {}, artist),
       where && h('p.np-meta', {}, where),
       h('p.np-stats', {}, stats.filter(Boolean).join(' · ')),

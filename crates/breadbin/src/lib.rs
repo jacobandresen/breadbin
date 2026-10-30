@@ -218,7 +218,7 @@ pub unsafe extern "C" fn bb_player_songs(p: *const Player) -> u32 {
     (*p).songs as u32
 }
 
-/// Render `n` mono i16 samples into `out`.
+/// Render `n` stereo frames (2n interleaved i16) into `out`.
 #[no_mangle]
 pub unsafe extern "C" fn bb_player_render(p: *mut Player, out: *mut i16, n: usize) {
     (*p).render(std::slice::from_raw_parts_mut(out, n));

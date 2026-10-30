@@ -52,7 +52,7 @@ export async function showGame(g) {
       info,
       h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('game', g) }, '▶ Play')),
       links,
-      g.shot && h('div.shots', {}, h('img', { src: ia.gb64Shot(g.shot), alt: '', loading: 'lazy' })),
+      g.shot && h('div.shots.solo', {}, h('img', { src: ia.gb64Shot(g.shot), alt: '', loading: 'lazy' })),
       h('p.hint', {}, 'Joystick in port 2: cursor keys + space, a gamepad, or the on-screen pad. Runs on the free MEGA65 Open ROMs.'))));
   dlg.showModal();
   info.add('Genre', [g.genre, g.sub].filter(Boolean).join(' · '));

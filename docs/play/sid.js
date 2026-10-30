@@ -25,7 +25,7 @@ export class SidPlayer extends EventTarget {
       this.ctx = ctx;
       const [engine] = await Promise.all([engineBytes(), ctx.audioWorklet.addModule(WORKLET_URL)]);
       const wasm = engine.slice(0);
-      this.node = new AudioWorkletNode(ctx, 'sid-processor', { numberOfInputs: 0, outputChannelCount: [1] });
+      this.node = new AudioWorkletNode(ctx, 'sid-processor', { numberOfInputs: 0, outputChannelCount: [2] });
       await new Promise((resolve, reject) => {
         this.node.port.onmessage = (e) => this.onMessage(e.data, resolve, reject);
         this.node.port.postMessage({ type: 'init', wasm }, [wasm]);
@@ -39,18 +39,16 @@ export class SidPlayer extends EventTarget {
       this.node.connect(hp).connect(this.gain).connect(limiter);
       limiter.connect(this.analyser);
 
-      // Stereo: dry to both ears, plus a short delayed copy panned apart.
-      const merger = new ChannelMergerNode(ctx, { numberOfInputs: 2 });
-      limiter.connect(merger, 0, 0);
-      limiter.connect(merger, 0, 1);
-      this.wide = new GainNode(ctx, { gain: 0 });
+      // Dry stereo (2SID and 3SID tunes are panned in the engine), plus a short
+      // delayed copy panned apart for width.
+      limiter.connect(ctx.destination);
+      this.wide = new GainNode(ctx, { gain: 0, channelCount: 1, channelCountMode: 'explicit' });
       const delayL = new DelayNode(ctx, { delayTime: 0.011 });
       const delayR = new DelayNode(ctx, { delayTime: 0.017 });
       const tone = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 5200 });
       limiter.connect(tone).connect(this.wide);
       this.wide.connect(delayL).connect(new StereoPannerNode(ctx, { pan: -0.9 })).connect(ctx.destination);
       this.wide.connect(delayR).connect(new StereoPannerNode(ctx, { pan: 0.9 })).connect(ctx.destination);
-      merger.connect(ctx.destination);
     })();
     await this.ready;
     if (this.ctx.state !== 'running') await this.ctx.resume();

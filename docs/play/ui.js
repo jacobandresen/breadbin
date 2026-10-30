@@ -2,6 +2,8 @@
 // cards and their cover art.
 
 export const $ = (sel, el = document) => el.querySelector(sel);
+/** Text for the Sixtyfour pixel font, which has no accented letters ("Fjälldata" -> "Fjalldata"). */
+export const pixel = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export const fmt = new Intl.NumberFormat('en');
 export const CHIPS = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)'];
 let chipIndex = 0;
@@ -70,7 +72,7 @@ export function shelf(parent, title, items, card, { wide = false, size = 24 } = 
   const body = h('div.row');
   const more = h('div.more', { hidden: true }, h('button.key.pill', { onclick: () => show(shown + size) }, 'More'));
   const el = h(`section.shelf${wide ? '.wide' : ''}`, {},
-    h('header.shelf-head', {}, h('span.shelf-chip', { style: { background: nextChip() } }), h('h2.shelf-title', {}, title), h('span.shelf-rule'), toggle),
+    h('header.shelf-head', {}, h('span.shelf-chip', { style: { background: nextChip() } }), h('h2.shelf-title', {}, pixel(title)), h('span.shelf-rule'), toggle),
     body, more);
   parent.append(el);
   for (let i = 0; i < 8; i++) body.append(h('div.card.skeleton', {}, h('div.art'), h('div.card-title')));
