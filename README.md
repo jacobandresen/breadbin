@@ -27,9 +27,9 @@ phone or tablet the emulator gets an on-screen joystick.
 - **Emulation**: [vc64web](https://vc64web.github.io/) (VirtualC64 in
   WebAssembly) running the free [MEGA65 Open ROMs](https://github.com/MEGA65/open-roms).
   Without a 1541 drive ROM, breadbin serves disk images itself: its virtual
-  drive answers the KERNAL's LOAD straight from the D64, handles autostarting
-  loaders and steps around the few places where the Open ROMs differ from the
-  originals. Titles with their own fast loader need a real drive ROM; if you own
+  drive answers the KERNAL's LOAD straight from the D64 (tape images are turned
+  into one first), handles autostarting loaders and steps around the few places
+  where the Open ROMs differ from the originals. Titles with their own fast loader need a real drive ROM; if you own
   the ROMs, add them under Settings (they stay in your browser).
 - **Engine**: the virtual drive, disk-image handling, SID player (reSID plus a
   6502 driver) and visualisers are Rust, compiled to WebAssembly

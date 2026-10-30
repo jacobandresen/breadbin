@@ -2,7 +2,8 @@
 // page around the emulator rather than over the C64 screen. The left side is a
 // floating thumbstick (it centres wherever your thumb lands), the right side a
 // big FIRE keycap, and a row of keys covers what joystick games ask for at the
-// title screen (SPACE, RETURN, F1-F7, RUN/STOP). Input reaches vc64web through
+// title screen (SPACE, RETURN, F1-F7, RUN/STOP) and the Y/N and number
+// questions of crack trainer menus. Input reaches vc64web through
 // the listener installed by PAD_LISTENER.
 
 /** Script for vc64web's {cmd: "script"}: route breadbin's pad messages to the
@@ -27,6 +28,10 @@ const KEYS = [
   ['F5', [0, 6]],
   ['F7', [0, 3]],
   ['RUN/STOP', [7, 7]],
+  ['Y', [3, 1]],
+  ['N', [4, 7]],
+  ['0', [4, 3]],
+  ['1', [7, 0]],
 ];
 
 const DEAD_ZONE = 14; // px before a direction registers

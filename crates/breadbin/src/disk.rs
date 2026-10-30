@@ -87,12 +87,13 @@ impl<'a> D64<'a> {
     }
 
     /// The file a LOAD"name" would get: '*' and '?' wildcards, a "0:" drive
-    /// prefix ignored, PRGs preferred.
+    /// prefix and a ",P,R" type and mode ignored, PRGs preferred.
     pub fn find(&self, pattern: &[u8]) -> Option<Entry> {
         let pat = match pattern.iter().position(|&c| c == b':') {
             Some(i) if i <= 2 => &pattern[i + 1..],
             _ => pattern,
         };
+        let pat = pat.split(|&c| c == b',').next().unwrap_or(pat);
         let matches = |name: &[u8]| {
             for (i, &c) in pat.iter().enumerate() {
                 if c == b'*' {
@@ -175,6 +176,76 @@ pub fn sys_stub(prg: &[u8]) -> Option<u16> {
     let after = next.checked_sub(0x0801)? + 2;
     let lone = prg.get(after..after + 2) == Some(&[0, 0]);
     digits.parse().ok().filter(|_| lone)
+}
+
+// ── tapes ───────────────────────────────────────────────────────────────────
+
+/// A named program: (PETSCII name, PRG with load address).
+pub type Program = (Vec<u8>, Vec<u8>);
+
+/// The programs in a T64 tape image.
+pub fn t64(img: &[u8]) -> Result<Vec<Program>, String> {
+    if !img.starts_with(b"C64") || img.len() < 0x40 {
+        return Err("not a T64 tape image".into());
+    }
+    let u16_at = |o: usize| u16::from_le_bytes([img[o], img[o + 1]]) as usize;
+    let mut out = Vec::new();
+    for e in img[0x40..].chunks_exact(32).take(u16_at(0x22).max(1)) {
+        if e[0] != 1 {
+            continue;
+        }
+        let (start, end) = (u16::from_le_bytes([e[2], e[3]]), u16::from_le_bytes([e[4], e[5]]));
+        let at = u32::from_le_bytes([e[8], e[9], e[10], e[11]]) as usize;
+        // many tools wrote a wrong end address; the data then runs to the end of the image
+        let len = if end > start && at + ((end - start) as usize) <= img.len() { (end - start) as usize } else { img.len().saturating_sub(at) };
+        let mut prg = start.to_le_bytes().to_vec();
+        prg.extend_from_slice(img.get(at..at + len).ok_or("a T64 entry points past the end")?);
+        let mut name = e[16..32].to_vec();
+        while matches!(name.last(), Some(0x20 | 0xa0)) {
+            name.pop();
+        }
+        out.push((name, prg));
+    }
+    if out.is_empty() {
+        return Err("the tape holds no program".into());
+    }
+    Ok(out)
+}
+
+/// A 35-track D64 holding `files`, for the virtual drive.
+pub fn d64(files: &[Program]) -> Vec<u8> {
+    let at = |t: u8, s: usize| ((1..t).map(sectors_in).sum::<usize>() + s) * 256;
+    let mut img = vec![0u8; 174_848];
+    let bam = at(18, 0);
+    img[bam + 0x90..bam + 0xab].copy_from_slice(b"BREADBIN\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa000\xa02A\xa0\xa0\xa0\xa0");
+    // data fills the tracks in order around the directory track
+    let mut free = (1..=35u8).filter(|&t| t != 18).flat_map(|t| (0..sectors_in(t)).map(move |s| (t, s)));
+    let dirs = files.len().div_ceil(8).clamp(1, 18);
+    for (i, (name, prg)) in files.iter().take(dirs * 8).enumerate() {
+        let chunks: Vec<&[u8]> = prg.chunks(254).collect();
+        let secs: Vec<(u8, usize)> = free.by_ref().take(chunks.len()).collect();
+        if secs.len() < chunks.len() {
+            break; // disk full
+        }
+        for (k, (c, &(t, s))) in chunks.iter().zip(&secs).enumerate() {
+            let o = at(t, s);
+            match secs.get(k + 1) {
+                Some(&(nt, ns)) => (img[o], img[o + 1]) = (nt, ns as u8),
+                None => (img[o], img[o + 1]) = (0, c.len() as u8 + 1),
+            }
+            img[o + 2..o + 2 + c.len()].copy_from_slice(c);
+        }
+        let (sec, e) = (1 + i / 8, at(18, 1 + i / 8) + (i % 8) * 32);
+        if i % 8 == 0 {
+            (img[at(18, sec)], img[at(18, sec) + 1]) = if sec < dirs { (18, sec as u8 + 1) } else { (0, 0xff) };
+        }
+        img[e + 2] = 0x82;
+        (img[e + 3], img[e + 4]) = secs.first().map_or((0, 0), |&(t, s)| (t, s as u8));
+        let padded = name.iter().copied().chain(std::iter::repeat(0xa0)).take(16);
+        img[e + 5..e + 21].iter_mut().zip(padded).for_each(|(d, c)| *d = c);
+        img[e + 30..e + 32].copy_from_slice(&(chunks.len() as u16).to_le_bytes());
+    }
+    img
 }
 
 // ── zip ─────────────────────────────────────────────────────────────────────
@@ -269,6 +340,10 @@ pub fn prepare(name: &str, bytes: Vec<u8>, prefer: &str, can_mount: bool) -> Res
             let data = members.into_iter().find(|(n, _)| *n == chosen).map(|(_, d)| d).unwrap_or_default();
             prepare(chosen.rsplit('/').next().unwrap_or(&chosen), data, "", can_mount)
         }
+        "t64" => {
+            let files = t64(&bytes)?;
+            Ok(Prepared { name: name.replace(['.', ' '], "_") + ".d64", bytes: d64(&files), vdrive: true })
+        }
         "d64" if !can_mount => {
             if D64::new(&bytes)?.entries().is_empty() {
                 return Err("the disk holds no program to start".into());
@@ -285,26 +360,12 @@ pub fn prepare(name: &str, bytes: Vec<u8>, prefer: &str, can_mount: bool) -> Res
 pub(crate) mod tests {
     use super::*;
 
-    /// A one-file disk: header, a directory sector and a two-sector PRG.
+    /// A one-file disk holding a two-sector PRG.
     pub(crate) fn tiny_disk() -> Vec<u8> {
-        let mut img = vec![0u8; 174_848];
-        let at = |t: u8, s: u8| ((1..t).map(sectors_in).sum::<usize>() + s as usize) * 256;
-        let bam = at(18, 0);
-        img[bam + 0x90..bam + 0xa0].copy_from_slice(b"TEST DISK\xa0\xa0\xa0\xa0\xa0\xa0\xa0");
-        let dir = at(18, 1);
-        img[dir + 2] = 0x82;
-        img[dir + 3] = 17;
-        img[dir + 4] = 0;
-        img[dir + 5..dir + 21].copy_from_slice(b"GAME\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0");
-        img[dir + 30] = 2;
-        let (a, b) = (at(17, 0), at(17, 1));
-        img[a] = 17;
-        img[a + 1] = 1;
-        img[a + 2] = 0x01;
-        img[a + 3] = 0x08;
-        img[b + 1] = 4; // last sector: bytes 2..=4 used
-        img[b + 2..b + 5].copy_from_slice(&[1, 2, 3]);
-        img
+        let mut prg = vec![0x01, 0x08];
+        prg.resize(254, 0);
+        prg.extend([1, 2, 3]);
+        d64(&[(b"GAME".to_vec(), prg)])
     }
 
     #[test]
@@ -316,8 +377,25 @@ pub(crate) mod tests {
         let data = d.read(&e);
         assert_eq!(&data[..2], &[0x01, 0x08]);
         assert_eq!(data.len(), 254 + 3);
-        assert!(d.find(b"GA*").is_some() && d.find(b"0:GAME").is_some() && d.find(b"NOPE").is_none());
+        assert!(d.find(b"GA*").is_some() && d.find(b"0:GAME").is_some() && d.find(b"0:GAME,P,R").is_some() && d.find(b"NOPE").is_none());
         assert_eq!(&d.directory()[..2], &[0x01, 0x08]);
+    }
+
+    #[test]
+    fn tapes_become_disks() {
+        let mut img = b"C64S tape image file".to_vec();
+        img.resize(0x40, 0);
+        img[0x22] = 1;
+        let entry = [&[1, 0x82, 0x01, 0x08, 0xc6, 0xc3, 0, 0, 0x60, 0, 0, 0, 0, 0, 0, 0][..], b"HELLO           "].concat();
+        img.extend(entry);
+        img.extend(vec![7u8; 300]); // the end address is bogus: the data runs to the end
+        let files = t64(&img).unwrap();
+        assert_eq!(files[0].0, b"HELLO");
+        let disk = d64(&files);
+        let d = D64::new(&disk).unwrap();
+        let data = d.read(&d.find(b"HELLO").unwrap());
+        assert_eq!((data.len(), &data[..3]), (302, &[0x01, 0x08, 7][..]));
+        assert!(prepare("x.t64", img, "", false).unwrap().vdrive);
     }
 
     #[test]

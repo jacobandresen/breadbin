@@ -9,14 +9,16 @@ import { PAD_LISTENER } from './touch.js';
 
 const VC64WEB = 'https://vc64web.github.io/';
 const ORIGIN = new URL(VC64WEB).origin;
+// vc64web reports problems (a jammed CPU, say) with alert(), which would freeze the frame
+const ALERTS = "window.alert = (text) => parent.postMessage({ msg: 'breadbin_alert', text: String(text) }, '*');";
 
 /**
  * Start `file` ({ name, bytes, vdrive? }) in a new vc64web frame inside `host`.
  * With `vdrive` the D64 is served by breadbin's virtual drive instead of being
  * mounted. `roms` optionally carries the user's own { kernal, basic, charset,
- * floppy }. Returns { frame, stop() }.
+ * floppy }. Returns { frame, send(), stop() }.
  */
-export function run(host, file, { roms = {}, onState, onDrive } = {}) {
+export function run(host, file, { roms = {}, onState, onDrive, onAlert } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -44,12 +46,15 @@ export function run(host, file, { roms = {}, onState, onDrive } = {}) {
     const msg = ev.data?.msg;
     if (msg === 'breadbin_drive') {
       onDrive?.(ev.data);
+    } else if (msg === 'breadbin_alert') {
+      onAlert?.(ev.data.text);
     } else if (msg === 'render_run_state') {
       onState?.({ running: ev.data.value, warping: ev.data.is_warping });
       // vc64web reports "running" once its ROMs are in; only then inject.
       if (ev.data.value && !sent) {
         sent = true;
         clearInterval(poll);
+        script(ALERTS);
         const load = { cmd: 'load' };
         if (!file.vdrive) Object.assign(load, { file_name: file.name, file: file.bytes });
         if (roms.kernal) Object.assign(load, { kernal_rom: roms.kernal, basic_rom: roms.basic, charset_rom: roms.charset });

@@ -234,6 +234,9 @@ async function playtest(browser, kind, item) {
   if (process.env.DEBUG) page.on('console', (m) => m.type() === 'error' && console.log('console:', m.text().slice(0, 200)));
   const shots = {};
   const r = { drive: [] };
+  // vc64web reports a jammed CPU with alert(), which would block its frame
+  let jammed = false;
+  page.on('dialog', (d) => ((jammed ||= /jammed/.test(d.message())), d.dismiss().catch(() => {})));
   try {
     const run = item.run ? `?run=${encodeURIComponent(item.run)}` : '';
     await page.goto(`${BASE}${run}#${kind}/${encodeURIComponent(item.id)}`, { waitUntil: 'domcontentloaded' });
@@ -248,6 +251,9 @@ async function playtest(browser, kind, item) {
     await sleep(kind === 'demos' ? 30000 : 24000);
 
     const frame = page.frames().find((f) => f.url().includes('vc64web'));
+    // a stuck emulator thread would otherwise hang the test for the full protocol timeout
+    const inFrame = (label, fn, ...args) =>
+      Promise.race([frame.evaluate(fn, ...args), sleep(15000).then(() => Promise.reject(new Error(`emulator stopped answering (${label})`)))]);
     const el = await page.$('.emu-frame');
     const shot = async (name) => {
       const buf = await el.screenshot();
@@ -255,7 +261,7 @@ async function playtest(browser, kind, item) {
       if (SHOTS) fs.writeFileSync(path.join(SHOTS, `${kind}-${item.id.replace(/[^\w.-]/g, '_')}-${name}.png`), buf);
     };
     const screenText = () =>
-      frame.evaluate(() => {
+      inFrame('screen', () => {
         let s = '';
         for (let a = 0x400; a < 0x7e8; a++) {
           const c = wasm_peek(a) & 0x7f;
@@ -263,9 +269,9 @@ async function playtest(browser, kind, item) {
         }
         return s;
       });
-    const joy = (c) => frame.evaluate((x) => emit_joystick_cmd(x), c);
+    const joy = (c) => inFrame(c, (x) => emit_joystick_cmd(x), c);
     const key = (row, col) =>
-      frame.evaluate(async (row, col) => {
+      inFrame(`key ${row},${col}`, async (row, col) => {
         wasm_key(row, col, 1);
         await new Promise((res) => setTimeout(res, 150));
         wasm_key(row, col, 0);
@@ -281,8 +287,13 @@ async function playtest(browser, kind, item) {
         await joy(p + 'RELEASE_FIRE');
         await sleep(400);
       }
-      await key(7, 4); // SPACE
-      await sleep(600);
+      await key(7, 4); // SPACE (past a crack intro)
+      await sleep(1500);
+      // then often a trainer menu: say no to each question
+      for (const c of 'nnnnn0\n') {
+        await inFrame('type', (c) => wasm_auto_type(c), c);
+        await sleep(400);
+      }
       await key(0, 4); // F1
       await sleep(4000);
       await shot('fire');
@@ -310,8 +321,11 @@ async function playtest(browser, kind, item) {
     await shot('play');
     const text = (await screenText()).replace(/\s+/g, ' ');
 
+    jammed ||= /jammed/.test(await page.$eval('#emu-note', (e) => e.textContent));
+    if (jammed) return { ...r, ok: false, reason: 'CPU jammed' };
     const { boot, idle, fire, play } = shots;
-    const basic = share(play, BASIC_BLUE) > 0.45;
+    // a blue screen is only BASIC if it says so (trainer menus are blue too)
+    const basic = share(play, BASIC_BLUE) > 0.45 && /READY\.|ERROR|BRK AT/.test(text);
     const dark = share(play, [0, 0, 0], 12) > 0.985;
     const moving = Math.max(change(boot, idle), change(idle, fire), change(fire, play));
     r.drive = drive.filter((d) => d.event !== 'ready').map((d) => (d.event === 'load' ? `${d.name.trim()}@${d.addr.toString(16)}` : `${d.event}:${d.name}`));
@@ -322,7 +336,7 @@ async function playtest(browser, kind, item) {
     if (moving < 0.0005) return { ...r, ok: false, reason: 'picture never changed' };
     return { ...r, ok: true };
   } catch (e) {
-    return { ...r, ok: false, harness: true, reason: `harness: ${e.message.split('\n')[0]}` };
+    return { ...r, ok: false, ...(jammed ? { reason: 'CPU jammed' } : { harness: true, reason: `harness: ${e.message.split('\n')[0]}` }) };
   } finally {
     await page.close().catch(() => {});
   }

@@ -52,6 +52,9 @@ export async function launch(kind, item) {
         if (d.event === 'load') status.textContent = `loaded ${d.name}`;
         if (d.event === 'missing') note.textContent = `The program asked the drive for "${d.name}", which isn't on this disk.`;
       },
+      onAlert: (text) => {
+        note.textContent = /jammed/.test(text) ? 'The program crashed the C64 (its CPU jammed), so the emulator restarted it.' : text;
+      },
     });
     status.textContent = 'starting…';
     setPad(settings.pad);

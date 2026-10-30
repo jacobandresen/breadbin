@@ -166,7 +166,7 @@
   },
   "gb64:m3/MULE_05076_03.zip": {
    "id": "gb64:m3/MULE_05076_03.zip",
-   "gb": "m3/MULE_05076_03.zip",
+   "gb": "",
    "run": "",
    "title": "MULE",
    "rating": 5,
@@ -178,11 +178,12 @@
    "shot": "M/MULE.png",
    "ia": "d64_MULE_1983_Electronic_Arts",
    "downloads": 6828,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T21:53:08.580Z"
+   "drive": [
+    "M.U.L.E.@801"
+   ],
+   "moving": 0.067,
+   "ok": true,
+   "testedAt": "2026-10-30T01:25:43.442Z"
   },
   "gb64:s1/7CITIES0_06722_01.zip": {
    "id": "gb64:s1/7CITIES0_06722_01.zip",
@@ -199,12 +200,13 @@
    "ia": "d64_Seven_Cities_of_Gold_1984_Electronic_Arts_Side_A",
    "downloads": 3897,
    "drive": [
-    "EA@2a8"
+    "EA@2a8",
+    "EA\"?@c000"
    ],
    "moving": 0.0083,
    "ok": false,
-   "reason": "BRK AT $02AB",
-   "testedAt": "2026-10-29T21:04:33.951Z"
+   "reason": "?DEVICE NOT PRESENT ERROR",
+   "testedAt": "2026-10-30T02:04:03.104Z"
   },
   "gb64:a2/ARCHON1_00378_03.zip": {
    "id": "gb64:a2/ARCHON1_00378_03.zip",
@@ -241,9 +243,8 @@
    "downloads": 4021,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:00:10.212Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:27:08.320Z"
   },
   "gb64:m2/MISOCCER_04802_01.zip": {
    "id": "gb64:m2/MISOCCER_04802_01.zip",
@@ -331,7 +332,7 @@
   },
   "gb64:i/IKPLUS_03707_01.zip": {
    "id": "gb64:i/IKPLUS_03707_01.zip",
-   "gb": "i/IKPLUS_03707_01.zip",
+   "gb": "",
    "run": "",
    "title": "IK+",
    "rating": 5,
@@ -343,11 +344,12 @@
    "shot": "I/IK_plus.png",
    "ia": "IK_1987_System_3_h_FLT",
    "downloads": 2368,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:07:24.347Z"
+   "drive": [
+    "INTER.KARATE +@801"
+   ],
+   "moving": 0.5612,
+   "ok": true,
+   "testedAt": "2026-10-30T01:28:33.335Z"
   },
   "gb64:t1/THRUST1_07897_01.zip": {
    "id": "gb64:t1/THRUST1_07897_01.zip",
@@ -372,7 +374,7 @@
   },
   "gb64:b3/BUBBLEBO_01138_02.zip": {
    "id": "gb64:b3/BUBBLEBO_01138_02.zip",
-   "gb": "b3/BUBBLEBO_01138_02.zip",
+   "gb": "",
    "run": "",
    "title": "Bubble Bobble",
    "rating": 5,
@@ -384,11 +386,12 @@
    "shot": "B/Bubble_Bobble.png",
    "ia": "Bubble_Bobble_1987_Firebird_t_4M_TCS",
    "downloads": 1901,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:14:38.715Z"
+   "drive": [
+    "BUBB.BOBBLE+/TCS@801"
+   ],
+   "moving": 0.2154,
+   "ok": true,
+   "testedAt": "2026-10-30T01:29:58.009Z"
   },
   "gb64:j/JUMPMAN1_04000_02.zip": {
    "id": "gb64:j/JUMPMAN1_04000_02.zip",
@@ -434,7 +437,7 @@
   },
   "gb64:h/HOVERBOV_03621_02.zip": {
    "id": "gb64:h/HOVERBOV_03621_02.zip",
-   "gb": "h/HOVERBOV_03621_02.zip",
+   "gb": "",
    "run": "",
    "title": "Hover Bovver",
    "rating": 5,
@@ -446,11 +449,12 @@
    "shot": "H/Hover_Bovver.png",
    "ia": "Hover_Bovver_1983_Llamasoft",
    "downloads": 1066,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:22:36.129Z"
+   "drive": [
+    "HOVER@801"
+   ],
+   "moving": 0.0596,
+   "ok": true,
+   "testedAt": "2026-10-30T01:31:21.529Z"
   },
   "gb64:d1/DELTA_02092_02.zip": {
    "id": "gb64:d1/DELTA_02092_02.zip",
@@ -468,9 +472,8 @@
    "downloads": 852,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:29:50.072Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:32:53.199Z"
   },
   "gb64:b1/BEACHHD1_00702_02.zip": {
    "id": "gb64:b1/BEACHHD1_00702_02.zip",
@@ -510,9 +513,8 @@
    "downloads": 718,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:38:31.353Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:34:17.655Z"
   },
   "gb64:l1/LADYTUT_04239_02.zip": {
    "id": "gb64:l1/LADYTUT_04239_02.zip",
@@ -578,7 +580,7 @@
   },
   "gb64:i/INTSOCC2_03803_01.zip": {
    "id": "gb64:i/INTSOCC2_03803_01.zip",
-   "gb": "i/INTSOCC2_03803_01.zip",
+   "gb": "",
    "run": "",
    "title": "International Soccer",
    "rating": 5,
@@ -590,11 +592,12 @@
    "shot": "I/International_Soccer.png",
    "ia": "International_Soccer_1993_Almasi_Balazs_hu",
    "downloads": 295,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:48:29.365Z"
+   "drive": [
+    "PERUIFOC@801"
+   ],
+   "moving": 0.007,
+   "ok": true,
+   "testedAt": "2026-10-30T01:35:41.755Z"
   },
   "gb64:b1/BTALE3-0_00624_04.zip": {
    "id": "gb64:b1/BTALE3-0_00624_04.zip",
@@ -782,9 +785,8 @@
    "downloads": 0,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:01:26.731Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:36:25.507Z"
   },
   "gb64:m1/MANIACE0_04576_03.zip": {
    "id": "gb64:m1/MANIACE0_04576_03.zip",
@@ -844,11 +846,12 @@
    "shot": "P/Paradroid_-_Metal_Edition.png",
    "ia": "",
    "downloads": 0,
-   "drive": [],
-   "moving": 0.7079,
-   "ok": false,
-   "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T23:03:36.587Z"
+   "drive": [
+    "PARADROID M.E.+@801"
+   ],
+   "moving": 0.7101,
+   "ok": true,
+   "testedAt": "2026-10-30T02:09:17.873Z"
   },
   "gb64:s4/SPYVSPY1_07268_01.zip": {
    "id": "gb64:s4/SPYVSPY1_07268_01.zip",
@@ -907,9 +910,8 @@
    "downloads": 0,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:12:06.287Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:37:07.649Z"
   },
   "gb64:l1/LNINJA1A_04284_03.zip": {
    "id": "gb64:l1/LNINJA1A_04284_03.zip",
@@ -935,7 +937,7 @@
   },
   "gb64:d1/DAVIDMM1_02007_01.zip": {
    "id": "gb64:d1/DAVIDMM1_02007_01.zip",
-   "gb": "d1/DAVIDMM1_02007_01.zip",
+   "gb": "",
    "run": "",
    "title": "David's Midnight Magic",
    "rating": 5,
@@ -947,11 +949,13 @@
    "shot": "D/David's_Midnight_Magic.png",
    "ia": "Davids_Midnight_Magic_1984_Broderbund",
    "downloads": 7208,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:23:38.261Z"
+   "drive": [
+    "DAVIDS MIDNIGHT@801",
+    "missing:SCORES"
+   ],
+   "moving": 0.0459,
+   "ok": true,
+   "testedAt": "2026-10-30T01:38:31.819Z"
   },
   "gb64:r1/RAIDONBB_06175_02.zip": {
    "id": "gb64:r1/RAIDONBB_06175_02.zip",
@@ -969,9 +973,8 @@
    "downloads": 4409,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:30:39.447Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:39:55.977Z"
   },
   "gb64:e/ELITE-E_02474_02.zip": {
    "id": "gb64:e/ELITE-E_02474_02.zip",
@@ -1475,7 +1478,7 @@
   },
   "gb64:p1/PACMAN6_20683_01.zip": {
    "id": "gb64:p1/PACMAN6_20683_01.zip",
-   "gb": "p1/PACMAN6_20683_01.zip",
+   "gb": "",
    "run": "",
    "title": "Pacman",
    "rating": 1,
@@ -1487,11 +1490,12 @@
    "shot": "P/Pacman_v6.png",
    "ia": "d64_Pac-Man_1983_Atari",
    "downloads": 15451,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:55:21.060Z"
+   "drive": [
+    "PAC MAN.PRG@801"
+   ],
+   "moving": 0.1115,
+   "ok": true,
+   "testedAt": "2026-10-30T01:41:20.231Z"
   },
   "gb64:b3/BREAKOU4_25199_01.zip": {
    "id": "gb64:b3/BREAKOU4_25199_01.zip",
@@ -1551,9 +1555,8 @@
    "downloads": 285,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:05:11.554Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:42:44.911Z"
   },
   "gb64:a1/ALFABET_09170_01.zip": {
    "id": "gb64:a1/ALFABET_09170_01.zip",
@@ -1569,11 +1572,13 @@
    "shot": "A/Alfabet.png",
    "ia": "Alfabet_19xx_-_de",
    "downloads": 263,
-   "drive": [],
+   "drive": [
+    "ALFABET@801"
+   ],
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-30T00:06:38.167Z"
+   "testedAt": "2026-10-30T02:06:42.518Z"
   },
   "gb64:b2/BLOCKS4_26216_01.zip": {
    "id": "gb64:b2/BLOCKS4_26216_01.zip",
@@ -1654,9 +1659,8 @@
    "downloads": 0,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:17:11.612Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:43:26.779Z"
   },
   "gb64:a1/AFO_14340_02.zip": {
    "id": "gb64:a1/AFO_14340_02.zip",
@@ -1723,7 +1727,7 @@
   },
   "gb64:r2/RIVERRAI_06379_03.zip": {
    "id": "gb64:r2/RIVERRAI_06379_03.zip",
-   "gb": "r2/RIVERRAI_06379_03.zip",
+   "gb": "",
    "run": "",
    "title": "River Raid",
    "rating": 0,
@@ -1735,11 +1739,12 @@
    "shot": "R/River_Raid.png",
    "ia": "d64_River_Raid_1984_Activision",
    "downloads": 30932,
-   "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:27:00.436Z"
+   "drive": [
+    "RIVER RAID@801"
+   ],
+   "moving": 0.298,
+   "ok": true,
+   "testedAt": "2026-10-30T01:44:50.634Z"
   },
   "gb64:o/OUTRUN-E_05482_01.zip": {
    "id": "gb64:o/OUTRUN-E_05482_01.zip",
@@ -1799,16 +1804,19 @@
    "downloads": 11614,
    "drive": [
     "SIM CITY V1.1@100",
-    "missing:0:MET1,P,R"
+    "MET1@800",
+    "CIT1@3000",
+    "CIT2@8000",
+    "CIT3@c000",
+    "missing:0:CIT4,P,R"
    ],
-   "moving": 0.0083,
-   "ok": false,
-   "reason": "BRK AT $0800",
-   "testedAt": "2026-10-30T00:29:53.997Z"
+   "moving": 0.0013,
+   "ok": true,
+   "testedAt": "2026-10-30T02:00:47.056Z"
   },
   "gb64:p2/PORTAL-_05837_01.zip": {
    "id": "gb64:p2/PORTAL-_05837_01.zip",
-   "gb": "p2/PORTAL-_05837_01.zip",
+   "gb": "",
    "run": "",
    "title": "Portal [Preview]",
    "rating": 0,
@@ -1821,10 +1829,9 @@
    "ia": "portal_v1_ntsc",
    "downloads": 11058,
    "drive": [],
-   "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:36:54.210Z"
+   "moving": 0.9311,
+   "ok": true,
+   "testedAt": "2026-10-30T01:46:14.625Z"
   },
   "gb64:b3/BURGERTI_01198_02.zip": {
    "id": "gb64:b3/BURGERTI_01198_02.zip",
@@ -1842,9 +1849,8 @@
    "downloads": 10972,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:43:55.356Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:47:39.069Z"
   },
   "gb64:k/KAISER-D_04021_02.zip": {
    "id": "gb64:k/KAISER-D_04021_02.zip",
@@ -1904,9 +1910,8 @@
    "downloads": 9059,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T00:53:03.404Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:49:03.747Z"
   },
   "gb64:i/INTKARAT_03799_02.zip": {
    "id": "gb64:i/INTKARAT_03799_02.zip",
@@ -1924,9 +1929,8 @@
    "downloads": 8596,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T01:00:17.873Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:50:29.519Z"
   },
   "gb64:m1/MARIOBR1_04596_02.zip": {
    "id": "gb64:m1/MARIOBR1_04596_02.zip",
@@ -1965,9 +1969,8 @@
    "downloads": 7721,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-30T01:08:44.653Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T01:51:55.911Z"
   },
   "gb64:s3/SPACEIN3_07078_02.zip": {
    "id": "gb64:s3/SPACEIN3_07078_02.zip",

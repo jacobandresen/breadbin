@@ -9,7 +9,8 @@
 //! The file may overwrite the stub itself (autostarting loaders often cover
 //! page 2), so before copying, the CPU is parked in a second loop outside the
 //! file's range: the stub's spin is patched into a JMP there, and the copy
-//! happens once the park code reports in.
+//! happens once the park code reports in. A stub that was loaded over moves
+//! to a free spot for the program's own LOADs.
 
 use crate::disk::{petscii, sys_stub, D64};
 
@@ -25,13 +26,19 @@ pub enum Event {
     Missing { name: String },
 }
 
-const STUB: u16 = 0x02a7;
-const FLAG: u16 = 0x02ff;
-/// STX $C3 / STY $C4 / STA $93 / LDA #$80 / STA FLAG / spin: BIT FLAG / BMI spin / SEC / RTS
-const ENTRY: [u8; 18] = [0x86, 0xc3, 0x84, 0xc4, 0x85, 0x93, 0xa9, 0x80, 0x8d, 0xff, 0x02, 0x2c, 0xff, 0x02, 0x30, 0xfb, 0x38, 0x60];
-const SPIN: u16 = STUB + 11;
+const STUB_LEN: u16 = 19;
+/// Where the entry stub goes, the first one free of the programs loaded over it.
+const STUB_SPOTS: [u16; 4] = [0x02a7, 0x0360, 0xcfc0, 0x9fc0];
+const SPIN: u16 = 11; // offset of the stub's wait loop
 const PARK_LEN: u16 = 24;
 const PARK_SPOTS: [u16; 5] = [0x02c8, 0x033c, 0x0110, 0xcfe0, 0x9fe0];
+
+/// The entry stub at `at`, its flag byte last: STX $C3 / STY $C4 / STA $93 /
+/// LDA #$80 / STA flag / spin: BIT flag / BMI spin / SEC / RTS / flag
+fn entry(at: u16) -> [u8; STUB_LEN as usize] {
+    let [lo, hi] = (at + STUB_LEN - 1).to_le_bytes();
+    [0x86, 0xc3, 0x84, 0xc4, 0x85, 0x93, 0xa9, 0x80, 0x8d, lo, hi, 0x2c, lo, hi, 0x30, 0xfb, 0x38, 0x60, 0]
+}
 /// Vectors autostarting programs hook, in the order the stock ROMs call them
 /// after a LOAD typed at READY: print READY (CHROUT), re-enter the BASIC loop
 /// (IMAIN), then the rest.
@@ -44,14 +51,21 @@ const STOCK: [u16; 26] = [
     0xf157, 0xf1ca, 0xf6ed, 0xf13e, 0xf32f, 0xfe66, 0xf4a5, 0xf5ed,
 ];
 
-/// The park loop at `at`: LDA #$40 / STA FLAG / wait: BIT DONE / BMI wait / BVS err /
+/// The park loop at `at`: LDA #$40 / STA flag / wait: BIT DONE / BMI wait / BVS err /
 /// LDX $AE / LDY $AF / CLC / RTS / NOP / err: LDA #4 / SEC / RTS / DONE
-fn park(at: u16) -> [u8; PARK_LEN as usize] {
+fn park(at: u16, flag: u16) -> [u8; PARK_LEN as usize] {
     let done = (at + 23).to_le_bytes();
+    let flag = flag.to_le_bytes();
     [
-        0xa9, 0x40, 0x8d, 0xff, 0x02, 0x2c, done[0], done[1], 0x30, 0xfb, 0x70, 0x07, 0xa6, 0xae, 0xa4, 0xaf, 0x18, 0x60, 0xea, 0xa9,
+        0xa9, 0x40, 0x8d, flag[0], flag[1], 0x2c, done[0], done[1], 0x30, 0xfb, 0x70, 0x07, 0xa6, 0xae, 0xa4, 0xaf, 0x18, 0x60, 0xea, 0xa9,
         0x04, 0x38, 0x60, 0x80,
     ]
+}
+
+fn poke_all(m: &mut impl Machine, at: u16, bytes: &[u8]) {
+    for (i, b) in bytes.iter().enumerate() {
+        m.poke(at.wrapping_add(i as u16), *b);
+    }
 }
 
 fn overlaps(a: u16, a_end: u16, b: u16, b_end: u16) -> bool {
@@ -70,6 +84,7 @@ pub struct Drive {
     img: Vec<u8>,
     rom_load: u16,
     own_vectors: [u16; 26],
+    stub: u16,
     job: Option<Job>,
     pub loads: u32,
     /// Address of the first program's SYS stub, for the boot script.
@@ -93,31 +108,32 @@ impl Drive {
         for (i, v) in own_vectors.iter_mut().enumerate() {
             *v = peek16(m, 0x300 + 2 * i as u16);
         }
-        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, job: None, loads: 0, sys: 0 };
+        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, stub: STUB_SPOTS[0], job: None, loads: 0, sys: 0 };
         d.install(m);
         Ok(d)
     }
 
+    fn flag(&self) -> u16 {
+        self.stub + STUB_LEN - 1
+    }
+
     fn install(&self, m: &mut impl Machine) {
-        for (i, b) in ENTRY.iter().enumerate() {
-            m.poke(STUB + i as u16, *b);
-        }
-        m.poke(FLAG, 0);
-        poke16(m, 0x330, STUB);
+        poke_all(m, self.stub, &entry(self.stub));
+        poke16(m, 0x330, self.stub);
     }
 
     /// Serve any pending LOAD. Call every few milliseconds.
     pub fn tick(&mut self, m: &mut impl Machine) {
         match self.job.take() {
             None => {
-                if m.peek(FLAG) == 0x80 && peek16(m, 0x330) == STUB {
+                if m.peek(self.flag()) == 0x80 && peek16(m, 0x330) == self.stub {
                     self.start(m);
                 } else if peek16(m, 0x330) == self.rom_load {
                     // a program that resets the KERNAL vectors (RESTOR) gets the drive back
                     self.install(m);
                 }
             }
-            Some(job) if m.peek(FLAG) != 0x40 => self.job = Some(job), // not parked yet
+            Some(job) if m.peek(self.flag()) != 0x40 => self.job = Some(job), // not parked yet
             Some(job) => self.finish(m, job),
         }
     }
@@ -139,17 +155,11 @@ impl Drive {
         let (addr, end) = file.as_ref().map(|f| (f.2, f.3)).unwrap_or((0, 0));
         let spot = PARK_SPOTS
             .into_iter()
-            .find(|&p| {
-                !overlaps(p, p + PARK_LEN, addr, end)
-                    && !overlaps(p, p + PARK_LEN, STUB, STUB + ENTRY.len() as u16)
-                    && !overlaps(p, p + PARK_LEN, FLAG, FLAG + 1)
-            })
+            .find(|&p| !overlaps(p, p + PARK_LEN, addr, end) && !overlaps(p, p + PARK_LEN, self.stub, self.stub + STUB_LEN))
             .unwrap_or(PARK_SPOTS[0]);
-        for (i, b) in park(spot).iter().enumerate() {
-            m.poke(spot + i as u16, *b);
-        }
-        m.poke(SPIN, 0x4c); // JMP park
-        poke16(m, SPIN + 1, spot);
+        poke_all(m, spot, &park(spot, self.flag()));
+        m.poke(self.stub + SPIN, 0x4c); // JMP park
+        poke16(m, self.stub + SPIN + 1, spot);
         self.job = Some(Job { spot, file });
     }
 
@@ -166,17 +176,18 @@ impl Drive {
     fn finish(&mut self, m: &mut impl Machine, job: Job) {
         let done = job.spot + 23;
         let Some((name, data, addr, end)) = job.file else {
-            if m.peek(STUB) == ENTRY[0] {
-                self.install(m);
-            }
+            self.install(m);
             m.poke(done, 0x40); // release with "file not found"
             return;
         };
         let before: Vec<u16> = AUTOSTART.iter().map(|&v| peek16(m, v)).collect();
+        let parked = job.spot..job.spot + PARK_LEN;
+        let free = |s: u16| !overlaps(s, s + STUB_LEN, addr, end) && !overlaps(s, s + STUB_LEN, parked.start, parked.end);
+        if !free(self.stub) {
+            self.stub = STUB_SPOTS.into_iter().find(|&s| free(s)).unwrap_or(self.stub);
+        }
         if m.peek(0x93) == 0 {
-            for (i, b) in data[2..].iter().enumerate() {
-                m.poke(addr.wrapping_add(i as u16), *b);
-            }
+            poke_all(m, addr, &data[2..]);
             self.translate_vectors(m, addr, end);
         }
         poke16(m, 0xae, end);
@@ -188,14 +199,11 @@ impl Drive {
                 self.sys = sys_stub(&data).unwrap_or(0);
             }
         }
-        // put the entry stub back unless the program just loaded over it
-        if !overlaps(STUB, FLAG + 1, addr, end) {
-            for (i, b) in ENTRY.iter().enumerate() {
-                m.poke(STUB + i as u16, *b);
-            }
-            m.poke(FLAG, 0);
+        // put the entry stub back unless the program just loaded over it (and every free spot)
+        if !overlaps(self.stub, self.stub + STUB_LEN, addr, end) {
+            poke_all(m, self.stub, &entry(self.stub));
             if !overlaps(0x330, 0x332, addr, end) {
-                self.install(m);
+                poke16(m, 0x330, self.stub);
             }
         }
         self.loads += 1;
@@ -207,7 +215,7 @@ impl Drive {
         for (i, &stock) in STOCK.iter().enumerate() {
             let v = 0x300 + 2 * i as u16;
             if stock != 0 && overlaps(v, v + 2, addr, end) && peek16(m, v) == stock {
-                poke16(m, v, if v == 0x330 { STUB } else { self.own_vectors[i] });
+                poke16(m, v, if v == 0x330 { self.stub } else { self.own_vectors[i] });
             }
         }
     }
@@ -249,25 +257,40 @@ mod tests {
         }
     }
 
-    #[test]
-    fn serves_a_kernal_load() {
-        let img = crate::disk::tests::tiny_disk();
+    /// Attach a drive with `img` and run LOAD"*",8,1 through it.
+    fn load_first(img: Vec<u8>) -> (Drive, Ram) {
         let mut ram = Ram([0; 0x10000], vec![]);
         ram.0[0x330] = 0xa5;
         ram.0[0x331] = 0xf4;
         let mut d = Drive::new(img, &mut ram).unwrap();
-        assert_eq!(peek16(&mut ram, 0x330), STUB);
-        // the stub ran: LOAD"*",8,1
+        assert_eq!(peek16(&mut ram, 0x330), STUB_SPOTS[0]);
+        // the stub ran
         ram.0[0xb7] = 1;
         ram.0[0xbb] = 0x00;
         ram.0[0xbc] = 0x02;
         ram.0[0x200] = b'*';
         ram.0[0xba] = 8;
         ram.0[0xb9] = 1;
-        ram.0[FLAG as usize] = 0x80;
+        let flag = d.flag() as usize;
+        ram.0[flag] = 0x80;
         d.tick(&mut ram);
-        ram.0[FLAG as usize] = 0x40; // the park code reported in
+        ram.0[flag] = 0x40; // the park code reported in
         d.tick(&mut ram);
+        (d, ram)
+    }
+
+    #[test]
+    fn moves_the_stub_out_of_a_loaded_file() {
+        // like Seven Cities of Gold's boot file, which covers $02A8-$030B
+        let (d, mut ram) = load_first(crate::disk::d64(&[(b"EA".to_vec(), [&[0xa8, 0x02][..], &[0xea; 100]].concat())]));
+        assert_eq!(d.stub, STUB_SPOTS[1]);
+        assert_eq!(peek16(&mut ram, 0x330), STUB_SPOTS[1]);
+        assert_eq!(ram.0[STUB_SPOTS[1] as usize..][..STUB_LEN as usize], entry(STUB_SPOTS[1]));
+    }
+
+    #[test]
+    fn serves_a_kernal_load() {
+        let (_, mut ram) = load_first(crate::disk::tests::tiny_disk());
         assert_eq!(ram.1, ["GAME"]);
         assert_eq!(&ram.0[0x0801..0x0804], &[0, 0, 0]); // data copied (zeros in the test file)
         assert_eq!(peek16(&mut ram, 0xae), 0x0801 + 254 + 1); // end address
