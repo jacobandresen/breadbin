@@ -103,13 +103,25 @@ struct Cia {
     control: [u8; 2],
     mask: u8,
     status: u8,
+    /// Last values written, read back from the registers not modelled (the
+    /// serial data register doubles as a place to keep an RTI, for one).
+    written: [u8; 16],
+    /// Cycle within the last `tick` at which the interrupt line went active.
+    asserted_at: Option<u32>,
 }
 
 impl Cia {
+    /// Timer `t` is started and counting clock cycles (timer B can count other things).
+    fn counting(&self, t: usize) -> bool {
+        self.control[t] & 1 != 0 && !(t == 1 && self.control[1] & 0x60 != 0)
+    }
+
     fn tick(&mut self, cycles: u32) {
+        let was = self.interrupting();
+        self.asserted_at = None;
         for t in 0..2 {
-            if self.control[t] & 1 == 0 || (t == 1 && self.control[1] & 0x60 != 0) {
-                continue; // stopped, or timer B counting something other than cycles
+            if !self.counting(t) {
+                continue;
             }
             let mut left = cycles;
             while left > 0 {
@@ -117,6 +129,11 @@ impl Cia {
                 left -= step;
                 if step > self.counter[t] as u32 {
                     self.status |= 1 << t;
+                    if !was && self.interrupting() {
+                        // the line goes active a cycle after the underflow
+                        let at = cycles - left + 1;
+                        self.asserted_at = Some(self.asserted_at.map_or(at, |a| a.min(at)));
+                    }
                     self.counter[t] = self.latch[t];
                     if self.control[t] & 0x08 != 0 {
                         self.control[t] &= !1; // one-shot
@@ -133,13 +150,26 @@ impl Cia {
         self.status & self.mask & 0x1f != 0
     }
 
-    fn read(&mut self, reg: u16) -> u8 {
+    /// Timer `t` as it will read `ahead` cycles from now.
+    fn counter_in(&self, t: usize, ahead: u32) -> u16 {
+        let (c, latch) = (self.counter[t] as u32, self.latch[t] as u32);
+        if !self.counting(t) {
+            self.counter[t]
+        } else if ahead <= c {
+            (c - ahead) as u16
+        } else {
+            (latch - (ahead - c - 1) % (latch + 1)) as u16 // reloaded on the way
+        }
+    }
+
+    /// `ahead`: cycles into the current instruction this read happens.
+    fn read(&mut self, reg: u16, ahead: u32) -> u8 {
         match reg & 0x0f {
             0x00 | 0x01 => 0xff, // no keys pressed, no joystick
-            0x04 => self.counter[0] as u8,
-            0x05 => (self.counter[0] >> 8) as u8,
-            0x06 => self.counter[1] as u8,
-            0x07 => (self.counter[1] >> 8) as u8,
+            0x04 => self.counter_in(0, ahead) as u8,
+            0x05 => (self.counter_in(0, ahead) >> 8) as u8,
+            0x06 => self.counter_in(1, ahead) as u8,
+            0x07 => (self.counter_in(1, ahead) >> 8) as u8,
             0x0d => {
                 let v = self.status | if self.interrupting() { 0x80 } else { 0 };
                 self.status = 0;
@@ -147,17 +177,21 @@ impl Cia {
             }
             0x0e => self.control[0],
             0x0f => self.control[1],
-            _ => 0,
+            r => self.written[r as usize],
         }
     }
 
     fn write(&mut self, reg: u16, v: u8) {
+        self.written[(reg & 0x0f) as usize] = v;
         let set_latch = |latch: &mut u16, hi: bool| *latch = if hi { (*latch & 0xff) | (v as u16) << 8 } else { (*latch & 0xff00) | v as u16 };
         match reg & 0x0f {
-            0x04 => set_latch(&mut self.latch[0], false),
-            0x05 => set_latch(&mut self.latch[0], true),
-            0x06 => set_latch(&mut self.latch[1], false),
-            0x07 => set_latch(&mut self.latch[1], true),
+            r @ 0x04..=0x07 => {
+                let (t, hi) = ((r as usize - 4) / 2, r & 1 != 0);
+                set_latch(&mut self.latch[t], hi);
+                if hi && self.control[t] & 1 == 0 {
+                    self.counter[t] = self.latch[t]; // a stopped timer loads its latch
+                }
+            }
             0x0d => {
                 if v & 0x80 != 0 { self.mask |= v & 0x1f } else { self.mask &= !(v & 0x1f) }
             }
@@ -190,6 +224,12 @@ struct C64 {
     vic_mask: u8,
     vic_ctrl: u8,
     nmi_was: bool,
+    nmi_pending: bool,
+    /// The pending NMI arrived too late in the last instruction to be taken after it.
+    nmi_late: bool,
+    /// Bus accesses so far in the current instruction: about the cycle it's in,
+    /// which cycle-exact code reading the timers depends on.
+    access: u32,
 }
 
 impl C64 {
@@ -218,7 +258,7 @@ impl C64 {
         cia[0].counter[0] = KERNAL_TIMER;
         cia[0].control[0] = 0x01;
         cia[0].mask = 0x01;
-        C64 { ram, kernal, sid, regs: [0; NUM_REGS], writes: Vec::new(), cia, raster: 0, raster_compare: 0, vic_irq: 0, vic_mask: 0, vic_ctrl: 0x1b, nmi_was: false }
+        C64 { ram, kernal, sid, regs: [0; NUM_REGS], writes: Vec::new(), cia, raster: 0, raster_compare: 0, vic_irq: 0, vic_mask: 0, vic_ctrl: 0x1b, nmi_was: false, nmi_pending: false, nmi_late: false, access: 0 }
     }
 
     fn port(&self) -> u8 {
@@ -232,8 +272,9 @@ impl C64 {
         (self.raster / LINE_CYCLES) as u16
     }
 
-    /// Advance timers and the raster beam; returns (irq, nmi edge).
-    fn tick(&mut self, cycles: u32) -> (bool, bool) {
+    /// Advance timers and the raster beam; returns the IRQ line (an NMI edge
+    /// is latched in `nmi_pending`).
+    fn tick(&mut self, cycles: u32) -> bool {
         self.cia[0].tick(cycles);
         self.cia[1].tick(cycles);
         let before = self.line();
@@ -244,14 +285,19 @@ impl C64 {
             self.vic_irq |= 1;
         }
         let nmi = self.cia[1].interrupting();
-        let edge = nmi && !self.nmi_was;
+        if nmi && !self.nmi_was {
+            self.nmi_pending = true;
+            // the 6502 samples interrupts before an instruction's last cycle
+            self.nmi_late = self.cia[1].asserted_at.is_some_and(|at| at >= cycles);
+        }
         self.nmi_was = nmi;
-        (self.cia[0].interrupting() || self.vic_irq & self.vic_mask & 0x0f != 0, edge)
+        self.cia[0].interrupting() || self.vic_irq & self.vic_mask & 0x0f != 0
     }
 }
 
 impl Bus for C64 {
     fn read(&mut self, a: u16) -> u8 {
+        self.access += 1;
         match a {
             0xd000..=0xdfff if self.io_visible() => match a {
                 0xd400..=0xd7ff => match a & 0x1f {
@@ -265,8 +311,8 @@ impl Bus for C64 {
                     0x1a => self.vic_mask | 0xf0,
                     _ => 0,
                 },
-                0xdc00..=0xdcff => self.cia[0].read(a),
-                0xdd00..=0xddff => self.cia[1].read(a),
+                0xdc00..=0xdcff => self.cia[0].read(a, self.access - 1),
+                0xdd00..=0xddff => self.cia[1].read(a, self.access - 1),
                 _ => 0,
             },
             0xe000..=0xffff if self.port() & 2 != 0 => self.kernal[(a - 0xe000) as usize],
@@ -275,6 +321,7 @@ impl Bus for C64 {
     }
 
     fn write(&mut self, a: u16, v: u8) {
+        self.access += 1;
         if (0xd000..=0xdfff).contains(&a) && self.io_visible() {
             match a {
                 0xd400..=0xd7ff => {
@@ -387,7 +434,8 @@ impl Player {
     fn step(&mut self) -> u32 {
         let (cpu, c64) = (&mut self.cpu, &mut self.c64);
         let idle = cpu.pc == IDLE || cpu.jammed;
-        let mut cycles = if idle { 8 } else { cpu.step(c64) };
+        c64.access = 0;
+        let cycles = if idle { 8 } else { cpu.step(c64) };
 
         // PSID: call play when it's time and the previous call has finished
         if !self.rsid && self.play_addr != 0 {
@@ -401,16 +449,21 @@ impl Player {
             }
         }
 
-        let (irq, nmi) = c64.tick(cycles);
-        if nmi {
-            cycles += cpu.interrupt(c64, 0xfffa);
+        let irq = c64.tick(cycles);
+        // the interrupt sequence takes cycles too, which the timers must see
+        let taken = if c64.nmi_pending && !std::mem::take(&mut c64.nmi_late) {
+            c64.nmi_pending = false;
+            cpu.interrupt(c64, 0xfffa)
         } else if irq && cpu.irq_enabled() {
-            cycles += cpu.interrupt(c64, 0xfffe);
             if self.rsid || self.play_addr == 0 {
                 self.frame += 1;
             }
-        }
-        cycles
+            cpu.interrupt(c64, 0xfffe)
+        } else {
+            0
+        };
+        c64.tick(taken);
+        cycles + taken
     }
 
     /// Fill `out` (mono i16) with the next samples.
@@ -492,6 +545,25 @@ mod tests {
         // the KERNAL's 60Hz CIA timer fires the tune's IRQ handler
         assert!((58..=62).contains(&vis.frame), "irqs: {}", vis.frame);
         assert!(vis.regs[0x18] > 50);
+    }
+
+    /// What cycle-exact digi players rely on: code run from the timer and
+    /// serial registers.
+    #[test]
+    fn cia_registers_behave_like_the_chip() {
+        let mut cia = Cia::default();
+        cia.write(0x04, 0x4c);
+        cia.write(0x05, 0x02); // stopped: the high byte loads the counter
+        assert_eq!((cia.read(0x04, 0), cia.read(0x05, 0)), (0x4c, 0x02));
+        cia.write(0x0c, 0x40); // RTI kept in the serial data register
+        assert_eq!(cia.read(0x0c, 0), 0x40);
+        cia.write(0x06, 9);
+        cia.write(0x0f, 0x11); // timer B: load and start, 10-cycle period
+        assert_eq!(cia.read(0x06, 3), 6); // read three cycles into an instruction
+        assert_eq!(cia.read(0x06, 12), 7); // after a reload
+        cia.write(0x0d, 0x82);
+        cia.tick(12);
+        assert_eq!(cia.asserted_at, Some(11)); // underflow on cycle 10, line active on 11
     }
 }
 

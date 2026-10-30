@@ -208,6 +208,12 @@ impl Cpu {
             return 2;
         }
         let op = self.fetch(b);
+        if matches!(op, 0x40 | 0x60) {
+            // RTI and RTS read the next byte and ignore it. Digi players count on
+            // it: an RTI kept in CIA 2's serial register at $DD0C acknowledges the
+            // NMI by reading $DD0D.
+            b.read(self.pc);
+        }
         self.extra = 0;
         let mut cycles = CYCLES[op as usize];
         // column/row decoding for the regular opcodes; the rest are matched explicitly

@@ -17,9 +17,9 @@
    "drive": [
     "GHOSTS'N GOBLIN+@801"
    ],
-   "moving": 0.4426,
+   "moving": 0.4557,
    "ok": true,
-   "testedAt": "2026-10-29T21:26:56.567Z"
+   "testedAt": "2026-10-30T02:11:28.989Z"
   },
   "gb64:b2/BLUEMAX1_00893_03.zip": {
    "id": "gb64:b2/BLUEMAX1_00893_03.zip",
@@ -35,10 +35,12 @@
    "shot": "B/Blue_Max_(English).png",
    "ia": "Blue_Max_1985_Drean_Commodore_es",
    "downloads": 9132,
-   "drive": [],
-   "moving": 0.7015,
+   "drive": [
+    "BLUE MAX+@801"
+   ],
+   "moving": 0.702,
    "ok": true,
-   "testedAt": "2026-10-29T20:55:28.140Z"
+   "testedAt": "2026-10-30T02:11:28.728Z"
   },
   "gb64:g1/GHOSTBU1_03133_03.zip": {
    "id": "gb64:g1/GHOSTBU1_03133_03.zip",
@@ -54,10 +56,12 @@
    "shot": "G/Ghostbusters.png",
    "ia": "Ghostbusters_1985_Drean_Commodore_es",
    "downloads": 9126,
-   "drive": [],
-   "moving": 0.2384,
+   "drive": [
+    "GHOSTBUSTERS+@801"
+   ],
+   "moving": 0.2321,
    "ok": true,
-   "testedAt": "2026-10-29T20:56:09.221Z"
+   "testedAt": "2026-10-30T02:12:14.538Z"
   },
   "gb64:t2/TURRI2D0_17610_02.zip": {
    "id": "gb64:t2/TURRI2D0_17610_02.zip",
@@ -76,9 +80,9 @@
    "drive": [
     "TURRICAN II+@801"
    ],
-   "moving": 0.9844,
+   "moving": 0.9871,
    "ok": true,
-   "testedAt": "2026-10-29T21:27:44.539Z"
+   "testedAt": "2026-10-30T02:12:17.326Z"
   },
   "gb64:w/WIZOWOR1_08650_04.zip": {
    "id": "gb64:w/WIZOWOR1_08650_04.zip",
@@ -99,7 +103,7 @@
    ],
    "moving": 0.6676,
    "ok": true,
-   "testedAt": "2026-10-29T20:56:49.691Z"
+   "testedAt": "2026-10-30T02:13:03.286Z"
   },
   "gb64:s3/SPACETAX_07107_02.zip": {
    "id": "gb64:s3/SPACETAX_07107_02.zip",
@@ -118,9 +122,9 @@
    "drive": [
     "SPACE TAXI+@801"
    ],
-   "moving": 0.1092,
+   "moving": 0.1091,
    "ok": true,
-   "testedAt": "2026-10-29T20:57:29.980Z"
+   "testedAt": "2026-10-30T02:13:48.927Z"
   },
   "gb64:r1/RAIDOMOS_06176_02.zip": {
    "id": "gb64:r1/RAIDOMOS_06176_02.zip",
@@ -139,9 +143,9 @@
    "drive": [
     "RAID OVER MOSC.+@801"
    ],
-   "moving": 0.6898,
+   "moving": 0.6909,
    "ok": true,
-   "testedAt": "2026-10-29T20:58:10.092Z"
+   "testedAt": "2026-10-30T02:14:34.676Z"
   },
   "gb64:l1/LNINJA2A_04285_02.zip": {
    "id": "gb64:l1/LNINJA2A_04285_02.zip",
@@ -160,9 +164,9 @@
    "drive": [
     "LAST NINJA 2+@801"
    ],
-   "moving": 0.1487,
+   "moving": 0.3675,
    "ok": true,
-   "testedAt": "2026-10-29T20:58:50.433Z"
+   "testedAt": "2026-10-30T02:14:35.264Z"
   },
   "gb64:m3/MULE_05076_03.zip": {
    "id": "gb64:m3/MULE_05076_03.zip",
@@ -181,9 +185,9 @@
    "drive": [
     "M.U.L.E.@801"
    ],
-   "moving": 0.067,
+   "moving": 0.0661,
    "ok": true,
-   "testedAt": "2026-10-30T01:25:43.442Z"
+   "testedAt": "2026-10-30T02:13:48.578Z"
   },
   "gb64:s1/7CITIES0_06722_01.zip": {
    "id": "gb64:s1/7CITIES0_06722_01.zip",
@@ -200,13 +204,12 @@
    "ia": "d64_Seven_Cities_of_Gold_1984_Electronic_Arts_Side_A",
    "downloads": 3897,
    "drive": [
-    "EA@2a8",
-    "EA\"?@c000"
+    "EA@2a8"
    ],
-   "moving": 0.0083,
+   "moving": 0.0592,
    "ok": false,
-   "reason": "?DEVICE NOT PRESENT ERROR",
-   "testedAt": "2026-10-30T02:04:03.104Z"
+   "reason": "?SYNTAX ERROR",
+   "testedAt": "2026-10-30T02:16:06.212Z"
   },
   "gb64:a2/ARCHON1_00378_03.zip": {
    "id": "gb64:a2/ARCHON1_00378_03.zip",
@@ -222,14 +225,16 @@
    "shot": "A/Archon_(English).png",
    "ia": "Archon_1983_Electronic_Arts_h_Duo_Asocciates",
    "downloads": 3184,
-   "drive": [],
+   "drive": [
+    "ARCHON+@801"
+   ],
    "moving": 0.9943,
    "ok": true,
-   "testedAt": "2026-10-29T21:05:14.138Z"
+   "testedAt": "2026-10-30T02:16:51.528Z"
   },
   "gb64:b3/BRUCELEE_01135_02.zip": {
    "id": "gb64:b3/BRUCELEE_01135_02.zip",
-   "gb": "b3/BRUCELEE_01135_02.zip",
+   "gb": "",
    "run": "",
    "title": "Bruce Lee",
    "rating": 5,
@@ -241,10 +246,12 @@
    "shot": "B/Bruce_Lee.png",
    "ia": "Bruce_Lee_1984_Datasoft_h_TBC",
    "downloads": 4021,
-   "drive": [],
-   "ok": false,
-   "reason": "CPU jammed",
-   "testedAt": "2026-10-30T01:27:08.320Z"
+   "drive": [
+    "BRUCE LEE@801"
+   ],
+   "moving": 0.9868,
+   "ok": true,
+   "testedAt": "2026-10-30T02:16:06.889Z"
   },
   "gb64:m2/MISOCCER_04802_01.zip": {
    "id": "gb64:m2/MISOCCER_04802_01.zip",
@@ -263,9 +270,9 @@
    "drive": [
     "MICROPR. SOCCER@801"
    ],
-   "moving": 0.0838,
+   "moving": 0.0817,
    "ok": true,
-   "testedAt": "2026-10-29T21:05:56.348Z"
+   "testedAt": "2026-10-30T02:16:52.228Z"
   },
   "gb64:a1/AIRBORNE_00189_02.zip": {
    "id": "gb64:a1/AIRBORNE_00189_02.zip",
@@ -284,9 +291,9 @@
    "drive": [
     "AIRBORNE RANGER+@801"
    ],
-   "moving": 0.0961,
+   "moving": 0.0544,
    "ok": true,
-   "testedAt": "2026-10-29T21:06:33.973Z"
+   "testedAt": "2026-10-30T02:17:38.659Z"
   },
   "gb64:c2/COMMAND1_01602_02.zip": {
    "id": "gb64:c2/COMMAND1_01602_02.zip",
@@ -305,9 +312,9 @@
    "drive": [
     "COMMANDO+@801"
    ],
-   "moving": 0.1205,
+   "moving": 0.1988,
    "ok": true,
-   "testedAt": "2026-10-29T21:06:37.041Z"
+   "testedAt": "2026-10-30T02:17:38.721Z"
   },
   "gb64:w/WIZBALL_08669_03.zip": {
    "id": "gb64:w/WIZBALL_08669_03.zip",
@@ -326,9 +333,9 @@
    "drive": [
     "WIZBALL+@801"
    ],
-   "moving": 0.211,
+   "moving": 0.2109,
    "ok": true,
-   "testedAt": "2026-10-29T21:07:17.330Z"
+   "testedAt": "2026-10-30T02:18:25.282Z"
   },
   "gb64:i/IKPLUS_03707_01.zip": {
    "id": "gb64:i/IKPLUS_03707_01.zip",
@@ -347,9 +354,9 @@
    "drive": [
     "INTER.KARATE +@801"
    ],
-   "moving": 0.5612,
+   "moving": 0.5307,
    "ok": true,
-   "testedAt": "2026-10-30T01:28:33.335Z"
+   "testedAt": "2026-10-30T02:19:10.083Z"
   },
   "gb64:t1/THRUST1_07897_01.zip": {
    "id": "gb64:t1/THRUST1_07897_01.zip",
@@ -368,9 +375,9 @@
    "drive": [
     "THRUST+@801"
    ],
-   "moving": 0.3504,
+   "moving": 0.3534,
    "ok": true,
-   "testedAt": "2026-10-29T21:14:24.861Z"
+   "testedAt": "2026-10-30T02:19:55.474Z"
   },
   "gb64:b3/BUBBLEBO_01138_02.zip": {
    "id": "gb64:b3/BUBBLEBO_01138_02.zip",
@@ -389,9 +396,9 @@
    "drive": [
     "BUBB.BOBBLE+/TCS@801"
    ],
-   "moving": 0.2154,
+   "moving": 0.2218,
    "ok": true,
-   "testedAt": "2026-10-30T01:29:58.009Z"
+   "testedAt": "2026-10-30T02:19:59.770Z"
   },
   "gb64:j/JUMPMAN1_04000_02.zip": {
    "id": "gb64:j/JUMPMAN1_04000_02.zip",
@@ -410,9 +417,9 @@
    "drive": [
     "JUMPMAN+@801"
    ],
-   "moving": 0.3894,
+   "moving": 0.3898,
    "ok": true,
-   "testedAt": "2026-10-29T21:15:06.687Z"
+   "testedAt": "2026-10-30T02:20:41.532Z"
   },
   "gb64:a2/ARMALYTE_00411_02.zip": {
    "id": "gb64:a2/ARMALYTE_00411_02.zip",
@@ -431,9 +438,9 @@
    "drive": [
     "ARMALYTE+@801"
    ],
-   "moving": 0.3149,
+   "moving": 0.3139,
    "ok": true,
-   "testedAt": "2026-10-29T22:15:22.241Z"
+   "testedAt": "2026-10-30T02:20:45.801Z"
   },
   "gb64:h/HOVERBOV_03621_02.zip": {
    "id": "gb64:h/HOVERBOV_03621_02.zip",
@@ -452,9 +459,9 @@
    "drive": [
     "HOVER@801"
    ],
-   "moving": 0.0596,
+   "moving": 0.0597,
    "ok": true,
-   "testedAt": "2026-10-30T01:31:21.529Z"
+   "testedAt": "2026-10-30T02:22:11.659Z"
   },
   "gb64:d1/DELTA_02092_02.zip": {
    "id": "gb64:d1/DELTA_02092_02.zip",
@@ -473,7 +480,7 @@
    "drive": [],
    "ok": false,
    "reason": "CPU jammed",
-   "testedAt": "2026-10-30T01:32:53.199Z"
+   "testedAt": "2026-10-30T02:22:21.217Z"
   },
   "gb64:b1/BEACHHD1_00702_02.zip": {
    "id": "gb64:b1/BEACHHD1_00702_02.zip",
@@ -492,10 +499,10 @@
    "drive": [
     "BEACH-HEAD@801"
    ],
-   "moving": 0.0077,
+   "moving": 0.0699,
    "ok": false,
    "reason": "?NOT IMPLEMENTED ERROR IN 100",
-   "testedAt": "2026-10-29T22:31:17.797Z"
+   "testedAt": "2026-10-30T02:23:40.903Z"
   },
   "gb64:l2/LODERUN1_04420_03.zip": {
    "id": "gb64:l2/LODERUN1_04420_03.zip",
@@ -514,7 +521,7 @@
    "drive": [],
    "ok": false,
    "reason": "CPU jammed",
-   "testedAt": "2026-10-30T01:34:17.655Z"
+   "testedAt": "2026-10-30T02:23:51.811Z"
   },
   "gb64:l1/LADYTUT_04239_02.zip": {
    "id": "gb64:l1/LADYTUT_04239_02.zip",
@@ -533,9 +540,9 @@
    "drive": [
     "LADY TUT+@801"
    ],
-   "moving": 0.0809,
+   "moving": 0.0801,
    "ok": true,
-   "testedAt": "2026-10-29T22:39:14.520Z"
+   "testedAt": "2026-10-30T02:24:25.380Z"
   },
   "gb64:e/ELITE128_02476_01.zip": {
    "id": "gb64:e/ELITE128_02476_01.zip",
@@ -556,8 +563,8 @@
    ],
    "moving": 0,
    "ok": false,
-   "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:40:44.432Z"
+   "reason": "picture never changed",
+   "testedAt": "2026-10-30T02:25:22.735Z"
   },
   "gb64:s4/SPLITPRS_07231_03.zip": {
    "id": "gb64:s4/SPLITPRS_07231_03.zip",
@@ -573,10 +580,12 @@
    "shot": "S/Split_Personalities.png",
    "ia": "d64_Split_Personalities_1986_Domark",
    "downloads": 324,
-   "drive": [],
-   "moving": 0.4489,
+   "drive": [
+    "SPLIT PERSONAL.+@801"
+   ],
+   "moving": 0.1508,
    "ok": true,
-   "testedAt": "2026-10-29T22:41:26.697Z"
+   "testedAt": "2026-10-30T02:25:09.725Z"
   },
   "gb64:i/INTSOCC2_03803_01.zip": {
    "id": "gb64:i/INTSOCC2_03803_01.zip",
@@ -595,9 +604,9 @@
    "drive": [
     "PERUIFOC@801"
    ],
-   "moving": 0.007,
+   "moving": 0.0131,
    "ok": true,
-   "testedAt": "2026-10-30T01:35:41.755Z"
+   "testedAt": "2026-10-30T02:26:40.657Z"
   },
   "gb64:b1/BTALE3-0_00624_04.zip": {
    "id": "gb64:b1/BTALE3-0_00624_04.zip",
@@ -613,14 +622,11 @@
    "shot": "B/The_Bard's_Tale_III.png",
    "ia": "",
    "downloads": 0,
-   "drive": [
-    "PRODOS@2bc",
-    "2.0@c000"
-   ],
-   "moving": 0.0071,
+   "drive": [],
+   "moving": 0.013,
    "ok": false,
-   "reason": "BRK AT $4014",
-   "testedAt": "2026-10-29T22:49:16.101Z"
+   "reason": "? ERROR",
+   "testedAt": "2026-10-30T02:26:09.810Z"
   },
   "gb64:b3/BDASH01_00994_01.zip": {
    "id": "gb64:b3/BDASH01_00994_01.zip",
@@ -636,10 +642,12 @@
    "shot": "B/Boulder_Dash__I.png",
    "ia": "",
    "downloads": 0,
-   "drive": [],
-   "moving": 0.9472,
+   "drive": [
+    "BOULDER DASH@801"
+   ],
+   "moving": 0.9731,
    "ok": true,
-   "testedAt": "2026-10-29T22:49:58.561Z"
+   "testedAt": "2026-10-30T02:26:54.807Z"
   },
   "gb64:c3/CREAT2-0_01787_03.zip": {
    "id": "gb64:c3/CREAT2-0_01787_03.zip",
@@ -658,9 +666,9 @@
    "drive": [
     "CREATURES II+@801"
    ],
-   "moving": 0.16,
+   "moving": 0.2027,
    "ok": true,
-   "testedAt": "2026-10-29T22:50:40.884Z"
+   "testedAt": "2026-10-30T02:27:25.098Z"
   },
   "gb64:d1/DOTC-E_02082_02.zip": {
    "id": "gb64:d1/DOTC-E_02082_02.zip",
@@ -679,9 +687,9 @@
    "drive": [
     "DEFENDER OTC.+@801"
    ],
-   "moving": 0.3699,
+   "moving": 0.3777,
    "ok": true,
-   "testedAt": "2026-10-29T22:51:24.456Z"
+   "testedAt": "2026-10-30T02:27:41.070Z"
   },
   "gb64:g2/GIANA1_03275_02.zip": {
    "id": "gb64:g2/GIANA1_03275_02.zip",
@@ -700,9 +708,9 @@
    "drive": [
     "GREAT GIANA S.+@801"
    ],
-   "moving": 0.1376,
+   "moving": 0.5662,
    "ok": true,
-   "testedAt": "2026-10-29T22:52:06.375Z"
+   "testedAt": "2026-10-30T02:28:09.529Z"
   },
   "gb64:h/HAWKEYE0_03446_01.zip": {
    "id": "gb64:h/HAWKEYE0_03446_01.zip",
@@ -722,9 +730,9 @@
     "HAWKEYE+@801",
     "HAWKEYE HISCORE!@2bc8"
    ],
-   "moving": 0.1105,
+   "moving": 0.1163,
    "ok": true,
-   "testedAt": "2026-10-29T22:52:48.444Z"
+   "testedAt": "2026-10-30T02:28:29.318Z"
   },
   "gb64:h/HERO_03508_04.zip": {
    "id": "gb64:h/HERO_03508_04.zip",
@@ -746,7 +754,7 @@
    "moving": 0,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:53:31.672Z"
+   "testedAt": "2026-10-30T02:28:54.015Z"
   },
   "gb64:i/IMPMIS1_03731_04.zip": {
    "id": "gb64:i/IMPMIS1_03731_04.zip",
@@ -765,9 +773,9 @@
    "drive": [
     "IMP. MISSION+@801"
    ],
-   "moving": 0.1095,
+   "moving": 0.5739,
    "ok": true,
-   "testedAt": "2026-10-29T22:54:13.678Z"
+   "testedAt": "2026-10-30T02:29:14.992Z"
   },
   "gb64:k/KATAKIS0_04058_02.zip": {
    "id": "gb64:k/KATAKIS0_04058_02.zip",
@@ -786,7 +794,7 @@
    "drive": [],
    "ok": false,
    "reason": "CPU jammed",
-   "testedAt": "2026-10-30T01:36:25.507Z"
+   "testedAt": "2026-10-30T02:29:38.816Z"
   },
   "gb64:m1/MANIACE0_04576_03.zip": {
    "id": "gb64:m1/MANIACE0_04576_03.zip",
@@ -805,10 +813,10 @@
    "drive": [
     "MANIAC MANSION@801"
    ],
-   "moving": 0.007,
+   "moving": 0.0125,
    "ok": false,
-   "reason": "?DEVICE NOT PRESENT ERROR",
-   "testedAt": "2026-10-29T23:02:10.218Z"
+   "reason": "?SYNTAX ERROR",
+   "testedAt": "2026-10-30T02:30:01.721Z"
   },
   "gb64:m1/MAYHEMIM_04673_03.zip": {
    "id": "gb64:m1/MAYHEMIM_04673_03.zip",
@@ -3073,7 +3081,7 @@
    "composer": "Jammer",
    "party": "Gubbdata 2015",
    "year": 2015,
-   "testedAt": "2026-10-29T21:45:49.682Z"
+   "testedAt": "2026-10-30T02:29:40.253Z"
   },
   "137965": {
    "id": 137965,
@@ -3085,16 +3093,19 @@
    "composer": "LMan",
    "party": "",
    "year": 2015,
-   "testedAt": "2026-10-29T21:45:24.384Z"
+   "testedAt": "2026-10-30T02:29:08.858Z"
   },
   "139260": {
    "id": 139260,
    "name": "Vortex",
    "group": "MultiStyle Labs",
    "rating": 9.89,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:39.148Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/L/LMan/Vortex.sid",
+   "composer": "LMan",
+   "party": "Nordlicht 2015",
+   "year": 2015,
+   "testedAt": "2026-10-30T02:29:27.003Z"
   },
   "198079": {
    "id": 198079,
@@ -3106,7 +3117,7 @@
    "composer": "",
    "party": "",
    "year": 2020,
-   "testedAt": "2026-10-29T21:45:17.408Z"
+   "testedAt": "2026-10-30T02:29:00.033Z"
   },
   "198527": {
    "id": 198527,
@@ -3118,7 +3129,7 @@
    "composer": "psych858o",
    "party": "",
    "year": 2020,
-   "testedAt": "2026-10-29T21:45:18.594Z"
+   "testedAt": "2026-10-30T02:29:01.419Z"
   },
   "198615": {
    "id": 198615,
@@ -3130,7 +3141,7 @@
    "composer": "Linus",
    "party": "Filterless Single Channel Compo 2020",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:37.492Z"
+   "testedAt": "2026-10-30T02:29:24.755Z"
   },
   "199042": {
    "id": 199042,
@@ -3142,7 +3153,7 @@
    "composer": "",
    "party": "",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:55.589Z"
+   "testedAt": "2026-10-30T02:29:46.839Z"
   },
   "200637": {
    "id": 200637,
@@ -3154,7 +3165,7 @@
    "composer": "Flotsam",
    "party": "",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:56.740Z"
+   "testedAt": "2026-10-30T02:29:48.525Z"
   },
   "202821": {
    "id": 202821,
@@ -3166,7 +3177,7 @@
    "composer": "",
    "party": "Kids TV Show Music Compo",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:42.542Z"
+   "testedAt": "2026-10-30T02:29:31.504Z"
   },
   "203396": {
    "id": 203396,
@@ -3178,7 +3189,7 @@
    "composer": "Mutetus",
    "party": "Transmission64",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:31.060Z"
+   "testedAt": "2026-10-30T02:29:17.128Z"
   },
   "205428": {
    "id": 205428,
@@ -3190,7 +3201,7 @@
    "composer": "",
    "party": "Je suis #Follin Music Compo",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:43.798Z"
+   "testedAt": "2026-10-30T02:29:32.891Z"
   },
   "205474": {
    "id": 205474,
@@ -3202,7 +3213,7 @@
    "composer": "Jammer",
    "party": "Gubbdata 2021",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:33.331Z"
+   "testedAt": "2026-10-30T02:29:20.100Z"
   },
   "207672": {
    "id": 207672,
@@ -3214,7 +3225,7 @@
    "composer": "Shogoon",
    "party": "Xenium 2021",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:17.959Z"
+   "testedAt": "2026-10-30T02:29:00.676Z"
   },
   "208190": {
    "id": 208190,
@@ -3226,7 +3237,7 @@
    "composer": "Jason Page",
    "party": "Was that Rob Hubbard? Compo 2021",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:32.755Z"
+   "testedAt": "2026-10-30T02:29:19.456Z"
   },
   "208476": {
    "id": 208476,
@@ -3238,7 +3249,7 @@
    "composer": "",
    "party": "Filterless $21 Compo 2021",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:50.836Z"
+   "testedAt": "2026-10-30T02:29:41.542Z"
   },
   "211653": {
    "id": 211653,
@@ -3250,7 +3261,7 @@
    "composer": "Shogoon",
    "party": "Transmission64 2021 Fall Edition",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:21.380Z"
+   "testedAt": "2026-10-30T02:29:05.008Z"
   },
   "212207": {
    "id": 212207,
@@ -3262,7 +3273,7 @@
    "composer": "psych858o",
    "party": "",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:49.041Z"
+   "testedAt": "2026-10-30T02:29:39.258Z"
   },
   "212358": {
    "id": 212358,
@@ -3274,7 +3285,7 @@
    "composer": "acrouzet",
    "party": "",
    "year": 2021,
-   "testedAt": "2026-10-29T21:45:46.724Z"
+   "testedAt": "2026-10-30T02:29:36.597Z"
   },
   "213776": {
    "id": 213776,
@@ -3286,7 +3297,7 @@
    "composer": "Flotsam",
    "party": "",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:54.379Z"
+   "testedAt": "2026-10-30T02:29:45.489Z"
   },
   "214798": {
    "id": 214798,
@@ -3298,7 +3309,7 @@
    "composer": "",
    "party": "Unofficial Tiny SID Compo 2022",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:45.567Z"
+   "testedAt": "2026-10-30T02:29:35.291Z"
   },
   "214896": {
    "id": 214896,
@@ -3310,16 +3321,19 @@
    "composer": "Hein",
    "party": "Unofficial Tiny SID Compo 2022",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:28.114Z"
+   "testedAt": "2026-10-30T02:29:13.563Z"
   },
   "216846": {
    "id": 216846,
    "name": "Step Acide",
    "group": "Artline Designs",
    "rating": 9.88,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:41.357Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/J/Juzdie/Step_Acide.sid",
+   "composer": "Juzdie",
+   "party": "Revision 2022 Online",
+   "year": 2022,
+   "testedAt": "2026-10-30T02:29:30.164Z"
   },
   "217699": {
    "id": 217699,
@@ -3331,7 +3345,7 @@
    "composer": "",
    "party": "Zorro Main Theme Compo",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:27.522Z"
+   "testedAt": "2026-10-30T02:29:12.901Z"
   },
   "217934": {
    "id": 217934,
@@ -3343,7 +3357,7 @@
    "composer": "",
    "party": "Unofficial Tiny SID Compo 2022",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:51.466Z"
+   "testedAt": "2026-10-30T02:29:42.233Z"
   },
   "218618": {
    "id": 218618,
@@ -3355,7 +3369,7 @@
    "composer": "",
    "party": "",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:50.256Z"
+   "testedAt": "2026-10-30T02:29:40.897Z"
   },
   "218804": {
    "id": 218804,
@@ -3367,20 +3381,23 @@
    "composer": "Jammer",
    "party": "Late 80s C64 Compo",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:53.767Z"
+   "testedAt": "2026-10-30T02:29:44.830Z"
   },
   "219232": {
    "id": 219232,
    "name": "Liquid Sun",
    "group": "Lethargy, Singular",
    "rating": 9.92,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:20.822Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/V/Vincenzo/Liquid_Sun.sid",
+   "composer": "Vincenzo",
+   "party": "Gubbdata 2022",
+   "year": 2022,
+   "testedAt": "2026-10-30T02:29:04.363Z"
   },
   "223514": {
    "id": 223514,
-   "name": "D&eacute;tach&eacute;e",
+   "name": "Détachée",
    "group": "Pretzel Logic",
    "rating": 9.87,
    "ok": true,
@@ -3388,16 +3405,19 @@
    "composer": "",
    "party": "",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:52.029Z"
+   "testedAt": "2026-10-30T02:29:42.889Z"
   },
   "223988": {
    "id": 223988,
    "name": "Kivi Borotva",
    "group": "Triad",
    "rating": 9.86,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:56.116Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/D/Dalezy/Kivi_Borotva.sid",
+   "composer": "dalezy",
+   "party": "Deadline 2022",
+   "year": 2022,
+   "testedAt": "2026-10-30T02:29:47.830Z"
   },
   "225052": {
    "id": 225052,
@@ -3409,7 +3429,7 @@
    "composer": "Juzdie",
    "party": "Zoo 2022",
    "year": 2022,
-   "testedAt": "2026-10-29T21:45:24.941Z"
+   "testedAt": "2026-10-30T02:29:09.834Z"
   },
   "229325": {
    "id": 229325,
@@ -3421,7 +3441,7 @@
    "composer": "",
    "party": "Fjälldata 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:47.874Z"
+   "testedAt": "2026-10-30T02:29:37.898Z"
   },
   "232924": {
    "id": 232924,
@@ -3433,7 +3453,7 @@
    "composer": "Mibri",
    "party": "X'2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:48.400Z"
+   "testedAt": "2026-10-30T02:29:38.464Z"
   },
   "232993": {
    "id": 232993,
@@ -3445,7 +3465,7 @@
    "composer": "Shogoon",
    "party": "X'2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:55.000Z"
+   "testedAt": "2026-10-30T02:29:46.162Z"
   },
   "233009": {
    "id": 233009,
@@ -3457,7 +3477,7 @@
    "composer": "",
    "party": "X'2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:32.130Z"
+   "testedAt": "2026-10-30T02:29:18.770Z"
   },
   "233099": {
    "id": 233099,
@@ -3469,16 +3489,19 @@
    "composer": "Flotsam",
    "party": "Techno Compo 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:33.999Z"
+   "testedAt": "2026-10-30T02:29:20.836Z"
   },
   "233379": {
    "id": 233379,
    "name": "Cuts'n'Pieces",
    "group": "MultiStyle Labs",
    "rating": 9.89,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:40.816Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/J/Jammer/Cuts_n_Pieces.sid",
+   "composer": "",
+   "party": "Techno Compo 2023",
+   "year": 2023,
+   "testedAt": "2026-10-30T02:29:29.236Z"
   },
   "233489": {
    "id": 233489,
@@ -3490,7 +3513,7 @@
    "composer": "Flotsam",
    "party": "Techno Compo 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:19.718Z"
+   "testedAt": "2026-10-30T02:29:02.716Z"
   },
   "233710": {
    "id": 233710,
@@ -3502,7 +3525,7 @@
    "composer": "Hein",
    "party": "",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:08.770Z"
+   "testedAt": "2026-10-30T02:28:48.095Z"
   },
   "233793": {
    "id": 233793,
@@ -3514,7 +3537,7 @@
    "composer": "",
    "party": "Arok Party 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:38.077Z"
+   "testedAt": "2026-10-30T02:29:25.396Z"
   },
   "233919": {
    "id": 233919,
@@ -3526,7 +3549,7 @@
    "composer": "Hein",
    "party": "",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:12.132Z"
+   "testedAt": "2026-10-30T02:28:51.952Z"
   },
   "235352": {
    "id": 235352,
@@ -3538,7 +3561,7 @@
    "composer": "",
    "party": "Function 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:36.893Z"
+   "testedAt": "2026-10-30T02:29:24.084Z"
   },
   "236469": {
    "id": 236469,
@@ -3550,7 +3573,7 @@
    "composer": "",
    "party": "",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:46.136Z"
+   "testedAt": "2026-10-30T02:29:35.920Z"
   },
   "236533": {
    "id": 236533,
@@ -3562,7 +3585,7 @@
    "composer": "",
    "party": "",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:05.264Z"
+   "testedAt": "2026-10-30T02:28:44.038Z"
   },
   "236575": {
    "id": 236575,
@@ -3574,7 +3597,7 @@
    "composer": "",
    "party": "Flashparty 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:34.577Z"
+   "testedAt": "2026-10-30T02:29:21.481Z"
   },
   "237113": {
    "id": 237113,
@@ -3586,7 +3609,7 @@
    "composer": "",
    "party": "Transmission64 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:47.246Z"
+   "testedAt": "2026-10-30T02:29:37.225Z"
   },
   "237156": {
    "id": 237156,
@@ -3598,7 +3621,7 @@
    "composer": "Mibri",
    "party": "Transmission64 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:25.609Z"
+   "testedAt": "2026-10-30T02:29:10.488Z"
   },
   "237163": {
    "id": 237163,
@@ -3610,11 +3633,11 @@
    "composer": "Hein",
    "party": "Transmission64 2023",
    "year": 2023,
-   "testedAt": "2026-10-29T21:45:57.306Z"
+   "testedAt": "2026-10-30T02:29:49.146Z"
   },
   "238638": {
    "id": 238638,
-   "name": "Jacques R&ecirc;ve Encore",
+   "name": "Jacques Rêve Encore",
    "group": "Pretzel Logic",
    "rating": 10,
    "ok": true,
@@ -3622,7 +3645,7 @@
    "composer": "",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:10.431Z"
+   "testedAt": "2026-10-30T02:28:50.009Z"
   },
   "238682": {
    "id": 238682,
@@ -3634,7 +3657,7 @@
    "composer": "Xiny6581",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:22.490Z"
+   "testedAt": "2026-10-30T02:29:06.365Z"
   },
   "238767": {
    "id": 238767,
@@ -3646,7 +3669,7 @@
    "composer": "Flotsam",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:30.485Z"
+   "testedAt": "2026-10-30T02:29:16.485Z"
   },
   "239260": {
    "id": 239260,
@@ -3658,7 +3681,7 @@
    "composer": "psych858o",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:07.624Z"
+   "testedAt": "2026-10-30T02:28:46.764Z"
   },
   "239368": {
    "id": 239368,
@@ -3670,7 +3693,7 @@
    "composer": "Laxity",
    "party": "Fjälldata 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:35.145Z"
+   "testedAt": "2026-10-30T02:29:22.108Z"
   },
   "239389": {
    "id": 239389,
@@ -3682,7 +3705,7 @@
    "composer": "Stone",
    "party": "Fjälldata 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:11.592Z"
+   "testedAt": "2026-10-30T02:28:51.339Z"
   },
   "239893": {
    "id": 239893,
@@ -3694,11 +3717,11 @@
    "composer": "Mibri",
    "party": "BCC Party #18",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:35.749Z"
+   "testedAt": "2026-10-30T02:29:22.796Z"
   },
   "241094": {
    "id": 241094,
-   "name": "Je suis une &icirc;le",
+   "name": "Je suis une île",
    "group": "Pretzel Logic",
    "rating": 9.93,
    "ok": true,
@@ -3706,7 +3729,7 @@
    "composer": "",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:19.106Z"
+   "testedAt": "2026-10-30T02:29:02.007Z"
   },
   "242010": {
    "id": 242010,
@@ -3718,7 +3741,7 @@
    "composer": "Flotsam",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:05.800Z"
+   "testedAt": "2026-10-30T02:28:44.660Z"
   },
   "242355": {
    "id": 242355,
@@ -3730,16 +3753,19 @@
    "composer": "",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:14.441Z"
+   "testedAt": "2026-10-30T02:28:55.716Z"
   },
   "242810": {
    "id": 242810,
    "name": "Get in the Van",
    "group": "Atlantis, MultiStyle Labs",
    "rating": 9.97,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:15.538Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/M/Mibri/Get_in_the_Van.sid",
+   "composer": "Mibri",
+   "party": "X'2024",
+   "year": 2024,
+   "testedAt": "2026-10-30T02:28:57.484Z"
   },
   "242811": {
    "id": 242811,
@@ -3751,7 +3777,7 @@
    "composer": "psych858o",
    "party": "X'2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:26.371Z"
+   "testedAt": "2026-10-30T02:29:11.267Z"
   },
   "243081": {
    "id": 243081,
@@ -3763,7 +3789,7 @@
    "composer": "Xiny6581",
    "party": "Moonshine Dragons 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:36.324Z"
+   "testedAt": "2026-10-30T02:29:23.454Z"
   },
   "243104": {
    "id": 243104,
@@ -3775,7 +3801,7 @@
    "composer": "Gregfeel",
    "party": "Moonshine Dragons 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:29.231Z"
+   "testedAt": "2026-10-30T02:29:14.792Z"
   },
   "243108": {
    "id": 243108,
@@ -3787,7 +3813,7 @@
    "composer": "Jammer",
    "party": "Moonshine Dragons 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:28.671Z"
+   "testedAt": "2026-10-30T02:29:14.174Z"
   },
   "243947": {
    "id": 243947,
@@ -3799,7 +3825,7 @@
    "composer": "Mibri",
    "party": "$81 Music Compo 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:43.232Z"
+   "testedAt": "2026-10-30T02:29:32.264Z"
   },
   "243960": {
    "id": 243960,
@@ -3811,7 +3837,7 @@
    "composer": "Jammer",
    "party": "$81 Music Compo 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:16.760Z"
+   "testedAt": "2026-10-30T02:28:59.286Z"
   },
   "245815": {
    "id": 245815,
@@ -3823,7 +3849,7 @@
    "composer": "",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:20.308Z"
+   "testedAt": "2026-10-30T02:29:03.433Z"
   },
   "246713": {
    "id": 246713,
@@ -3835,7 +3861,7 @@
    "composer": "Manganoid",
    "party": "",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:21.924Z"
+   "testedAt": "2026-10-30T02:29:05.641Z"
   },
   "247594": {
    "id": 247594,
@@ -3847,7 +3873,7 @@
    "composer": "Mutetus",
    "party": "Yogi's &amp; Flex' Melodic 2SID Compo 2024",
    "year": 2024,
-   "testedAt": "2026-10-29T21:45:38.616Z"
+   "testedAt": "2026-10-30T02:29:26.006Z"
   },
   "250388": {
    "id": 250388,
@@ -3859,7 +3885,7 @@
    "composer": "The Syndrom",
    "party": "BCC Party #19",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:39.711Z"
+   "testedAt": "2026-10-30T02:29:27.628Z"
   },
   "250395": {
    "id": 250395,
@@ -3871,7 +3897,7 @@
    "composer": "Toggle",
    "party": "BCC Party #19",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:52.589Z"
+   "testedAt": "2026-10-30T02:29:43.524Z"
   },
   "251063": {
    "id": 251063,
@@ -3883,7 +3909,7 @@
    "composer": "Shogoon",
    "party": "FOReVER 2025 - 8-bit Jurassic party",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:12.732Z"
+   "testedAt": "2026-10-30T02:28:52.647Z"
   },
   "251441": {
    "id": 251441,
@@ -3895,16 +3921,19 @@
    "composer": "Jason Page & Laxity & Mibri & psych858o & Hate Bush & Linus & Shogoon",
    "party": "",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:44.948Z"
+   "testedAt": "2026-10-30T02:29:34.612Z"
   },
   "252069": {
    "id": 252069,
    "name": "Hypersonic Lovers",
    "group": "Atlantis, MultiStyle Labs",
    "rating": 10,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:13.835Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/M/Mibri/Hypersonic_Lovers.sid",
+   "composer": "Mibri",
+   "party": "Revision 2025",
+   "year": 2025,
+   "testedAt": "2026-10-30T02:28:54.963Z"
   },
   "253842": {
    "id": 253842,
@@ -3916,7 +3945,7 @@
    "composer": "Mibri & Ash",
    "party": "Nova 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:03.547Z"
+   "testedAt": "2026-10-30T02:28:42.058Z"
   },
   "254730": {
    "id": 254730,
@@ -3928,7 +3957,7 @@
    "composer": "Vincenzo",
    "party": "Arok Party 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:04.126Z"
+   "testedAt": "2026-10-30T02:28:42.717Z"
   },
   "254895": {
    "id": 254895,
@@ -3940,7 +3969,7 @@
    "composer": "Hairdog",
    "party": "BOOM! Party 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:07.013Z"
+   "testedAt": "2026-10-30T02:28:46.026Z"
   },
   "254914": {
    "id": 254914,
@@ -3952,7 +3981,7 @@
    "composer": "Gregfeel",
    "party": "BOOM! Party 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:44.333Z"
+   "testedAt": "2026-10-30T02:29:33.937Z"
   },
   "255873": {
    "id": 255873,
@@ -3964,7 +3993,7 @@
    "composer": "Abyxus",
    "party": "",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:06.446Z"
+   "testedAt": "2026-10-30T02:28:45.382Z"
   },
   "256733": {
    "id": 256733,
@@ -3976,16 +4005,19 @@
    "composer": "",
    "party": "",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:29.860Z"
+   "testedAt": "2026-10-30T02:29:15.746Z"
   },
   "256864": {
    "id": 256864,
    "name": "My Life (Extended)",
    "group": "Maniacs of Noise, MultiStyle Labs",
    "rating": 9.91,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:26.926Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/L/LMan/My_Life_Extended.sid",
+   "composer": "Sunflower & LMan",
+   "party": "",
+   "year": 2025,
+   "testedAt": "2026-10-30T02:29:12.236Z"
   },
   "257523": {
    "id": 257523,
@@ -3997,7 +4029,7 @@
    "composer": "Mibri",
    "party": "Transmission64 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:40.290Z"
+   "testedAt": "2026-10-30T02:29:28.309Z"
   },
   "257524": {
    "id": 257524,
@@ -4009,16 +4041,19 @@
    "composer": "Vincenzo",
    "party": "Transmission64 2025",
    "year": 2025,
-   "testedAt": "2026-10-29T21:45:11.016Z"
+   "testedAt": "2026-10-30T02:28:50.674Z"
   },
   "257527": {
    "id": 257527,
    "name": "Beat Cut",
    "group": "Elysium, MultiStyle Labs",
    "rating": 9.97,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:16.050Z"
+   "ok": true,
+   "hvsc": "/MUSICIANS/S/Shogoon/Beat_Cut.sid",
+   "composer": "Shogoon",
+   "party": "Transmission64 2025",
+   "year": 2025,
+   "testedAt": "2026-10-30T02:28:58.424Z"
   },
   "258874": {
    "id": 258874,
@@ -4030,7 +4065,7 @@
    "composer": "Mibri",
    "party": "BotB Winter Chip XXI",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:23.824Z"
+   "testedAt": "2026-10-30T02:29:07.878Z"
   },
   "259028": {
    "id": 259028,
@@ -4042,7 +4077,7 @@
    "composer": "The Syndrom",
    "party": "Fjälldata 2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:41.933Z"
+   "testedAt": "2026-10-30T02:29:30.792Z"
   },
   "259029": {
    "id": 259029,
@@ -4054,7 +4089,7 @@
    "composer": "Mibri",
    "party": "Fjälldata 2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:02.974Z"
+   "testedAt": "2026-10-30T02:28:41.412Z"
   },
   "259032": {
    "id": 259032,
@@ -4066,7 +4101,7 @@
    "composer": "Jammer",
    "party": "Fjälldata 2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:15.021Z"
+   "testedAt": "2026-10-30T02:28:56.501Z"
   },
   "259072": {
    "id": 259072,
@@ -4078,7 +4113,7 @@
    "composer": "Shogoon",
    "party": "Fjälldata 2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:13.329Z"
+   "testedAt": "2026-10-30T02:28:53.595Z"
   },
   "259557": {
    "id": 259557,
@@ -4090,7 +4125,7 @@
    "composer": "Sage",
    "party": "BCC Party #20",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:31.654Z"
+   "testedAt": "2026-10-30T02:29:17.729Z"
   },
   "259564": {
    "id": 259564,
@@ -4102,7 +4137,7 @@
    "composer": "Mibri",
    "party": "BCC Party #20",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:23.186Z"
+   "testedAt": "2026-10-30T02:29:07.167Z"
   },
   "260717": {
    "id": 260717,
@@ -4114,16 +4149,19 @@
    "composer": "",
    "party": "",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:08.209Z"
+   "testedAt": "2026-10-30T02:28:47.435Z"
   },
   "260780": {
    "id": 260780,
    "name": "Catalysis",
    "group": "Otomata Labs",
    "rating": 9.86,
-   "ok": false,
-   "reason": "silent in our player",
-   "testedAt": "2026-10-29T21:45:57.974Z"
+   "ok": true,
+   "hvsc": "/DEMOS/A-F/Catalysis.sid",
+   "composer": "Abyxus",
+   "party": "Revision 2026",
+   "year": 2026,
+   "testedAt": "2026-10-30T02:29:49.978Z"
   },
   "260786": {
    "id": 260786,
@@ -4135,7 +4173,7 @@
    "composer": "psych858o",
    "party": "Revision 2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:09.369Z"
+   "testedAt": "2026-10-30T02:28:48.798Z"
   },
   "261136": {
    "id": 261136,
@@ -4147,7 +4185,7 @@
    "composer": "DJ Space",
    "party": "",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:09.920Z"
+   "testedAt": "2026-10-30T02:28:49.429Z"
   },
   "261361": {
    "id": 261361,
@@ -4159,7 +4197,7 @@
    "composer": "Nordischsound",
    "party": "",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:53.216Z"
+   "testedAt": "2026-10-30T02:29:44.219Z"
   },
   "262238": {
    "id": 262238,
@@ -4171,7 +4209,7 @@
    "composer": "Shogoon",
    "party": "X'2026",
    "year": 2026,
-   "testedAt": "2026-10-29T21:45:04.685Z"
+   "testedAt": "2026-10-30T02:28:43.389Z"
   },
   "263155": {
    "id": 263155,
@@ -4180,7 +4218,7 @@
    "rating": 9.87,
    "ok": false,
    "reason": "not in the HVSC",
-   "testedAt": "2026-10-29T21:45:52.030Z"
+   "testedAt": "2026-10-30T02:29:42.890Z"
   },
   "263746": {
    "id": 263746,
@@ -4189,7 +4227,7 @@
    "rating": 10,
    "ok": false,
    "reason": "not in the HVSC",
-   "testedAt": "2026-10-29T21:45:04.685Z"
+   "testedAt": "2026-10-30T02:28:43.391Z"
   },
   "263777": {
    "id": 263777,
@@ -4198,7 +4236,7 @@
    "rating": 10,
    "ok": false,
    "reason": "not in the HVSC",
-   "testedAt": "2026-10-29T21:45:14.442Z"
+   "testedAt": "2026-10-30T02:28:55.718Z"
   },
   "265038": {
    "id": 265038,
@@ -4207,7 +4245,7 @@
    "rating": 9.89,
    "ok": false,
    "reason": "not in the HVSC",
-   "testedAt": "2026-10-29T21:45:39.712Z"
+   "testedAt": "2026-10-30T02:29:27.629Z"
   },
   "265228": {
    "id": 265228,
@@ -4216,7 +4254,7 @@
    "rating": 9.89,
    "ok": false,
    "reason": "not in the HVSC",
-   "testedAt": "2026-10-29T21:45:39.713Z"
+   "testedAt": "2026-10-30T02:29:27.645Z"
   }
  }
 }

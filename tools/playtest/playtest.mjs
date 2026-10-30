@@ -146,7 +146,17 @@ async function gameCandidates() {
 }
 
 /** A CSDb toplist: [{ id, name, group, rating }] in rank order. */
-const unescape = (s) => s.replace(/&amp;/g, '&').trim();
+// CSDb's HTML entities: numeric ones, accented letters (&eacute; -> é) and a few more
+const MARKS = { acute: '\u0301', grave: '\u0300', circ: '\u0302', uml: '\u0308', tilde: '\u0303', ring: '\u030a', cedil: '\u0327' };
+const NAMED = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', szlig: 'ß', aelig: 'æ', AElig: 'Æ', oslash: 'ø', Oslash: 'Ø' };
+const unescape = (s) =>
+  s
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&([a-z])(acute|grave|circ|uml|tilde|ring|cedil);/gi, (_, c, m) => c + MARKS[m])
+    .replace(/&(\w+);/g, (e, n) => NAMED[n] ?? e)
+    .normalize('NFC')
+    .trim();
 
 async function csdbToplist(subtype) {
   const html = (await cached(`csdb-top-${subtype}.html`, `https://csdb.dk/toplist.php?type=release&subtype=(${subtype})`, 1)).toString();
@@ -409,17 +419,23 @@ async function testTunes() {
       // 20 seconds: some tunes open with a long quiet intro
       const n = 44100;
       const out = w.bb_alloc(n * 2);
+      const regs = w.bb_alloc(32);
       let loud = 0;
+      const states = new Set(); // SID register snapshots: a crashed tune leaves a frozen drone
       for (let s = 0; s < 20; s++) {
         w.bb_player_render(p, out, n);
         const pcm = new Int16Array(w.memory.buffer, out, n);
         let sum = 0;
         for (const v of pcm) sum += v * v;
         if (Math.sqrt(sum / n) > 250) loud++;
+        w.bb_player_regs(p, regs);
+        if (s >= 10) states.add(new Uint8Array(w.memory.buffer, regs, 25).join());
       }
       w.bb_free(out, n * 2);
+      w.bb_free(regs, 32);
       w.bb_player_free(p);
       if (loud < 3) throw new Error('silent in our player');
+      if (states.size < 5) throw new Error('stopped playing in our player');
       const credits = [...xml.matchAll(/<Credit>[\s\S]*?<\/Credit>/g)].map((c) => c[0]).filter((c) => /<CreditType>Music/.test(c));
       const composer = [...new Set(credits.map((c) => /<Handle>([^<]+)<\/Handle>/.exec(c)?.[1]).filter(Boolean))].join(' & ');
       res = { ok: true, hvsc, composer, party: party(xml), year: Number(field(xml, 'ReleaseYear')) || 0 };
@@ -453,7 +469,7 @@ function writeVerified() {
       .sort((a, b) => b.rating - a.rating)
       .map(({ id, name, composer, group, rating, year, party, hvsc }) => ({ id, name, composer, group, rating, year, party, hvsc })),
   };
-  fs.writeFileSync(VERIFIED, JSON.stringify(out).replace(/&amp;/g, '&')); // CSDb names arrive escaped
+  fs.writeFileSync(VERIFIED, JSON.stringify(out, (_, v) => (typeof v === 'string' ? unescape(v) : v)));
   console.log(`wrote ${path.relative(REPO, VERIFIED)}: ${out.games.length} games, ${out.demos.length} demos, ${out.tunes.length} tunes`);
 }
 
