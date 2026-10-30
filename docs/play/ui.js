@@ -43,7 +43,7 @@ export function facts() {
 }
 
 /** Cover art that fades in, falls back down a list of URLs, then to text. */
-export function art(urls, label, { boxart = false, badge } = {}) {
+export function art(urls, label, { boxart = false, badge, tag } = {}) {
   const wrap = h(`div.art${boxart ? '.boxart' : ''}`);
   const img = h('img', { alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer' });
   const list = urls.filter(Boolean);
@@ -59,6 +59,7 @@ export function art(urls, label, { boxart = false, badge } = {}) {
   next();
   wrap.append(img);
   if (badge) wrap.append(h('span.badge', {}, badge));
+  if (tag) wrap.append(h('span.tag', {}, tag));
   return wrap;
 }
 

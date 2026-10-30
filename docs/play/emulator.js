@@ -27,6 +27,9 @@ export async function launch(kind, item) {
   dispatchEvent(new Event('breadbin:launch'));
   const [stage, status, note] = [$('#emu-stage'), $('#emu-status'), $('#emu-note')];
   $('#emu-title').textContent = pixel(item.title);
+  const online = $('#emu-online');
+  online.hidden = kind !== 'game' || !ia.onlineAt(item);
+  if (!online.hidden) online.href = ia.onlineAt(item);
   note.textContent = status.textContent = '';
   const bar = h('i');
   const label = h('div', {}, `SEARCHING FOR ${item.title.toUpperCase()}`);

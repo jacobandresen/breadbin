@@ -15,7 +15,7 @@ const artFor = (g) => [covers.get(canon(g.title)), g.ia && ia.thumb(g.ia), g.sho
 export function gameCard(g) {
   const sub = [g.year || '', g.publisher].filter(Boolean).join(' · ');
   return h('button.card', { onclick: () => showGame(g), title: g.title },
-    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null }),
+    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null, tag: ia.onlineAt(g) && '🌐 archive.org' }),
     h('div.card-title', {}, g.title),
     sub && h('div.card-sub', {}, sub));
 }
@@ -26,6 +26,10 @@ export async function initGames() {
   $('#games').append(shelves);
   const [{ games }] = await Promise.all([verified(), Promise.race([coversReady, new Promise((r) => setTimeout(r, 2500))])]);
   if (!games.length) return shelves.append(h('p.banner', {}, 'No playtested games yet: run tools/playtest to build verified.json.'));
+  const online = games.filter(ia.onlineAt).length;
+  shelves.before(h('p.banner.online', {}, '🌐', h('span', {},
+    h('b', {}, `${online} of these ${games.length} games are already free to play online`),
+    ' at the Internet Archive, in its own browser emulator. breadbin gathers the ones that run well here; each game links to its archive.org copy.')));
   shelf(shelves, 'Latest played', await recent('game'), gameCard);
   const top = shelf(shelves, 'Top rated', games, gameCard);
   shelf(shelves, 'Classics', games.filter((g) => g.classic), gameCard);
@@ -42,7 +46,6 @@ export async function showGame(g) {
   const dlg = $('#detail');
   const info = facts();
   const links = h('div.links');
-  if (g.ia) links.append(h('a', { href: ia.itemUrl(g.ia), target: '_blank', rel: 'noopener' }, 'Internet Archive ↗'));
   if (g.gb) links.append(h('a', { href: 'https://www.gb64.com/', target: '_blank', rel: 'noopener' }, 'GameBase64 ↗'));
   dlg.replaceChildren(closeButton(dlg), h('div.sheet-body', {},
     h('div.sheet-art', {}, art(artFor(g), g.title, { boxart: true })),
@@ -51,6 +54,10 @@ export async function showGame(g) {
       h('p.by', {}, [g.publisher, g.year || ''].filter(Boolean).join(' · ')),
       info,
       h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('game', g) }, '▶ Play')),
+      ia.onlineAt(g)
+        ? h('a.online', { href: ia.onlineAt(g), target: '_blank', rel: 'noopener' },
+          h('b', {}, '🌐 Already free to play online'), h('span', {}, 'Internet Archive (archive.org) · runs in your browser ↗'))
+        : h('p.online.none', {}, 'Not found online elsewhere: this version is only on GameBase64.'),
       links,
       g.shot && h('div.shots.solo', {}, h('img', { src: ia.gb64Shot(g.shot), alt: '', loading: 'lazy' })),
       h('p.hint', {}, 'Joystick in port 2: cursor keys + space, a gamepad, or the on-screen pad. Runs on the free MEGA65 Open ROMs.'))));

@@ -24,3 +24,6 @@ export const gb64Shot = (p) => `https://archive.org/download/gb64v19/Screenshots
 export const thumb = (id) => `https://archive.org/services/img/${encodeURIComponent(id)}`;
 export const fileUrl = (id, name) => `https://archive.org/download/${encodeURIComponent(id)}/${path(name)}`;
 export const itemUrl = (id) => `https://archive.org/details/${encodeURIComponent(id)}`;
+
+/** A game's Internet Archive copy that already plays in the browser, if any. */
+export const onlineAt = (g) => (g.online || g.ia) && itemUrl(g.online || g.ia);
