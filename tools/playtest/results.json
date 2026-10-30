@@ -3189,7 +3189,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T21:47:11.345Z"
+   "testedAt": "2026-10-30T03:31:02.452Z"
   },
   "Lunatico_2016-10-29_Lft_Side_A": {
    "csdb": 151273,
@@ -3206,7 +3206,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T21:47:57.869Z"
+   "testedAt": "2026-10-30T03:31:00.458Z"
   },
   "c64_Wonderland_XII_Censor_s3": {
    "csdb": 120907,
@@ -3223,7 +3223,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T21:48:44.147Z"
+   "testedAt": "2026-10-30T03:31:47.028Z"
   },
   "Daah_Those_Acid_Pills_2013-05-04_Censor_Design": {
    "csdb": 118639,
@@ -3237,9 +3237,9 @@
    "drive": [
     "DAAH, THOSE ACID@801"
    ],
-   "moving": 0.3199,
+   "moving": 0.3108,
    "ok": true,
-   "testedAt": "2026-10-29T21:49:30.331Z"
+   "testedAt": "2026-10-30T03:31:49.846Z"
   },
   "c64_starwars_s1": {
    "csdb": 170922,
@@ -3256,7 +3256,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T21:50:19.608Z"
+   "testedAt": "2026-10-30T03:32:33.565Z"
   },
   "c64_Wonderland_XII_Censor_s1": {
    "csdb": 151275,
@@ -3269,9 +3269,8 @@
    "year": 2016,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T21:57:56.188Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:32:37.997Z"
   },
   "The_Phoenix_Code_2016-10-29_Bonzai_Side_A": {
    "csdb": 151255,
@@ -3288,7 +3287,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T21:58:45.445Z"
+   "testedAt": "2026-10-30T03:33:20.064Z"
   },
   "Krestage_1997-04_Crest": {
    "csdb": 2968,
@@ -3302,9 +3301,9 @@
    "drive": [
     "-   KRESTAGE   -@801"
    ],
-   "moving": 0.0179,
+   "moving": 0.0184,
    "ok": true,
-   "testedAt": "2026-10-29T21:59:38.396Z"
+   "testedAt": "2026-10-30T03:33:25.070Z"
   },
   "Megademo_The_1988-08-12_Higher_Intelligence_Company": {
    "csdb": 12518,
@@ -3321,7 +3320,7 @@
    "moving": 0,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:00:30.536Z"
+   "testedAt": "2026-10-30T03:34:06.405Z"
   },
   "We_Are_New_2010-10-03_Fairlight_Side_A": {
    "csdb": 94445,
@@ -3338,7 +3337,7 @@
    "moving": 0,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:01:18.424Z"
+   "testedAt": "2026-10-30T03:34:12.786Z"
   },
   "La_Linea_2002_Breeze_Designs": {
    "csdb": 4358,
@@ -3355,7 +3354,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:02:08.533Z"
+   "testedAt": "2026-10-30T03:34:52.736Z"
   },
   "Ice_Cream_Castle_1991-04_Crest_Side_A_f_NTSC_99_Percent": {
    "csdb": 2552,
@@ -3372,7 +3371,7 @@
    "moving": 0.0004,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:02:56.440Z"
+   "testedAt": "2026-10-30T03:35:00.985Z"
   },
   "c64_poor": {
    "csdb": 140387,
@@ -3389,7 +3388,7 @@
    "moving": 0,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:03:44.588Z"
+   "testedAt": "2026-10-30T03:35:39.090Z"
   },
   "Desert_Dream_2007_Chorus_Side_A": {
    "csdb": 48039,
@@ -3406,7 +3405,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:04:34.294Z"
+   "testedAt": "2026-10-30T03:35:48.825Z"
   },
   "Wild_Bunch_The_19xx_Triad": {
    "csdb": 41462,
@@ -3420,10 +3419,9 @@
    "drive": [
     "00@801"
    ],
-   "moving": 0,
-   "ok": false,
-   "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:05:23.946Z"
+   "moving": 0.9943,
+   "ok": true,
+   "testedAt": "2026-10-30T03:36:25.287Z"
   },
   "Altered_States_50_Percent_1994_Taboo_Side_A": {
    "csdb": 11610,
@@ -3440,7 +3438,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:06:11.866Z"
+   "testedAt": "2026-10-30T03:36:36.426Z"
   },
   "Amplifire_2008_Horizon": {
    "csdb": 72559,
@@ -3454,10 +3452,10 @@
    "drive": [
     "1@801"
    ],
-   "moving": 0.3778,
+   "moving": 0.3786,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:07:03.934Z"
+   "testedAt": "2026-10-30T03:37:11.543Z"
   },
   "Tower_Power_100_Percent_1994-12-30_Camelot_Side_A_h_Sharks": {
    "csdb": 11791,
@@ -3474,7 +3472,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:07:56.803Z"
+   "testedAt": "2026-10-30T03:37:27.527Z"
   },
   "Dutch_Breeze_1991_Black_Mail_Side_A": {
    "csdb": 11584,
@@ -3491,7 +3489,7 @@
    "moving": 0.0006,
    "ok": false,
    "reason": "BRK AT $2020",
-   "testedAt": "2026-10-29T22:08:45.851Z"
+   "testedAt": "2026-10-30T03:37:57.853Z"
   },
   "Mekanix_2010-10-03_Booze_Design_Instinct": {
    "csdb": 94438,
@@ -3508,7 +3506,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:09:33.706Z"
+   "testedAt": "2026-10-30T03:38:15.727Z"
   },
   "1991_2011-08-07_Booze_Design": {
    "csdb": 101506,
@@ -3525,7 +3523,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:10:22.260Z"
+   "testedAt": "2026-10-30T03:38:44.618Z"
   },
   "Delirious_10_1991_Genesis_Project": {
    "csdb": 21903,
@@ -3539,9 +3537,9 @@
    "drive": [
     "DELIRIOUS 10 /GP@801"
    ],
-   "moving": 0.1104,
+   "moving": 0.106,
    "ok": true,
-   "testedAt": "2026-10-29T22:11:16.932Z"
+   "testedAt": "2026-10-30T03:39:03.533Z"
   },
   "Digital_Madness_1989_Elite": {
    "csdb": 26593,
@@ -3555,14 +3553,14 @@
    "drive": [
     "DIGITAL  MADNESS@801"
    ],
-   "moving": 0.1413,
+   "moving": 0.1409,
    "ok": true,
-   "testedAt": "2026-10-29T22:12:04.557Z"
+   "testedAt": "2026-10-30T03:39:30.958Z"
   },
   "Thrust_Concert_1986_Stoat_Tim": {
    "csdb": 20943,
    "title": "A Concert",
-   "group": "Stoat &amp; Tim",
+   "group": "Stoat & Tim",
    "rating": 9.16,
    "onefile": 1,
    "id": "Thrust_Concert_1986_Stoat_Tim",
@@ -3574,7 +3572,7 @@
    "moving": 0.0006,
    "ok": false,
    "reason": "?SYNTAX ERROR",
-   "testedAt": "2026-10-29T22:12:52.900Z"
+   "testedAt": "2026-10-30T03:39:51.231Z"
   },
   "Piccolo_Mouso_1983_Sperm-A-Soft": {
    "csdb": 16336,
@@ -3590,7 +3588,7 @@
    ],
    "moving": 0.0006,
    "ok": true,
-   "testedAt": "2026-10-29T22:13:46.605Z"
+   "testedAt": "2026-10-30T03:40:17.317Z"
   },
   "Another_Beginning_2010-10-03_Offence_Prosonix_Side_A": {
    "csdb": 94448,
@@ -3607,7 +3605,7 @@
    "moving": 0,
    "ok": false,
    "reason": "picture never changed",
-   "testedAt": "2026-10-29T22:14:34.718Z"
+   "testedAt": "2026-10-30T03:40:39.946Z"
   },
   "So-Phisticated_III_1989-07-15_20th_Century_Composers_Black_Mail_Inorix": {
    "csdb": 11667,
@@ -3620,9 +3618,8 @@
    "year": 1989,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:22:11.581Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:41:03.589Z"
   },
   "Cycle_2004_Booze_Design": {
    "csdb": 11959,
@@ -3639,7 +3636,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:23:03.463Z"
+   "testedAt": "2026-10-30T03:41:27.974Z"
   },
   "Tower_Power_92_Percent_1993-12-29_Camelot": {
    "csdb": 11628,
@@ -3656,7 +3653,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:23:52.178Z"
+   "testedAt": "2026-10-30T03:41:50.259Z"
   },
   "Natural_Wonders_2_2008_Oxyron": {
    "csdb": 72560,
@@ -3673,7 +3670,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:24:40.133Z"
+   "testedAt": "2026-10-30T03:42:15.929Z"
   },
   "Soiled_Legacy_2001_Resource_Side_A": {
    "csdb": 11613,
@@ -3690,7 +3687,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:25:28.090Z"
+   "testedAt": "2026-10-30T03:42:36.744Z"
   },
   "Red_Storm_1992-07-28_Triad": {
    "csdb": 11592,
@@ -3707,7 +3704,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:26:19.660Z"
+   "testedAt": "2026-10-30T03:43:03.955Z"
   },
   "Last_Traktor_III_The_1992-06-29_Horizon": {
    "csdb": 11672,
@@ -3723,7 +3720,7 @@
    ],
    "moving": 0.4097,
    "ok": true,
-   "testedAt": "2026-10-29T22:27:09.693Z"
+   "testedAt": "2026-10-30T03:43:23.139Z"
   },
   "Radio_Napalm_100_Percent_1995_Reflex": {
    "csdb": 11665,
@@ -3736,9 +3733,8 @@
    "year": 1995,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:34:48.724Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:43:51.963Z"
   },
   "Natural_Wonders_2007_Oxyron": {
    "csdb": 48037,
@@ -3755,7 +3751,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:35:37.682Z"
+   "testedAt": "2026-10-30T03:44:09.282Z"
   },
   "I_Love_the_Cube_100_Percent_2012-01-11_Samar_Productions_Side_A": {
    "csdb": 104283,
@@ -3771,8 +3767,8 @@
    ],
    "moving": 0,
    "ok": false,
-   "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:36:26.866Z"
+   "reason": "picture never changed",
+   "testedAt": "2026-10-30T03:44:39.854Z"
   },
   "Road_of_Excess_1990-04-16_Triangle_3532_Side_A": {
    "csdb": 2493,
@@ -3785,9 +3781,8 @@
    "year": 1990,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T22:44:03.949Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:44:55.603Z"
   },
   "Unnamed_Demo_The_1991_Camelot": {
    "csdb": 1758,
@@ -3801,9 +3796,9 @@
    "drive": [
     ">CAMELOT/T.U.D.<@801"
    ],
-   "moving": 0.2194,
+   "moving": 0.2183,
    "ok": true,
-   "testedAt": "2026-10-29T22:44:52.827Z"
+   "testedAt": "2026-10-30T03:45:27.235Z"
   },
   "Dream_Travel_100_Percent_2012-02-02_Samar_Productions": {
    "csdb": 104705,
@@ -3820,7 +3815,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:45:42.156Z"
+   "testedAt": "2026-10-30T03:45:41.925Z"
   },
   "Ammonite_2016-10-29_Fossil": {
    "csdb": 151281,
@@ -3837,7 +3832,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:46:30.451Z"
+   "testedAt": "2026-10-30T03:46:14.573Z"
   },
   "Krestology_100_Percent_1996_Crest_Side_A": {
    "csdb": 11586,
@@ -3851,9 +3846,9 @@
    "drive": [
     "KRESTOLOGY@801"
    ],
-   "moving": 0.9528,
+   "moving": 0.952,
    "ok": true,
-   "testedAt": "2026-10-29T22:47:18.017Z"
+   "testedAt": "2026-10-30T03:46:28.747Z"
   },
   "Visuality_3_1993-12-29_Visual_Reality_h_Planet64": {
    "csdb": 2536,
@@ -3870,7 +3865,7 @@
    "moving": 0.0006,
    "ok": false,
    "reason": "BRK AT $8A9E",
-   "testedAt": "2026-10-29T22:48:06.223Z"
+   "testedAt": "2026-10-30T03:47:02.490Z"
   },
   "Spasmolytic_1993-12-29_Censor_Design_Side_A": {
    "csdb": 636,
@@ -3884,9 +3879,9 @@
    "drive": [
     "->SPASMOLYTIC!<-@801"
    ],
-   "moving": 0.1331,
+   "moving": 0.1426,
    "ok": true,
-   "testedAt": "2026-10-29T22:48:54.179Z"
+   "testedAt": "2026-10-30T03:47:15.046Z"
   },
   "Youthquake_1989_Contex": {
    "csdb": 3202,
@@ -3900,9 +3895,9 @@
    "drive": [
     "YOUTHQUAKE  /CTX@6f8"
    ],
-   "moving": 0.2691,
+   "moving": 0.2633,
    "ok": true,
-   "testedAt": "2026-10-29T22:49:43.642Z"
+   "testedAt": "2026-10-30T03:47:51.507Z"
   },
   "Crest_Light_1992_Crest": {
    "csdb": 2563,
@@ -3916,9 +3911,9 @@
    "drive": [
     "CREST......LIGHT@801"
    ],
-   "moving": 0.0248,
+   "moving": 0.0284,
    "ok": true,
-   "testedAt": "2026-10-29T22:50:31.237Z"
+   "testedAt": "2026-10-30T03:48:01.461Z"
   },
   "Non_Plus_Ultra_64_Percent_2006-04-15_Singular": {
    "csdb": 32442,
@@ -3934,8 +3929,8 @@
    ],
    "moving": 0.0006,
    "ok": false,
-   "reason": "BRK AT $D194",
-   "testedAt": "2026-10-29T22:51:18.995Z"
+   "reason": "BRK AT $3A88",
+   "testedAt": "2026-10-30T03:48:39.155Z"
   },
   "Rutig_Banan_1989-11-05_Fairlight": {
    "csdb": 684,
@@ -3949,9 +3944,9 @@
    "drive": [
     "RUTIG BANAN!/FLT@801"
    ],
-   "moving": 0.2893,
+   "moving": 0.3111,
    "ok": true,
-   "testedAt": "2026-10-29T22:52:06.988Z"
+   "testedAt": "2026-10-30T03:48:47.786Z"
   },
   "Visuality_2_1992_Visual_Reality": {
    "csdb": 2535,
@@ -3968,7 +3963,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T22:52:55.290Z"
+   "testedAt": "2026-10-30T03:49:26.905Z"
   },
   "Verzin_Maar_Iets_Leuks_2010-08-11_Focus": {
    "csdb": 93278,
@@ -3982,9 +3977,9 @@
    "drive": [
     "INDULGER@801"
    ],
-   "moving": 0.0668,
+   "moving": 0.0667,
    "ok": true,
-   "testedAt": "2026-10-29T22:53:44.386Z"
+   "testedAt": "2026-10-30T03:49:34.068Z"
   },
   "Zack_is_Back_2010-04-04_Onslaught": {
    "csdb": 90364,
@@ -3998,9 +3993,9 @@
    "drive": [
     "ZAK IS BACK@801"
    ],
-   "moving": 0.0163,
+   "moving": 0.0167,
    "ok": true,
-   "testedAt": "2026-10-29T22:54:32.511Z"
+   "testedAt": "2026-10-30T03:50:14.434Z"
   },
   "c64_atlantis_and_delysid-asoa_2019": {
    "csdb": 180604,
@@ -4017,12 +4012,12 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-29T22:55:21.963Z"
+   "testedAt": "2026-10-30T03:50:20.289Z"
   },
   "Disappear_2007-04-01_MM": {
    "csdb": 47942,
    "title": "Disappear",
-   "group": "M&amp;M",
+   "group": "M&M",
    "rating": 8.8,
    "onefile": 1,
    "id": "Disappear_2007-04-01_MM",
@@ -4033,7 +4028,7 @@
    ],
    "moving": 0.091,
    "ok": true,
-   "testedAt": "2026-10-29T22:56:10.475Z"
+   "testedAt": "2026-10-30T03:51:02.498Z"
   },
   "Legoland_3_1993-12-29_Fairlight": {
    "csdb": 11664,
@@ -4047,9 +4042,9 @@
    "drive": [
     "LEGOTIMES!  /FLT@801"
    ],
-   "moving": 0.0245,
+   "moving": 0.0241,
    "ok": true,
-   "testedAt": "2026-10-29T22:56:58.485Z"
+   "testedAt": "2026-10-30T03:51:06.758Z"
   },
   "VSPIK_1987-10-30_The_Mean_Team": {
    "csdb": 6176,
@@ -4062,9 +4057,8 @@
    "year": 1987,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:04:36.100Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:51:50.265Z"
   },
   "c64_proxima_aroused_side_1": {
    "csdb": 179558,
@@ -4077,9 +4071,8 @@
    "year": 2019,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:12:16.354Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:51:53.064Z"
   },
   "Royal_Scam_The_1991_Pretzel_Logic": {
    "csdb": 4157,
@@ -4093,9 +4086,9 @@
    "drive": [
     "THE ROYAL SCAM@801"
    ],
-   "moving": 0.0452,
+   "moving": 0.0418,
    "ok": true,
-   "testedAt": "2026-10-29T23:13:04.897Z"
+   "testedAt": "2026-10-30T03:52:39.808Z"
   },
   "Just_Dance_64_2011-11-22_Algorithm": {
    "csdb": 102930,
@@ -4112,7 +4105,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T23:13:52.920Z"
+   "testedAt": "2026-10-30T03:52:39.569Z"
   },
   "c64_scarface": {
    "csdb": 138540,
@@ -4129,7 +4122,7 @@
    "moving": 0,
    "ok": false,
    "reason": "blank screen (likely a fast loader)",
-   "testedAt": "2026-10-29T23:14:45.958Z"
+   "testedAt": "2026-10-30T03:53:26.022Z"
   },
   "Aliens_1986_Scoop_Design": {
    "csdb": 6674,
@@ -4145,7 +4138,7 @@
    ],
    "moving": 0.0006,
    "ok": true,
-   "testedAt": "2026-10-29T23:15:34.924Z"
+   "testedAt": "2026-10-30T03:53:28.904Z"
   },
   "Trilight8Hi_2001_Padua": {
    "csdb": 709,
@@ -4158,9 +4151,335 @@
    "year": 2001,
    "drive": [],
    "ok": false,
-   "harness": true,
-   "reason": "harness: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
-   "testedAt": "2026-10-29T23:23:12.379Z"
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T03:54:12.371Z"
+  },
+  "Water_90_Percent_2003-03-14_Aesrude": {
+   "csdb": 8139,
+   "title": "Water 90%",
+   "group": "Aesrude",
+   "rating": 8.74,
+   "onefile": 1,
+   "id": "Water_90_Percent_2003-03-14_Aesrude",
+   "party": "Forever Quattro",
+   "year": 2003,
+   "drive": [
+    "WATER@801"
+   ],
+   "moving": 0.4545,
+   "ok": true,
+   "testedAt": "2026-10-30T03:54:17.052Z"
+  },
+  "Voodoo_People_1995-12_No_Name": {
+   "csdb": 37,
+   "title": "Voodoo People",
+   "group": "No Name",
+   "rating": 8.73,
+   "onefile": 0,
+   "id": "Voodoo_People_1995-12_No_Name",
+   "party": "The Party 1995",
+   "year": 1995,
+   "drive": [
+    "VOODOOPEOPLEB/NN@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "blank screen (likely a fast loader)",
+   "testedAt": "2026-10-30T03:55:00.420Z"
+  },
+  "Terminus_1990_Drew_Rodger": {
+   "csdb": 47809,
+   "title": "Terminus",
+   "group": "Drew Rodger",
+   "rating": 8.7,
+   "onefile": 1,
+   "id": "Terminus_1990_Drew_Rodger",
+   "party": "",
+   "year": 1990,
+   "drive": [
+    ">>> TERMINUS <<<@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "picture never changed",
+   "testedAt": "2026-10-30T03:55:05.619Z"
+  },
+  "One_Year_Camelot_3_1991_Camelot": {
+   "csdb": 96,
+   "title": "One Year Camelot 3",
+   "group": "Camelot",
+   "rating": 8.67,
+   "onefile": 0,
+   "id": "One_Year_Camelot_3_1991_Camelot",
+   "party": "The Party 1991",
+   "year": 1991,
+   "drive": [
+    "ONE YEAR CAMELOT@801"
+   ],
+   "moving": 0.0422,
+   "ok": true,
+   "testedAt": "2026-10-30T03:55:48.215Z"
+  },
+  "Totally_Stoned_2_1993-05-30_Booze_Design_Side_A": {
+   "csdb": 7580,
+   "title": "Totally Stoned 2",
+   "group": "Booze Design",
+   "rating": 8.67,
+   "onefile": 0,
+   "id": "Totally_Stoned_2_1993-05-30_Booze_Design_Side_A",
+   "party": "The Computer Crossroad 1993",
+   "year": 1993,
+   "drive": [
+    "BOOZE DESIGN@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "blank screen (likely a fast loader)",
+   "testedAt": "2026-10-30T03:55:53.540Z"
+  },
+  "helloFRIEND_2005_Fairlight": {
+   "csdb": 19414,
+   "title": "Hello:FRIEND",
+   "group": "Fairlight",
+   "rating": 8.65,
+   "onefile": 0,
+   "id": "helloFRIEND_2005_Fairlight",
+   "party": "LCP 2005",
+   "year": 2005,
+   "drive": [
+    "HELLO FRIEND/FLT@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "blank screen (likely a fast loader)",
+   "testedAt": "2026-10-30T03:56:36.076Z"
+  },
+  "Place_in_the_Space_1992_Taboo": {
+   "csdb": 3229,
+   "title": "Place in the Space",
+   "group": "Taboo",
+   "rating": 8.64,
+   "onefile": 0,
+   "id": "Place_in_the_Space_1992_Taboo",
+   "party": "Skylight Party December '92",
+   "year": 1992,
+   "drive": [
+    "PLACE IN SPACE@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "blank screen (likely a fast loader)",
+   "testedAt": "2026-10-30T03:56:41.986Z"
+  },
+  "Future_Shock_1986_Borderzone": {
+   "csdb": 3228,
+   "title": "Future Shock",
+   "group": "Borderzone Dezign Team",
+   "rating": 8.64,
+   "onefile": 1,
+   "id": "Future_Shock_1986_Borderzone",
+   "party": "",
+   "year": 1986,
+   "drive": [
+    "FUTURE SHOCK@801"
+   ],
+   "moving": 0.0006,
+   "ok": false,
+   "reason": "?SYNTAX ERROR IN 1986",
+   "testedAt": "2026-10-30T03:57:23.863Z"
+  },
+  "Coma_Light_11_1993-12-29_Oxyron_Side_A": {
+   "csdb": 782,
+   "title": "Coma Light 11",
+   "group": "Oxyron",
+   "rating": 8.6,
+   "onefile": 0,
+   "id": "Coma_Light_11_1993-12-29_Oxyron_Side_A",
+   "party": "The Party 1993",
+   "year": 1993,
+   "drive": [
+    "-COMA  LIGHT 11-@31a"
+   ],
+   "moving": 0.0006,
+   "ok": false,
+   "reason": "?SYNTAX ERROR",
+   "testedAt": "2026-10-30T03:57:29.797Z"
+  },
+  "Decline_of_Kali_2007-08-12_K2_Wrath_Designs": {
+   "csdb": 51654,
+   "title": "Decline of Kali",
+   "group": "K2, Wrath Designs",
+   "rating": 8.57,
+   "onefile": 1,
+   "id": "Decline_of_Kali_2007-08-12_K2_Wrath_Designs",
+   "party": "Primary Star 2007",
+   "year": 2007,
+   "drive": [
+    "DECLINE OF KALI@801"
+   ],
+   "moving": 0.4591,
+   "ok": true,
+   "testedAt": "2026-10-30T03:58:12.294Z"
+  },
+  "Parapsykolog_1992_Panoramic_Designs": {
+   "csdb": 3309,
+   "title": "Parapsykolog",
+   "group": "Panoramic Designs",
+   "rating": 8.56,
+   "onefile": 0,
+   "id": "Parapsykolog_1992_Panoramic_Designs",
+   "party": "",
+   "year": 1992,
+   "drive": [
+    "PARAPSYKOLOG!/PD@801"
+   ],
+   "moving": 0.0016,
+   "ok": true,
+   "testedAt": "2026-10-30T03:58:17.869Z"
+  },
+  "Splish_Splash_1998_Padua": {
+   "csdb": 829,
+   "title": "Splish Splash",
+   "group": "Padua",
+   "rating": 8.55,
+   "onefile": 1,
+   "id": "Splish_Splash_1998_Padua",
+   "party": "Mekka &amp; Symposium 1998",
+   "year": 1998,
+   "drive": [
+    "SPLISHSPLASH/PDA@801"
+   ],
+   "moving": 0.1764,
+   "ok": true,
+   "testedAt": "2026-10-30T03:59:00.078Z"
+  },
+  "Brutal_III_1990-12_Light": {
+   "csdb": 2580,
+   "title": "Brutal III",
+   "group": "Light",
+   "rating": 8.53,
+   "onefile": 0,
+   "id": "Brutal_III_1990-12_Light",
+   "party": "Dexion X-Mas Conference 90",
+   "year": 1990,
+   "drive": [
+    "-B R U T A L 3!-@801"
+   ],
+   "moving": 0.3123,
+   "ok": true,
+   "testedAt": "2026-10-30T03:59:05.674Z"
+  },
+  "Midnite_Movie_1990_Zombie_Boys": {
+   "csdb": 14538,
+   "title": "Midnite Movie",
+   "group": "The Zombie Boys",
+   "rating": 8.5,
+   "onefile": 0,
+   "id": "Midnite_Movie_1990_Zombie_Boys",
+   "party": "",
+   "year": 1990,
+   "drive": [
+    "MIDNITE MOVIE/ZB@801"
+   ],
+   "moving": 0.2392,
+   "ok": true,
+   "testedAt": "2026-10-30T03:59:48.336Z"
+  },
+  "Royal_Touch_1992_Dominators": {
+   "csdb": 11666,
+   "title": "Royal Touch",
+   "group": "Dominators",
+   "rating": 8.5,
+   "onefile": 0,
+   "id": "Royal_Touch_1992_Dominators",
+   "party": "",
+   "year": 1992,
+   "drive": [
+    "ROYAL TOUCH!/DOM@801"
+   ],
+   "moving": 0.2653,
+   "ok": true,
+   "testedAt": "2026-10-30T03:59:53.828Z"
+  },
+  "Demo_of_the_Year_87_1987-12_Various": {
+   "csdb": 8837,
+   "title": "Demo of the Year '87",
+   "group": "2000 A.D., AEK Crackware, Beastie Boys, Boys from Dizzyland, Commando Frontier, Dexion, Fairlight, New Life, The Fanatic Duo, The Gamebusters 1541, Triad, Triangle, Zargon, Zetrex 2005",
+   "rating": 8.5,
+   "onefile": 0,
+   "id": "Demo_of_the_Year_87_1987-12_Various",
+   "party": "",
+   "year": 1987,
+   "drive": [],
+   "ok": false,
+   "reason": "CPU jammed",
+   "testedAt": "2026-10-30T04:00:36.073Z"
+  },
+  "Handjob_Lotion_1990-05-14_Contex_Funeral_Note_19xx_Contex": {
+   "csdb": 3216,
+   "title": "Handjob Lotion",
+   "group": "Contex",
+   "rating": 8.49,
+   "onefile": 0,
+   "id": "Handjob_Lotion_1990-05-14_Contex_Funeral_Note_19xx_Contex",
+   "party": "",
+   "year": 1990,
+   "drive": [
+    "HANDJOB L. [CTX]@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "picture never changed",
+   "testedAt": "2026-10-30T04:00:41.271Z"
+  },
+  "Hexagone_1991_Babygang_Side_A": {
+   "csdb": 5922,
+   "title": "Hexagone",
+   "group": "Babygang, Sidchip Scratchers",
+   "rating": 8.49,
+   "onefile": 0,
+   "id": "Hexagone_1991_Babygang_Side_A",
+   "party": "",
+   "year": 1991,
+   "drive": [
+    "HEXAGONE   [BYG]@801"
+   ],
+   "moving": 0.0091,
+   "ok": true,
+   "testedAt": "2026-10-30T04:01:24.091Z"
+  },
+  "We_Are_Mature_2011-08-07_Fairlight": {
+   "csdb": 101515,
+   "title": "We Are Mature",
+   "group": "Fairlight",
+   "rating": 8.48,
+   "onefile": 0,
+   "id": "We_Are_Mature_2011-08-07_Fairlight",
+   "party": "LCP 2011",
+   "year": 2011,
+   "drive": [
+    "00.WEAREMATURE@801"
+   ],
+   "moving": 0,
+   "ok": false,
+   "reason": "picture never changed",
+   "testedAt": "2026-10-30T04:01:29.419Z"
+  },
+  "Xess_2_Rewind_1987-02-18_XESS": {
+   "csdb": 11266,
+   "title": "XESS 2 - Rewind",
+   "group": "XESS",
+   "rating": 8.47,
+   "onefile": 1,
+   "id": "Xess_2_Rewind_1987-02-18_XESS",
+   "party": "",
+   "year": 1987,
+   "drive": [
+    "XESS 2 REWIND@801"
+   ],
+   "moving": 0.9919,
+   "ok": true,
+   "testedAt": "2026-10-30T04:02:12.351Z"
   }
  },
  "tunes": {
