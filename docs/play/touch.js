@@ -11,11 +11,20 @@
 export const PAD_LISTENER = `
   if (!window.breadbinPad) {
     window.breadbinPad = true;
+    // Space is the C64's SPACE key and joystick fire at once: crack intros
+    // and title screens ask for SPACE, games for fire
+    delete joystick_keydown_map.Space;
+    delete joystick_keyup_map.Space;
+    const fire = (down) => (e) => e.code === 'Space' && !e.repeat && emit_joystick_cmd((port1 === 'keys' ? '1' : '2') + (down ? 'PRESS_FIRE' : 'RELEASE_FIRE'));
+    addEventListener('keydown', fire(true), true);
+    addEventListener('keyup', fire(false), true);
     addEventListener('message', (e) => {
       const d = e.data;
       if (!d || typeof d !== 'object') return;
       if (d.bbjoy) for (const c of d.bbjoy) emit_joystick_cmd(c);
       if (d.bbkey) wasm_key(d.bbkey[0], d.bbkey[1], d.bbkey[2]);
+      // the port the cursor keys + space drive
+      if (d.bbport) [port1, port2] = d.bbport === 1 ? ['keys', 'none'] : ['none', 'keys'];
     });
   }`;
 
@@ -68,9 +77,6 @@ export function createPad(root, send, { port = 2 } = {}) {
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, press(false));
     keys.append(b);
   }
-  const portBtn = document.createElement('button');
-  portBtn.className = 'key pill pad-key pad-port';
-  keys.append(portBtn);
 
   // ── stick ──
   const zone = el.querySelector('.pad-stick');
@@ -160,10 +166,7 @@ export function createPad(root, send, { port = 2 } = {}) {
     send({ bbjoy: [`${port}RELEASE_XY`, `${port}RELEASE_FIRE`] });
     state = { x: 'RELEASE_X', y: 'RELEASE_Y' };
     port = n;
-    portBtn.textContent = `PORT ${port}`;
   };
-  portBtn.addEventListener('click', () => setPort(port === 2 ? 1 : 2));
-  setPort(port);
 
   return {
     el,

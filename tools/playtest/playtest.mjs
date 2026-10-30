@@ -1,18 +1,18 @@
 // playtest - find out which games, demos and tunes actually work in breadbin's
 // browser version, so the web UI only offers those (docs/play/verified.json).
 //
-//   node playtest.mjs games [--top 300] [--workers 2] [--retest] [--ids a,b]
+//   node playtest.mjs games [--workers 2] [--retest] [--ids a,b]   # the titles in games.txt
 //   node playtest.mjs demos [--top 150] [--workers 2] [--retest]
 //   node playtest.mjs tunes [--top 200] [--retest]
 //   node playtest.mjs write            # results.json -> docs/play/verified.json (+ online copies)
-//   node playtest.mjs candidates       # show the game ranking
+//   node playtest.mjs candidates       # show the games.txt matches
 //
 // Games and demos are played in headless Chromium against a local copy of the
 // site (`make serve-web`, or --base URL): the harness presses Play, waits for the
 // boot, then sends FIRE, SPACE, F1 and stick moves, and classifies screenshots:
-// a BASIC screen or an error means failure, a picture that moves on its own or
-// reacts to input means it works. Tunes run in the engine's SID player
-// (breadbin.wasm) and must produce sound. Candidates: games from the GameBase64
+// a BASIC screen or an error means failure. A game passes only when holding the
+// joystick moves the player (its port is recorded); a demo, when it moves.
+// Tunes run in the engine's SID player (breadbin.wasm) and must produce sound. Candidates: games from the GameBase64
 // database (rating, classic flag, Internet Archive popularity), demos and tunes
 // from CSDb's toplists. Downloads are cached in cache/; results are kept in
 // results.json, so runs resume and only new titles are tested.
@@ -39,7 +39,11 @@ const flag = (name, fallback) => {
   const i = rest.indexOf(`--${name}`);
   return i < 0 ? fallback : rest[i + 1] ?? true;
 };
-const TOP = Number(flag('top', cmd === 'games' ? 300 : cmd === 'tunes' ? 200 : 150));
+/** games.txt: the titles breadbin offers, in order. */
+const PICK_LINES = fs.readFileSync(path.join(HERE, 'games.txt'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#'));
+const PICKS = PICK_LINES.map((l) => l.split(' = ')[0].trim());
+const PINS = new Map(PICK_LINES.filter((l) => l.includes(' = ')).map((l) => [canon(l.split(' = ')[0]), l.split(' = ')[1].trim()]));
+const TOP = Number(flag('top', cmd === 'tunes' ? 200 : 150));
 const WORKERS = Number(flag('workers', 2));
 const RETEST = rest.includes('--retest');
 const IDS = flag('ids', '') ? String(flag('ids')).split(',') : null;
@@ -105,10 +109,9 @@ async function archivePopularity() {
 }
 
 /**
- * GameBase64 games that don't need true drive emulation, best first: rating,
- * GB64's "classic" flag, then how often the Internet Archive's copy is
- * downloaded. Each keeps its Internet Archive item (when there is one) as a
- * fallback source and for box art.
+ * The games picked in games.txt, from GameBase64 (those that don't need true
+ * drive emulation). Each keeps its Internet Archive item (when there is one)
+ * as a fallback source and for box art.
  */
 async function gameCandidates() {
   await cached('gb64.sqlitedb', 'https://www.twinbirds.com/gamebase64browser/GBC_v19.sqlitedb.gz', 365, (b) => (b[0] === 0x1f && b[1] === 0x8b ? zlib.gunzipSync(b) : b));
@@ -138,11 +141,11 @@ async function gameCandidates() {
       shot: slash(r.shot), ia: pop.id, downloads: pop.downloads,
     };
     const old = best.get(key);
-    if (!old || g.rating + g.classic > old.rating + old.classic) best.set(key, g);
+    if (PINS.has(key) ? PINS.get(key) === g.gb : !old || g.rating + g.classic > old.rating + old.classic) best.set(key, g);
   }
-  return [...best.values()]
-    .sort((a, b) => b.rating - a.rating || b.classic - a.classic || b.downloads - a.downloads)
-    .slice(0, TOP);
+  const missing = PICKS.filter((t) => !best.has(canon(t)));
+  if (missing.length) console.log(`not in GameBase64 (or needing true drive emulation): ${missing.join(', ')}`);
+  return PICKS.map((t) => best.get(canon(t))).filter(Boolean);
 }
 
 /** A CSDb toplist: [{ id, name, group, rating }] in rank order. */
@@ -231,6 +234,79 @@ const BASIC_BLUE = [54, 51, 165];
 // ── games and demos in the browser ──────────────────────────────────────────
 
 /** Play one item; returns { ok, reason, ... }. */
+/**
+ * Which joystick port (1 or 2) controls the player, or 0. Either the player is
+ * a sprite that moves right while the stick is held right and left while it is
+ * held left (or down and up), which other sprites rarely do, or the screen
+ * scrolls while the stick is held and not while it is left alone. Prompts on
+ * screen (SPACE, F1, a trainer's Y/N...) are answered first; a title screen
+ * gets FIRE, then the usual start keys, between tries.
+ */
+async function controlledPort({ inFrame, joy, key, screenText }) {
+  const look = () =>
+    inFrame('look', () => {
+      const on = wasm_peek(0xd015), msb = wasm_peek(0xd010);
+      const sprites = Array.from({ length: 8 }, (_, i) => (on & (1 << i) ? [wasm_peek(0xd000 + 2 * i) + (msb & (1 << i) ? 256 : 0), wasm_peek(0xd001 + 2 * i)] : null));
+      return { sprites, scroll: (wasm_peek(0xd016) & 7) * 8 + (wasm_peek(0xd011) & 7) };
+    });
+  // hold `cmd` (or nothing) for 1.2 s: how far each sprite moved, how often the screen scrolled
+  const hold = async (port, cmd, axis) => {
+    const first = await look();
+    if (cmd) await joy(port + cmd);
+    let last = first, scrolls = 0;
+    for (let t = 0; t < 12; t++) {
+      await sleep(100);
+      const now = await look();
+      if (now.scroll !== last.scroll) scrolls++;
+      last = now;
+    }
+    if (cmd) await joy(port + (axis ? 'RELEASE_Y' : 'RELEASE_X'));
+    return { moved: first.sprites.map((p, i) => (p && last.sprites[i] ? last.sprites[i][axis] - p[axis] : 0)), scrolls };
+  };
+  const responds = async (port) => {
+    const idle = await hold(port, '', 0);
+    for (const [plus, minus, axis] of [['PULL_RIGHT', 'PULL_LEFT', 0], ['PULL_DOWN', 'PULL_UP', 1]]) {
+      const up = await hold(port, plus, axis);
+      const down = await hold(port, minus, axis);
+      if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${up.moved} (${up.scrolls}) / ${down.moved} (${down.scrolls}), idle scrolls ${idle.scrolls}`);
+      if (up.moved.some((d, i) => d >= 6 && down.moved[i] <= -6)) return true;
+      if (idle.scrolls <= 1 && Math.max(up.scrolls, down.scrolls) >= 4) return true;
+    }
+    return false;
+  };
+  // what the screen asks for, else the usual ways past a title screen
+  const prompts = [
+    [/H\/T/, () => type('h')],
+    [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, () => type('n')],
+    [/SPACE/, () => key(7, 4)],
+    [/F7/, () => key(0, 3)],
+    [/F1/, () => key(0, 4)],
+    [/RETURN/, () => key(0, 1)],
+  ];
+  const type = (c) => inFrame('type', (c) => wasm_auto_type(c), c);
+  const fire = async (p) => (await joy(p + 'PRESS_FIRE'), await sleep(200), await joy(p + 'RELEASE_FIRE'));
+  const starts = [() => {}, () => fire(2), () => fire(1), () => key(7, 4), () => key(0, 4), () => key(0, 3), () => key(0, 1)];
+  // after each answered prompt the start keys begin again
+  let asked = 0;
+  for (let next = 0; next < starts.length; ) {
+    const text = await screenText();
+    if (/READY\.|BYTES FREE/.test(text)) return 0; // back at BASIC: nothing to control
+    const prompt = asked < 6 && prompts.find(([re]) => re.test(text));
+    if (process.env.DEBUG) console.log(`  ${prompt ? 'answer ' + prompt[0] : 'start ' + next} | ${text.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
+    if (prompt) {
+      asked++;
+      next = 0;
+      await prompt[1]();
+      await sleep(2500);
+      continue;
+    }
+    await starts[next++]();
+    await sleep(2500);
+    for (const port of [2, 1]) if (await responds(port)) return port;
+  }
+  return 0;
+}
+
 async function playtest(browser, kind, item) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1100, height: 860 });
@@ -272,8 +348,10 @@ async function playtest(browser, kind, item) {
     };
     const screenText = () =>
       inFrame('screen', () => {
+        // wherever the VIC shows the screen
+        const base = (3 - (wasm_peek(0xdd00) & 3)) * 0x4000 + (wasm_peek(0xd018) >> 4) * 0x400;
         let s = '';
-        for (let a = 0x400; a < 0x7e8; a++) {
+        for (let a = base; a < base + 1000; a++) {
           const c = wasm_peek(a) & 0x7f;
           s += c < 32 ? String.fromCharCode(c + 64) : String.fromCharCode(c);
         }
@@ -297,31 +375,8 @@ async function playtest(browser, kind, item) {
         await joy(p + 'RELEASE_FIRE');
         await sleep(400);
       }
-      await key(7, 4); // SPACE (past a crack intro)
-      await sleep(1500);
-      // then often a trainer menu: say no to each question
-      for (const c of 'nnnnn0\n') {
-        await inFrame('type', (c) => wasm_auto_type(c), c);
-        await sleep(400);
-      }
-      await key(0, 4); // F1
-      await sleep(4000);
       await shot('fire');
-      for (const p of ['2', '1']) {
-        for (const d of ['PULL_RIGHT', 'PULL_LEFT']) {
-          await joy(p + d);
-          await sleep(600);
-          await joy(p + 'RELEASE_X');
-        }
-        for (const d of ['PULL_UP', 'PULL_DOWN']) {
-          await joy(p + d);
-          await sleep(450);
-          await joy(p + 'RELEASE_Y');
-        }
-        await joy(p + 'PRESS_FIRE');
-        await sleep(200);
-        await joy(p + 'RELEASE_FIRE');
-      }
+      r.port = await controlledPort({ inFrame, joy, key, screenText });
       await sleep(1500);
     } else {
       await sleep(8000);
@@ -342,6 +397,7 @@ async function playtest(browser, kind, item) {
     r.moving = Number(moving.toFixed(4));
     if (basic && /ERROR|BRK AT/.test(text)) return { ...r, ok: false, reason: (/\?[A-Z' ]*ERROR( IN \d+)?|BRK AT \$[0-9A-F]+/.exec(text) || ['error'])[0] };
     if (basic) return { ...r, ok: false, reason: drive.some((d) => d.event === 'missing') ? 'asked for a file not on the disk' : 'stayed at BASIC' };
+    if (kind === 'games' && !r.port) return { ...r, ok: false, reason: 'the joystick moved nothing' };
     if (dark && moving < 0.001) return { ...r, ok: false, reason: 'blank screen (likely a fast loader)' };
     if (moving < 0.0005) return { ...r, ok: false, reason: 'picture never changed' };
     return { ...r, ok: true };
@@ -481,9 +537,10 @@ async function writeVerified() {
   const out = {
     note: 'Generated by tools/playtest from playtests of the browser version. Only these are offered in docs/play.',
     games: ok('games')
-      .sort((a, b) => b.rating - a.rating || b.classic - a.classic || b.downloads - a.downloads)
-      .map(({ gb, run, ia, online, title, rating, classic, genre, sub, year, publisher, shot }) =>
-        compact({ gb, run, ia, online: online === ia ? '' : online, title, rating, classic, genre, sub, year, publisher, shot })),
+      .filter((g) => PICKS.some((t) => canon(t) === canon(g.title)))
+      .sort((a, b) => PICKS.findIndex((t) => canon(t) === canon(a.title)) - PICKS.findIndex((t) => canon(t) === canon(b.title)))
+      .map(({ gb, run, ia, online, port, title, rating, classic, genre, sub, year, publisher, shot }) =>
+        compact({ gb, run, ia, online: online === ia ? '' : online, port: port === 1 ? 1 : 0, title, rating, classic, genre, sub, year, publisher, shot })),
     demos: ok('demos')
       .sort((a, b) => b.rating - a.rating)
       .map(({ id, title, group, rating, party, year, csdb, onefile }) => compact({ id, title, group, rating, party, year, csdb, onefile })),

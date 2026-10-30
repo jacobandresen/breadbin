@@ -19,9 +19,10 @@ const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)'
  * Start `file` ({ name, bytes, vdrive? }) in a new vc64web frame inside `host`.
  * With `vdrive` the D64 is served by breadbin's virtual drive instead of being
  * mounted. `roms` optionally carries the user's own { kernal, basic, charset,
- * floppy }. Returns { frame, send(), stop() }.
+ * floppy }; `port` is the joystick port (1 or 2) the controls drive.
+ * Returns { frame, send(), stop() }.
  */
-export function run(host, file, { roms = {}, onState, onDrive, onAlert } = {}) {
+export function run(host, file, { roms = {}, port = 2, onState, onDrive, onAlert } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -29,7 +30,7 @@ export function run(host, file, { roms = {}, onState, onDrive, onAlert } = {}) {
     // For disks, skip the "insert disk" dialog; LOAD/RUN is typed by the script below.
     ...(disk ? { dialog_on_disk: false } : {}),
     navbar: false,
-    port2: true,
+    [`port${port}`]: true, // the cursor keys + space
     wide: false,
     border: 0.3,
     dark: true,
@@ -66,6 +67,7 @@ export function run(host, file, { roms = {}, onState, onDrive, onAlert } = {}) {
         frame.contentWindow.postMessage(load, ORIGIN);
         // these run inside vc64web via its scripting API
         script(PAD_LISTENER);
+        frame.contentWindow.postMessage({ bbport: port }, ORIGIN);
         if (file.vdrive) {
           engineBytes().then((engine) => driveScripts(engine, file.bytes).forEach(script));
         } else if (disk) {

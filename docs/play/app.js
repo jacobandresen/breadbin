@@ -8,10 +8,11 @@ import { verified, search } from './catalogue.js';
 import { initGames, showGame, gameCard, coversReady } from './games.js';
 import { initDemos, showDemo, demoCard } from './demos.js';
 import { initTunes, filterTunes } from './tunes.js';
+import { initHack } from './hack.js';
 import { openSettings } from './settings.js';
 import { $, h, toast, shelf } from './ui.js';
 
-const views = { games: initGames, demos: initDemos, tunes: initTunes };
+const views = { games: initGames, demos: initDemos, tunes: initTunes, hack: initHack };
 const started = new Map();
 const terms = {};
 let current = '';
@@ -25,10 +26,11 @@ function route() {
   current = tab in views ? tab : 'games';
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== current;
   for (const a of document.querySelectorAll('.tab')) a.setAttribute('aria-selected', String(a.dataset.tab === current));
-  $('#search').placeholder = { games: 'Search games…', demos: 'Search demos…', tunes: 'Filter tunes…' }[current];
+  $('#search').placeholder = { games: 'Search games…', demos: 'Search demos…', tunes: 'Filter tunes…' }[current] || '';
+  $('#search').closest('label').hidden = current === 'hack';
   $('#search').value = terms[current] || '';
   if (!started.has(current)) started.set(current, Promise.resolve(views[current]()).then(boot, boot));
-  if (item && current !== 'tunes') openItem(current, decodeURIComponent(item));
+  if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item));
 }
 
 /** Deep link (#games/<id>, #demos/<id>). Ids not on the verified list open too,

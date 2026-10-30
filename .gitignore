@@ -1,4 +1,6 @@
 /target
 
-# built by `make web` / the Pages workflow
+# built by `make web` and `make acme` / the Pages workflow
 docs/play/breadbin.wasm
+docs/play/acme.mjs
+docs/play/acme.wasm

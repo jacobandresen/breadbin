@@ -34,6 +34,7 @@
     <a class="key tab" role="tab" href="#games" data-tab="games"><span class="tab-icon">🕹</span>Games</a>
     <a class="key tab" role="tab" href="#tunes" data-tab="tunes"><span class="tab-icon">♫</span>Tunes</a>
     <a class="key tab" role="tab" href="#demos" data-tab="demos"><span class="tab-icon">▣</span>Demos</a>
+    <a class="key tab" role="tab" href="#hack" data-tab="hack"><span class="tab-icon">⌨</span>Hack</a>
   </nav>
   <div class="case-tools">
     <label class="search key-well">
@@ -47,6 +48,7 @@
 <main>
   <section id="games" class="view" hidden></section>
   <section id="demos" class="view" hidden></section>
+  <section id="hack" class="view hack" hidden></section>
   <section id="tunes" class="view tunes" hidden>
     <div class="tune-list" id="tune-list"></div>
     <aside class="tune-player">
@@ -77,6 +79,7 @@
     <span class="emu-title" id="emu-title"></span>
     <span class="emu-status" id="emu-status"></span>
     <a class="emu-online" id="emu-online" target="_blank" rel="noopener" hidden>🌐 Also online at archive.org ↗</a>
+    <button class="key pill" id="emu-port" title="Joystick port the controls drive">Port 2</button>
     <button class="key pill" id="emu-pad" aria-pressed="false" title="On-screen joystick">🕹 Pad</button>
     <button class="key pill" id="emu-full">Fullscreen</button>
     <button class="key pill" id="emu-close">Close</button>

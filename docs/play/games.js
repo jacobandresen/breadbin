@@ -1,9 +1,9 @@
-// games - the Games tab: playtested GameBase64 games as shelves of box art,
-// best rated first, then the classics and one shelf per genre.
+// games - the Games tab: one grid of box art for the games whose controls
+// passed a playtest (tools/playtest/games.txt, in that order).
 
 import * as ia from './ia.js';
 import { boxartIndex, canon } from './covers.js';
-import { verified, recent } from './catalogue.js';
+import { verified } from './catalogue.js';
 import { launch } from './emulator.js';
 import { $, h, art, shelf, facts, closeButton } from './ui.js';
 
@@ -30,14 +30,7 @@ export async function initGames() {
   shelves.before(h('p.banner.online', {}, '🌐', h('span', {},
     h('b', {}, `${online} of these ${games.length} games are already free to play online`),
     ' at the Internet Archive, in its own browser emulator. breadbin gathers the ones that run well here; each game links to its archive.org copy.')));
-  shelf(shelves, 'Latest played', await recent('game'), gameCard);
-  const top = shelf(shelves, 'Top rated', games, gameCard);
-  shelf(shelves, 'Classics', games.filter((g) => g.classic), gameCard);
-  // genres in the order of their best game
-  for (const genre of new Set(games.map((g) => g.genre).filter(Boolean))) {
-    const items = games.filter((g) => g.genre === genre);
-    if (items.length >= 4) shelf(shelves, genre, items, gameCard);
-  }
+  const top = shelf(shelves, 'Games', games, gameCard, { grid: true, size: games.length });
   return top.ready;
 }
 
@@ -60,7 +53,7 @@ export async function showGame(g) {
         : h('p.online.none', {}, 'Not found online elsewhere: this version is only on GameBase64.'),
       links,
       g.shot && h('div.shots.solo', {}, h('img', { src: ia.gb64Shot(g.shot), alt: '', loading: 'lazy' })),
-      h('p.hint', {}, 'Joystick in port 2: cursor keys + space, a gamepad, or the on-screen pad. Runs on the free MEGA65 Open ROMs.'))));
+      h('p.hint', {}, `Joystick in port ${g.port || 2}: cursor keys + space, a gamepad, or the on-screen pad. Runs on the free MEGA65 Open ROMs.`))));
   dlg.showModal();
   info.add('Genre', [g.genre, g.sub].filter(Boolean).join(' · '));
   info.add('Rating', g.rating ? `${'★'.repeat(g.rating)} (GameBase64)` : '');

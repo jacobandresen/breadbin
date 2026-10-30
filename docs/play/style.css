@@ -454,7 +454,6 @@ dialog[open] { animation: rise 160ms ease-out; }
 .emu.touch .emu-note { display: none; }
 .pad-keys { grid-area: keys; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .key.pill.pad-key { font-size: 9px; padding: 8px 9px 10px; touch-action: none; }
-.pad-port { color: var(--yellow); }
 
 .pad-stick {
   grid-area: stick;
@@ -594,4 +593,41 @@ dialog[open] { animation: rise 160ms ease-out; }
 @media (prefers-reduced-motion: reduce) {
   .boot { animation: none; }
   .card, .key { transition: none; }
+}
+
+/* ── Hack ─────────────────────────────────────────────────────────── */
+
+.view.hack { display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
+.view.hack[hidden] { display: none; }
+.hack-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hack-bar select {
+  padding: 8px 10px; border-radius: 7px; border: 0; max-width: 100%;
+  background: var(--key-edge); color: var(--cream); font: 13px var(--ui-font);
+  box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.5);
+}
+.hack-state { color: var(--cream-dim); font-size: 12.5px; }
+.hack-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-height: 0; }
+.hack-code { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hack-editor {
+  height: min(62vh, 640px); resize: vertical; padding: 12px 14px; border: 0; border-radius: 8px;
+  background: var(--c64-blue); color: #b9b2f0; caret-color: var(--cream);
+  font: 13px/1.5 ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; tab-size: 4;
+  box-shadow: 0 0 0 5px var(--key-edge), inset 0 0 30px rgb(0 0 0 / 0.35);
+}
+.hack-editor:focus { outline: 2px solid var(--yellow); outline-offset: 5px; }
+.hack-log {
+  margin: 0; max-height: 9em; overflow: auto; padding: 8px 12px; border-radius: 7px; cursor: pointer;
+  background: var(--well-hi); color: var(--green); font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap;
+}
+.hack-log:empty { display: none; }
+.hack-log.bad { color: var(--red); }
+.hack-run { min-width: 0; }
+.hack-stage { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 12px; background: #000; overflow: hidden; box-shadow: 0 0 0 10px #2b2420, 0 0 0 12px var(--key-edge); }
+.hack-stage .emu-frame { width: 100%; height: 100%; box-shadow: none; border-radius: 0; }
+.hack-idle { color: var(--c64-light); font: 11px/1.8 var(--c64-font); text-align: center; padding: 20px; }
+.hack-credit { color: var(--cream-dim); font-size: 12.5px; margin: 16px 0 0; }
+.hack-credit + .hack-credit { margin-top: 4px; }
+@media (max-width: 900px) {
+  .hack-body { grid-template-columns: 1fr; }
+  .hack-editor { height: 45vh; }
 }

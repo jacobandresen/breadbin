@@ -65,12 +65,13 @@ export function art(urls, label, { boxart = false, badge, tag } = {}) {
 
 /**
  * A titled row of cards over `items` that renders when scrolled into view and
- * can expand into a grid ("Show All"). Returns { el, ready } or null if empty.
+ * can expand into a grid ("Show All"), or (`grid`) is one from the start.
+ * Returns { el, ready } or null if empty.
  */
-export function shelf(parent, title, items, card, { wide = false, size = 24 } = {}) {
+export function shelf(parent, title, items, card, { wide = false, size = 24, grid = false } = {}) {
   if (!items.length) return null;
-  const toggle = h('button.key.pill', { hidden: items.length <= 8 });
-  const body = h('div.row');
+  const toggle = h('button.key.pill', { hidden: grid || items.length <= 8 });
+  const body = h(grid ? 'div.grid' : 'div.row');
   const more = h('div.more', { hidden: true }, h('button.key.pill', { onclick: () => show(shown + size) }, 'More'));
   const el = h(`section.shelf${wide ? '.wide' : ''}`, {},
     h('header.shelf-head', {}, h('span.shelf-chip', { style: { background: nextChip() } }), h('h2.shelf-title', {}, pixel(title)), h('span.shelf-rule'), toggle),
@@ -79,7 +80,7 @@ export function shelf(parent, title, items, card, { wide = false, size = 24 } = 
   for (let i = 0; i < 8; i++) body.append(h('div.card.skeleton', {}, h('div.art'), h('div.card-title')));
 
   let shown = 0;
-  let expanded = false;
+  let expanded = grid;
   const label = () => (toggle.innerHTML = expanded ? 'Show Less' : `Show All<span class="n"> (${fmt.format(items.length)})</span>`);
   const show = (n) => {
     if (!shown) body.replaceChildren();

@@ -1,0 +1,18 @@
+# The games breadbin offers, in shelf order. tools/playtest tests each one and
+# docs/play/verified.json keeps those whose joystick controls the player.
+# "Title = path" pins one GameBase64 version when several share the title.
+Bruce Lee
+Gauntlet
+Airwolf
+Commando
+Wizard of Wor
+1943 - The Battle of Midway = 0/1943-BOM_00018_01.zip
+Turrican II
+Q*bert = q/Q-BERT1_06058_03.zip
+Bubble Bobble
+WarGames = w/WARGAME1_08489_02.zip
+Ghosts'n Goblins
+Last Ninja 2
+Creatures II - Torture Trouble
+The Great Giana Sisters
+Ghostbusters
