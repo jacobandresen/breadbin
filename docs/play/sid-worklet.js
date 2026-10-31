@@ -88,7 +88,7 @@ class SidProcessor extends AudioWorkletProcessor {
       this.gain += (want - this.gain) * GAIN_RATE;
     }
 
-    this.silent = peak < 0.002 ? this.silent + out.length : 0;
+    this.silent = peak < 0.002 ? this.silent + left.length : 0;
     if (!this.ended && this.silent > sampleRate * SILENCE_LIMIT) {
       this.ended = true;
       this.port.postMessage({ type: 'ended' });
