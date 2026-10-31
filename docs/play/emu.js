@@ -11,14 +11,31 @@ const VC64WEB = 'https://vc64web.github.io/';
 const ORIGIN = new URL(VC64WEB).origin;
 // vc64web reports problems (a jammed CPU, say) with alert(), which would freeze the frame
 const ALERTS = "window.alert = (text) => parent.postMessage({ msg: 'breadbin_alert', text: String(text) }, '*');";
-// tells the page when the KERNAL at $F71C reads BYTE (the patched one is in) and the C64 has rebooted
+// the C64 restarts on the new KERNAL: give it a moment before anything is typed
+// (wasm_peek reads the RAM under the ROM, so the swap can't be watched directly)
 const KERNAL_IN = `(async () => {
-  for (let i = 0; i < 60 && wasm_peek(0xf71c) !== BYTE; i++) await new Promise((r) => setTimeout(r, 50));
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 3500));
   parent.postMessage({ msg: 'breadbin_kernal' }, '*');
 })();`;
 // on an iPhone, sound that plays even with the silent switch on, like a video
 const AUDIO_SESSION = `if (navigator.audioSession) navigator.audioSession.type = 'playback';`;
+/**
+ * Script that keeps breadbin's KERNAL in: vc64web downloads the stock Open ROMs
+ * as it starts and installs each when it arrives, which can be after ours went
+ * in (the C64 then runs without breadbin's fixes). A late stock KERNAL is
+ * swapped for ours.
+ */
+function kernalGuard(kernal) {
+  let bin = '';
+  for (const b of kernal) bin += String.fromCharCode(b);
+  return `(() => {
+    const ours = Uint8Array.from(atob('${btoa(bin)}'), (c) => c.charCodeAt(0));
+    const load = wasm_loadfile;
+    wasm_loadfile = (name, data, len, ...rest) =>
+      /kernal_generic/.test(name) ? load('kernal.rom', ours, ours.length, ...rest) : load(name, data, len, ...rest);
+  })();`;
+}
+const CLEAR_SCREEN = `for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);`;
 // script lines: wait (up to 10 s) until READY is on the screen; readies() counts them
 const WAIT_READY = `const readies = () => { let n = 0; for (let a = 0x400; a < 0x7e3; a++) if (wasm_peek(a) === 0x12 && wasm_peek(a + 1) === 5 && wasm_peek(a + 2) === 1 && wasm_peek(a + 3) === 4 && wasm_peek(a + 4) === 0x19) n++; return n; };
         for (let i = 0; i < 100 && !readies(); i++) await new Promise((r) => setTimeout(r, 100));`;
@@ -85,8 +102,12 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
           // a drive ROM goes in the same message, ahead of the KERNAL: vc64web
           // reloads its stored ROMs after taking one, which would put the
           // stock KERNAL back if it came later
+          // blank the screen first: the READY still on it would otherwise pass
+          // for the new boot's, and keys typed before it are lost
+          script(CLEAR_SCREEN);
+          script(kernalGuard(kernal));
           frame.contentWindow.postMessage({ cmd: 'load', kernal_rom: kernal, ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
-          script(KERNAL_IN.replace('BYTE', kernal[0xf71c - 0xe000]));
+          script(KERNAL_IN);
           setTimeout(start, 4000); // in case the message never comes
         } else start();
       }

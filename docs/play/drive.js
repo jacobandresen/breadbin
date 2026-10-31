@@ -67,8 +67,18 @@ async function boot(file) {
   for (let i = 0; i < 600 && !window.breadbinDrive; i++) await sleep(100);
   const drive = window.breadbinDrive;
   const before = readies();
-  wasm_auto_type(`load"${file.toLowerCase()}",8,1:\n`); // unshifted letters type PETSCII capitals
-  for (let i = 0; i < 300 && !drive.bb_drive_loads(); i++) await sleep(100);
+  const load = `load"${file.toLowerCase()}",8,1:\n`; // unshifted letters type PETSCII capitals
+  wasm_auto_type(load);
+  // keys typed while the C64 was still booting are lost: if no LOAD shows up, type it again
+  const typed = () => {
+    // LOAD" (the banner's "TAPE LOAD" has no quote)
+    for (let a = 0x400; a < 0x7e3; a++) if (wasm_peek(a) === 0x0c && wasm_peek(a + 1) === 0x0f && wasm_peek(a + 2) === 0x01 && wasm_peek(a + 3) === 0x04 && wasm_peek(a + 4) === 0x22) return true;
+    return false;
+  };
+  for (let i = 0; i < 300 && !drive.bb_drive_loads(); i++) {
+    await sleep(100);
+    if (i === 100 && !typed()) wasm_auto_type(load);
+  }
   for (let i = 0; i < 30; i++) {
     await sleep(100);
     if (readies() > before) {

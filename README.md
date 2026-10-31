@@ -91,6 +91,8 @@ Breadbin runs on free software, each under its own licence:
   under Exomizer's zlib-style licence).
 - [EasyFlash](https://skoe.de/easyflash/) by Thomas Giesel: the cartridge and
   EasySplit formats.
+- [blip](https://github.com/jacobandresen/blip): the control deck of the touch
+  pad, its ball-top arcade stick and red arcade button (MIT).
 - [ACME](https://github.com/meonwax/acme) by Marco Baye: the assembler of the
   Hack tab, built to WebAssembly (GPL-2.0).
 - Pixelify Sans, Silkscreen and Figtree from Google Fonts (SIL Open Font License).

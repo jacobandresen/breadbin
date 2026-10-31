@@ -1805,10 +1805,10 @@
     "OUT RUN ROUTE A@801",
     "OUT RUN SCORE A@c90"
    ],
-   "port": 1,
-   "moving": 0.9638,
+   "port": 2,
+   "moving": 0.6154,
    "ok": true,
-   "testedAt": "2026-10-31T11:01:24.699Z"
+   "testedAt": "2026-10-31T19:49:21.649Z"
   },
   "gb64:c1/CHOPLI-E_01459_03.zip": {
    "id": "gb64:c1/CHOPLI-E_01459_03.zip",
@@ -3330,9 +3330,9 @@
    ],
    "drive": [],
    "port": 2,
-   "moving": 0.357,
+   "moving": 0.4452,
    "ok": true,
-   "testedAt": "2026-10-31T05:33:43.424Z"
+   "testedAt": "2026-10-31T19:45:22.253Z"
   }
  },
  "demos": {
@@ -3364,11 +3364,11 @@
    "party": "X'2016",
    "year": 2016,
    "drive": [],
-   "sound": 0.093,
+   "sound": 0.126,
    "loud": 20,
-   "moving": 0.0819,
+   "moving": 0.0736,
    "ok": true,
-   "testedAt": "2026-10-31T16:09:31.522Z"
+   "testedAt": "2026-10-31T19:50:47.889Z"
   },
   "c64_Wonderland_XII_Censor_s3": {
    "title": "Wonderland XII",

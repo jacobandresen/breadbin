@@ -1,7 +1,8 @@
 // touch - an on-screen joystick for phones and tablets, drawn in breadbin's own
-// page around the emulator rather than over the C64 screen. The left side is a
-// floating thumbstick (it centres wherever your thumb lands), the right side a
-// big FIRE keycap, and a row of keys covers what joystick games ask for at the
+// page around the emulator rather than over the C64 screen: the control deck of
+// blip (github.com/jacobandresen/blip, MIT), a ball-top arcade stick that leans
+// with the thumb and a red arcade FIRE button. The stick floats (it centres
+// wherever your thumb lands in its half), and a row of keys covers what joystick games ask for at the
 // title screen (SPACE, RETURN, F1-F7, RUN/STOP) and the Y/N and number
 // questions of crack trainer menus. Input reaches vc64web through
 // the listener installed by PAD_LISTENER.
@@ -56,10 +57,12 @@ export function createPad(root, send, { port = 2 } = {}) {
   el.innerHTML = `
     <div class="pad-keys"></div>
     <div class="pad-stick" aria-label="Joystick">
-      <div class="stick-base"><div class="stick-knob"></div></div>
-      <span class="pad-hint">Joystick</span>
+      <div class="deck-stick">
+        <div class="deck-boot"></div>
+        <div class="deck-handle"><div class="deck-shaft"></div><div class="deck-ball"></div></div>
+      </div>
     </div>
-    <button class="pad-fire" aria-label="Fire"><span>FIRE</span></button>`;
+    <button class="pad-fire arcade-btn" aria-label="Fire"><span class="arcade-btn-cap"></span></button>`;
   root.append(el);
 
   const keys = el.querySelector('.pad-keys');
@@ -80,8 +83,12 @@ export function createPad(root, send, { port = 2 } = {}) {
 
   // ── stick ──
   const zone = el.querySelector('.pad-stick');
-  const base = el.querySelector('.stick-base');
-  const knob = el.querySelector('.stick-knob');
+  const stick = el.querySelector('.deck-stick');
+  // the stick leans toward the thumb: --dx / --dy run from -1 to 1
+  const lean = (dx = 0, dy = 0) => {
+    stick.style.setProperty('--dx', (dx / REACH).toFixed(2));
+    stick.style.setProperty('--dy', (dy / REACH).toFixed(2));
+  };
   let stickId = null;
   let origin = null;
   let state = { x: 'RELEASE_X', y: 'RELEASE_Y' };
@@ -96,19 +103,12 @@ export function createPad(root, send, { port = 2 } = {}) {
     if (x !== 'RELEASE_X' || y !== 'RELEASE_Y') buzz(4);
   };
 
-  const centre = () => {
-    const r = zone.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  };
-
   zone.addEventListener('pointerdown', (e) => {
     if (stickId !== null) return;
     e.preventDefault();
     stickId = e.pointerId;
     zone.setPointerCapture(e.pointerId);
     origin = { x: e.clientX, y: e.clientY };
-    const c = centre();
-    base.style.transform = `translate(${origin.x - c.x}px, ${origin.y - c.y}px)`;
     zone.classList.add('active');
     move(e);
   });
@@ -118,16 +118,14 @@ export function createPad(root, send, { port = 2 } = {}) {
     let dy = e.clientY - origin.y;
     const dist = Math.hypot(dx, dy);
     if (dist > REACH) {
-      // drag the base along so the stick follows a wandering thumb
+      // the centre follows a wandering thumb, so turning back acts at once
       const pull = dist - REACH;
       origin.x += (dx / dist) * pull;
       origin.y += (dy / dist) * pull;
       dx = e.clientX - origin.x;
       dy = e.clientY - origin.y;
-      const c = centre();
-      base.style.transform = `translate(${origin.x - c.x}px, ${origin.y - c.y}px)`;
     }
-    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    lean(dx, dy);
     if (Math.hypot(dx, dy) < DEAD_ZONE) return setDir('RELEASE_X', 'RELEASE_Y');
     // eight 45° sectors, like a real microswitch stick
     const sector = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
@@ -140,8 +138,7 @@ export function createPad(root, send, { port = 2 } = {}) {
     if (e.pointerId !== stickId) return;
     stickId = null;
     zone.classList.remove('active');
-    knob.style.transform = '';
-    base.style.transform = '';
+    lean();
     setDir('RELEASE_X', 'RELEASE_Y');
   };
   zone.addEventListener('pointerup', release);

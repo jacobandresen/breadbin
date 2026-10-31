@@ -71,6 +71,7 @@ const CREDITS = [
   ['resid-rs', 'https://github.com/digitalstreamio/resid-rs', 'Rust port of reSID by Dag Lem: the SID chip of the player (GPL-3.0).'],
   ['Exomizer', 'https://bitbucket.org/magli143/exomizer', 'by Magnus Lind: its decruncher, ported to unpack EasySplit files (zlib-style licence).'],
   ['EasyFlash', 'https://skoe.de/easyflash/', 'by Thomas Giesel (skoe): the cartridge and EasySplit formats.'],
+  ['blip', 'https://github.com/jacobandresen/blip', 'the control deck of the touch pad: its arcade stick and button (MIT).'],
   ['ACME', 'https://github.com/meonwax/acme', 'by Marco Baye: the cross-assembler of the Hack tab (GPL-2.0).'],
   ['GameBase64', 'https://www.gb64.com/', 'the games and their facts.'],
   ['Internet Archive', 'https://archive.org/details/softwarelibrary_c64', 'the games, demos and HVSC copy everything downloads from.'],
