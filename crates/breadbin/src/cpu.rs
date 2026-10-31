@@ -428,3 +428,33 @@ mod tests {
         assert_eq!(cpu.pc, 0x1003);
     }
 }
+
+#[cfg(test)]
+mod klaus {
+    use super::*;
+    struct Flat(Vec<u8>);
+    impl Bus for Flat {
+        fn read(&mut self, a: u16) -> u8 { self.0[a as usize] }
+        fn write(&mut self, a: u16, v: u8) { self.0[a as usize] = v; }
+    }
+    /// Klaus Dormann's 6502 functional test (KLAUS=<bin>): success loops at $3469.
+    #[test]
+    #[ignore]
+    fn functional_test() {
+        let bin = std::fs::read(std::env::var("KLAUS").unwrap()).unwrap();
+        let mut bus = Flat(bin);
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x0400;
+        let mut last = 0xffff;
+        for _ in 0..200_000_000u64 {
+            let pc = cpu.pc;
+            cpu.step(&mut bus);
+            if cpu.pc == pc || cpu.jammed {
+                last = pc;
+                break;
+            }
+        }
+        println!("stopped at ${last:04x} (jammed {})", cpu.jammed);
+        assert_eq!(last, 0x3469);
+    }
+}

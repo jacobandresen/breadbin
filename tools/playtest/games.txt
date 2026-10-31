@@ -4,9 +4,10 @@
 # id, and optionally the file on its disk to boot. "id + id + id" names Internet
 # Archive items that together hold a release: an EasySplit cartridge, or the
 # sides of a disk game (the Disk button swaps them). "[1541]" at the end marks a
-# game whose loader runs code on the drive: it is tested with a 1541 ROM
-# (ROM1541) and shelved as needing the visitor's own.
-Bruce Lee
+# game whose loader runs code on the drive: it gets the emulated 1541 with
+# breadbin's free DOS. "[port 1]" pins the joystick port, for a game where
+# another sprite moves in time with the stick and fools the playtest.
+Bruce Lee [port 1]
 Gauntlet
 Airwolf
 Commando

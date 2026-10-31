@@ -46,7 +46,9 @@ const flag = (name, fallback) => {
 };
 /** games.txt: the titles breadbin offers, in order. "[1541]" at the end of a line marks a game that needs a real drive. */
 const RAW_LINES = fs.readFileSync(path.join(HERE, 'games.txt'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#'));
-const PICK_LINES = RAW_LINES.map((l) => l.replace(/\s*\[1541\]\s*$/, '').replace(/\s*\{[^}]*\}/, ''));
+const PICK_LINES = RAW_LINES.map((l) => l.replace(/\s*\[port [12]\]/, '').replace(/\s*\[1541\]\s*$/, '').replace(/\s*\{[^}]*\}/, ''));
+/** "[port 1]" on a line: the joystick port the game reads, when the playtest can't tell (another sprite moves in time with the stick). */
+const PORT_PINS = new Map(RAW_LINES.filter((l) => /\[port [12]\]/.test(l)).map((l) => [canon(l.split(' = ')[0].replace(/\s*\[.*$/, '')), Number(/\[port ([12])\]/.exec(l)[1])]));
 /** "{addr:old=new; ...}" on a line: live patches for the game's loader (drive.rs), in hex. */
 const PATCHES = new Map(RAW_LINES.filter((l) => /\{[^}]*\}/.test(l)).map((l) => [canon(l.split(' = ')[0]), /\{([^}]*)\}/.exec(l)[1].split(';').map((p) => p.replace(/\s+/g, '')).filter(Boolean)]));
 /** Games whose loader runs code on the drive: shelved as "needs a 1541 ROM", tested with one. */
@@ -166,6 +168,7 @@ async function gameCandidates() {
       shot: slash(r.shot), ia: pop.id, downloads: pop.downloads,
       ...(NEEDS_1541.has(key) && { rom1541: 1 }),
       ...(PATCHES.has(key) && { patches: PATCHES.get(key) }),
+      ...(PORT_PINS.has(key) && { portPin: PORT_PINS.get(key) }),
     };
     const old = best.get(key);
     const pin = PINS.get(key)?.source;
@@ -310,7 +313,7 @@ const BASIC_BLUE = [54, 51, 165];
  * screen (SPACE, F1, a trainer's Y/N...) are answered first; a title screen
  * gets FIRE, then the usual start keys, between tries.
  */
-async function controlledPort({ inFrame, joy, key, screenText, proof, settle, picture, swap, title }) {
+async function controlledPort({ inFrame, joy, key, screenText, proof, settle, picture, swap, title, ports = [2, 1] }) {
   // a game that never shows control would otherwise go round its menus and
   // attract screens for good: four minutes, and ten answered prompts
   const until = Date.now() + 240e3;
@@ -479,8 +482,8 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
     await sleep(2500);
     // a screen of text (docs, menus) isn't the game, even if the stick scrolls it
     if (isText(await screenText())) continue;
-    for (const port of [2, 1]) if (await responds(port)) return (await proof(), port);
-    for (const port of [2, 1]) if (await shows(port)) return (await proof(), port);
+    for (const port of ports) if (await responds(port)) return (await proof(), port);
+    for (const port of ports) if (await shows(port)) return (await proof(), port);
   }
   return 0;
 }
@@ -580,7 +583,7 @@ async function playtest(browser, kind, item) {
       const look = async () => decode(await el.screenshot());
       // the page's Disk button, for "insert side 2"
       const swap = () => page.click('#emu-disk').catch(() => {});
-      r.port = await controlledPort({ inFrame, joy, key, screenText, proof: () => shot('control'), settle, picture: look, swap, title: item.title });
+      r.port = await controlledPort({ inFrame, joy, key, screenText, proof: () => shot('control'), settle, picture: look, swap, title: item.title, ports: item.portPin ? [item.portPin] : [2, 1] });
       await sleep(1500);
     } else {
       // a still screen asking for SPACE (Lunatico's "designed for the new SID

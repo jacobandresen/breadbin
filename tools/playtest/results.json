@@ -243,7 +243,7 @@
   },
   "gb64:b3/BRUCELEE_01135_02.zip": {
    "id": "gb64:b3/BRUCELEE_01135_02.zip",
-   "gb": "b3/BRUCELEE_01135_02.zip",
+   "gb": "",
    "run": "",
    "title": "Bruce Lee",
    "rating": 5,
@@ -253,15 +253,16 @@
    "year": 1984,
    "publisher": "Datasoft",
    "shot": "B/Bruce_Lee.png",
-   "ia": "Bruce_Lee_1984_Datasoft_h_TBC",
+   "ia": "Bruce_Lee_1984_Datasoft_it",
    "downloads": 4021,
+   "portPin": 1,
    "drive": [
-    "BRUCE LEE+@801"
+    "BRUCE LEE (I)@801"
    ],
-   "port": 2,
-   "moving": 0.8767,
+   "port": 1,
+   "moving": 0.9863,
    "ok": true,
-   "testedAt": "2026-10-31T19:04:36.526Z"
+   "testedAt": "2026-10-31T21:26:50.053Z"
   },
   "gb64:m2/MISOCCER_04802_01.zip": {
    "id": "gb64:m2/MISOCCER_04802_01.zip",

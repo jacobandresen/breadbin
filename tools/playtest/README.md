@@ -61,7 +61,8 @@ How it decides:
 
 `games.txt` lines can pin a version (`= gb64 path` or `= archive id`), the file
 to boot (`> FILE*`), a release in several Archive items (`= a + b + c`), and
-`[1541]` for a game that needs a real drive; `demos.txt` lines take `[1541]`
+`[port 1]` (or 2) for the joystick port a game reads when the playtest can't
+tell, `[1541]` for a game that needs a real drive; `demos.txt` lines take `[1541]`
 too, for trackmos. Those run on vc64web's emulated 1541 with breadbin's free
 DOS (`tools/drive`), or with `ROM1541=<file>` in its place; a trackmo in several
 Archive items gets them all as sides, for the Disk button.
