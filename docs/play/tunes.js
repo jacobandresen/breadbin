@@ -90,6 +90,18 @@ export function filterTunes(term) {
   for (const r of rows) r.hidden = needle && !r.textContent.toLowerCase().includes(needle);
 }
 
+/** The tune on a phone's lock screen and in its media controls, with pause and skip. */
+function showOnLockScreen(tune) {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({ title: tune.name, artist: tune.composer || '', album: 'breadbin · SID' });
+  const toggle = () => $('#btn-pause').click();
+  for (const [action, fn] of [['play', toggle], ['pause', toggle], ['nexttrack', next], ['stop', stop]]) {
+    try {
+      navigator.mediaSession.setActionHandler(action, fn);
+    } catch {} // an action this browser doesn't know
+  }
+}
+
 async function playRow(row, song = 0) {
   const token = ++playToken;
   current?.classList.remove('current');
@@ -108,6 +120,7 @@ async function playRow(row, song = 0) {
     row.song = song || header.startSong;
     viz.title = row.tune.name;
     renderNowPlaying(row, null, header);
+    showOnLockScreen(row.tune);
     // CSDb details exist for scene releases (numeric ids), not for game tunes (HVSC paths)
     if (typeof row.tune.id === 'number') csdb.release(row.tune.id).then((info) => token === playToken && renderNowPlaying(row, info, header)).catch(() => {});
     if (radio) radioTimer = setTimeout(next, RADIO_MAX_MS);

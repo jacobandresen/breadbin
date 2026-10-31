@@ -372,6 +372,8 @@ dialog.sheet {
   border-radius: 18px; background: var(--night-hi);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07), 0 24px 60px rgb(0 0 0 / 0.7);
 }
+/* scrolling to the end of a sheet doesn't carry on into the page behind */
+dialog.sheet { overscroll-behavior: contain; }
 dialog.sheet::backdrop { background: rgb(8 6 14 / 0.72); backdrop-filter: blur(4px); }
 dialog[open] { animation: rise 160ms ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
@@ -674,7 +676,7 @@ button, a, label, select, .card, .tune { -webkit-tap-highlight-color: transparen
 .hack-credit + .hack-credit { margin-top: 4px; }
 @media (max-width: 900px) {
   .hack-body { grid-template-columns: 1fr; }
-  .hack-editor { height: 45vh; }
+  .hack-editor { height: 45vh; height: 45dvh; }
 }
 
 /* Landscape phones: a sheet keeps its art small, beside the text */

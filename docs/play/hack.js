@@ -150,6 +150,8 @@ export function initHack() {
     session?.stop();
     const run = await prepare('hack.prg', prg, { canMount: false });
     session = emu.run(stage, run, { kernal: await patchedKernal(store.cachedBytes) });
+    // on a phone the screen sits under the editor: bring it into view
+    if (matchMedia('(max-width: 900px)').matches) stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   const download = () => {
     const blob = new Blob([isText(path) ? editor.value : files[path]]);

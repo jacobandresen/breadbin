@@ -7,12 +7,14 @@
 //   node playtest.mjs tunes [--retest]                    # the tunes in tunes.txt
 //   node playtest.mjs write            # results.json -> docs/play/verified.json (+ online copies)
 //   node playtest.mjs candidates       # show the games.txt matches
+//   node playtest.mjs demo-candidates  # show the demos.txt matches (Archive item, sides)
 //
 // Games and demos are played in headless Chromium against a local copy of the
 // site (`make serve-web`, or --base URL): the harness presses Play, waits for the
 // boot, then sends FIRE, SPACE, F1 and stick moves, and classifies screenshots:
 // a BASIC screen or an error means failure. A game passes only when holding the
-// joystick moves the player (its port is recorded); a demo, when it moves.
+// joystick moves the player (its port is recorded); a demo, when it moves and
+// makes sound. Listed titles that fail are written to verified.json as "wip".
 // Tunes run in the engine's SID player (breadbin.wasm) and must produce sound. Candidates: games from the GameBase64
 // database (rating, classic flag, Internet Archive popularity), demos and tunes
 // from CSDb's toplists. Downloads are cached in cache/; results are kept in
@@ -216,6 +218,26 @@ const csdbRelease = async (id) =>
 const field = (xml, tag) => new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml)?.[1]?.trim() || '';
 const party = (xml) => (xml.includes('<ReleasedAt>') ? field(xml.slice(xml.indexOf('<ReleasedAt>')), 'Name') : '');
 
+/** An Archive identifier for a second or later disk side. */
+const laterSide = (id) => /side_?[b-z](_|$)|_b$|_s[2-9]$|disk_[2-9]_of/i.test(id);
+/** How many words of a demo's title an Archive identifier has. */
+function nameScore(id, title) {
+  const words = title.toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w.length > 1 || /\d/.test(w));
+  return words.filter((w) => new RegExp(`(^|_)${w}(_|$)`, 'i').test(id)).length;
+}
+/** The sides of a release, from its first side's identifier: the Archive's items named like it up to the side (Side_A, Disk_1_of_3, _s1), in order. */
+async function otherSides(first) {
+  const m = /^(.*?)(side_?a|disk_1_of_\d|_s1)(?=_|$)/i.exec(first);
+  if (!m) return [first];
+  const params = new URLSearchParams({ q: `identifier:${m[1]}*`, rows: '20', output: 'json' });
+  params.append('fl[]', 'identifier');
+  const docs = (await (await fetch(`https://archive.org/advancedsearch.php?${params}`, { headers: UA })).json().catch(() => ({}))).response?.docs || [];
+  // the same naming after the side marker (a later side of the same release, not another version)
+  const tail = first.slice(m[0].length);
+  const same = docs.map((x) => x.identifier).filter((id) => id === first || (laterSide(id) && id.endsWith(tail)));
+  return [first, ...same.filter((id) => id !== first).sort()];
+}
+
 /** CSDb's top demos and one-file demos that the Internet Archive has, with party and year. */
 async function demoCandidates() {
   // --scout: CSDb's all-time toplists (demos and one-file demos) instead of
@@ -232,8 +254,10 @@ async function demoCandidates() {
     const docs = (await (await fetch(`https://archive.org/advancedsearch.php?${params}`, { headers: UA })).json()).response.docs;
     for (const d of chunk) {
       const items = docs.filter((x) => x.csdb === `https://csdb.dk/release/?id=${d.csdb}`);
-      // multi-disk demos are several items; side A boots
-      items.sort((a, b) => Number(/side_?b|_b$/i.test(a.identifier)) - Number(/side_?b|_b$/i.test(b.identifier)) || b.downloads - a.downloads);
+      // multi-disk demos are several items, and the archive links some to the
+      // wrong release: the first side of the one named like the demo boots
+      items.sort((a, b) => Number(laterSide(a.identifier)) - Number(laterSide(b.identifier)) ||
+        nameScore(b.identifier, d.title) - nameScore(a.identifier, d.title) || b.downloads - a.downloads);
       if (!items[0]) {
         if (!rest.includes('--scout')) console.log(`not on the Internet Archive: ${d.title}`);
         continue;
@@ -241,7 +265,8 @@ async function demoCandidates() {
       const xml = await csdbRelease(d.csdb);
       const group = [...xml.matchAll(/<ReleasedBy>[\s\S]*?<\/ReleasedBy>/g)].flatMap((b) => [...b[0].matchAll(/<Group>[\s\S]*?<Name>([^<]+)<\/Name>/g)].map((g) => g[1]));
       // a trackmo gets every side, for the Disk button
-      const parts = d.rom1541 && items.length > 1 ? { parts: items.map((x) => x.identifier) } : {};
+      const all = d.rom1541 ? await otherSides(items[0].identifier) : [];
+      const parts = all.length > 1 ? { parts: all } : {};
       out.push({ ...d, ...parts, id: items[0].identifier, group: [...new Set(group)].join(', '), rating: Number(field(xml, 'Rating')) || 0,
         onefile: /One-File Demo/i.test(field(xml, 'Type')) ? 1 : 0, party: party(xml), year: Number(field(xml, 'ReleaseYear')) || 0 });
     }
@@ -731,6 +756,8 @@ async function archiveCopies(title) {
 /** Write the allowlist the web UI reads: working items only, best first. */
 async function writeVerified() {
   const current = new Set((await gameCandidates()).map((g) => g.id));
+  // each demo's current Archive item, with its sides (older results may be of another item)
+  const demoItems = new Map((await demoCandidates()).map((d) => [d.id, d]));
   // what passed, and what games.txt and demos.txt list but didn't (yet): those
   // go on the shelf marked "wip", with the reason
   const ok = (k) => Object.values(results[k]).filter((r) => r.ok || (r.reason && !r.harness)).map((r) => (r.ok ? r : { ...r, wip: r.reason }));
@@ -744,7 +771,8 @@ async function writeVerified() {
       .map(({ gb, run, boot, ia, online, port, title, rating, classic, genre, sub, year, publisher, shot, rom1541, parts, patches, wip }) =>
         compact({ gb, run, boot, ia, online: online === ia ? '' : online, port: port === 1 ? 1 : 0, title, rating, classic, genre, sub, year, publisher, shot, rom1541: rom1541 || (NEEDS_1541.has(canon(title)) ? 1 : 0), parts, patches, wip })),
     demos: ok('demos')
-      .filter((d) => DEMO_PICKS.some((p) => p.csdb === d.csdb))
+      .filter((d) => demoItems.has(d.id))
+      .map((d) => ({ ...d, parts: demoItems.get(d.id).parts }))
       // one item per release, a passing one first
       .sort((a, b) => Number(!!a.wip) - Number(!!b.wip))
       .filter((d, i, all) => all.findIndex((x) => x.csdb === d.csdb) === i)
@@ -764,5 +792,6 @@ if (cmd === 'games') await runBrowserTests('games', await gameCandidates());
 else if (cmd === 'demos') await runBrowserTests('demos', await demoCandidates());
 else if (cmd === 'tunes') await testTunes();
 else if (cmd === 'write') await writeVerified();
+else if (cmd === 'demo-candidates') console.table((await demoCandidates()).map(({ id, title, csdb, parts }) => ({ id: id.slice(0, 50), title, csdb, sides: parts?.length || '' })));
 else if (cmd === 'candidates') console.table((await gameCandidates()).map(({ id, title, rating, year, run, parts }) => ({ id: id.slice(0, 40), title, rating, year, run, parts: parts?.length || '' })));
 else console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(0, 18).join('\n'));

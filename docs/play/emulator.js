@@ -125,6 +125,13 @@ export async function launch(kind, item) {
     stopGamepads?.();
     stopGamepads = pollGamepads((m) => session?.send(m), () => port);
     setPort(port);
+    // a demo is watched, not played: no stick controls, and a note on what to expect
+    $('#emu-port').hidden = $('#emu-pad').hidden = kind === 'demo';
+    if (kind === 'demo') {
+      note.textContent = item.rom1541
+        ? 'A trackmo loads from the emulated 1541 at real-drive speed: the screen can stay dark for a minute while it does.'
+        : 'Sit back: demos run by themselves. SPACE often skips to the next part.';
+    }
     setPad(settings.pad && kind === 'game'); // a demo is watched: the Pad button brings it back
     if (item.wip) toast('🚧 Work in progress: this one may not start or play right.');
   } catch (e) {

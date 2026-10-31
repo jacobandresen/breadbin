@@ -3409,6 +3409,10 @@
    "title": "The Star Wars Demo",
    "csdb": 170922,
    "rom1541": 1,
+   "parts": [
+    "c64_starwars_s1",
+    "c64_starwars_s2"
+   ],
    "id": "c64_starwars_s1",
    "group": "Censor Design",
    "rating": 9.47,
@@ -3421,7 +3425,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-31T16:09:35.365Z"
+   "testedAt": "2026-10-31T19:14:41.985Z"
   },
   "c64_Wonderland_XII_Censor_s1": {
    "title": "Wonderland XIII",
@@ -6104,6 +6108,24 @@
    "moving": 0.0031,
    "ok": true,
    "testedAt": "2026-10-31T10:53:03.630Z"
+  },
+  "Wonderland_XIII_2016-10-29_Censor_Design_Disk_1_of_3": {
+   "title": "Wonderland XIII",
+   "csdb": 151275,
+   "rom1541": 1,
+   "id": "Wonderland_XIII_2016-10-29_Censor_Design_Disk_1_of_3",
+   "group": "Censor Design",
+   "rating": 9.46,
+   "onefile": 0,
+   "party": "X'2016",
+   "year": 2016,
+   "drive": [],
+   "sound": 0,
+   "loud": 0,
+   "moving": 0,
+   "ok": false,
+   "reason": "stayed at BASIC",
+   "testedAt": "2026-10-31T19:14:48.609Z"
   }
  },
  "tunes": {

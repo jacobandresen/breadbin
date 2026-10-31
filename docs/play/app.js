@@ -72,6 +72,8 @@ $('#detail').addEventListener('close', () => history.replaceState(history.state,
 // ── search ───────────────────────────────────────────────────────────────────
 
 let searchTimer = 0;
+// Enter puts the phone keyboard away; the results are already showing
+$('#search').addEventListener('keydown', (e) => e.key === 'Enter' && e.target.blur());
 $('#search').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   const term = (terms[current] = e.target.value.trim());
