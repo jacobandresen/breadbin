@@ -5,7 +5,7 @@ import * as ia from './ia.js';
 import { boxartIndex, canon } from './covers.js';
 import { verified } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton, wipNote } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote, footer } from './ui.js';
 
 let covers = new Map();
 export const coversReady = boxartIndex().then((m) => (covers = m));
@@ -15,24 +15,36 @@ const artFor = (g) => [covers.get(canon(g.title)), g.ia && ia.thumb(g.ia), g.sho
 export function gameCard(g) {
   const sub = [g.year || '', g.publisher].filter(Boolean).join(' · ');
   return h('button.card', { onclick: () => showGame(g), title: g.title },
-    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null, wip: g.wip, tag: g.rom1541 ? '💾 real 1541' : ia.onlineAt(g) && '🌐 archive.org' }),
+    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null, wip: g.wip, tag: g.rom1541 ? '💾 real 1541' : null }),
     h('div.card-title', {}, g.title),
     sub && h('div.card-sub', {}, sub));
 }
 
 /** Build the shelves; resolves once the first one is on screen. */
+/** The welcome at the top of the Games tab: what breadbin is, and what's on its shelves. */
+function marquee(games, demos, tunes) {
+  const stat = (n, what, href) => h('a.marquee-stat', { href }, h('b', {}, String(n)), h('span', {}, what));
+  return h('section.marquee', {},
+    h('img.marquee-logo', { src: '../images/breadbin.svg', alt: '', width: 72, height: 72 }),
+    h('div.marquee-copy', {},
+      h('h1', {}, 'Fresh out of the breadbin'),
+      h('p', {}, 'C64 games, demos and SID music, playing in your browser on free ROMs. Pick a card, press Play.')),
+    h('div.marquee-stats', {},
+      stat(games.length, 'games', '#games'),
+      stat(demos.length, 'demos', '#demos'),
+      stat(tunes.length, 'tunes', '#tunes')));
+}
+
 export async function initGames() {
   const shelves = h('div.shelves');
   $('#games').append(shelves);
-  const [{ games }] = await Promise.all([verified(), Promise.race([coversReady, new Promise((r) => setTimeout(r, 2500))])]);
+  const [{ games, demos, tunes }] = await Promise.all([verified(), Promise.race([coversReady, new Promise((r) => setTimeout(r, 2500))])]);
   if (!games.length) return shelves.append(h('p.banner', {}, 'No playtested games yet: run tools/playtest to build verified.json.'));
-  const online = games.filter(ia.onlineAt).length;
-  shelves.before(h('p.banner.online', {}, '🌐', h('span', {},
-    h('b', {}, `${online} of these ${games.length} games are already free to play online`),
-    ' at the Internet Archive, in its own browser emulator. breadbin gathers the ones that run well here; each game links to its archive.org copy.')));
+  shelves.before(marquee(games, demos, tunes));
   // the ones still in the works go last
   const ordered = [...games.filter((g) => !g.wip), ...games.filter((g) => g.wip)];
   const top = shelf(shelves, 'Games', ordered, gameCard, { grid: true, size: games.length });
+  shelves.after(footer());
   return top.ready;
 }
 

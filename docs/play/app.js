@@ -29,7 +29,8 @@ function route() {
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== current;
   for (const a of document.querySelectorAll('.tab')) a.setAttribute('aria-selected', String(a.dataset.tab === current));
   $('#search').placeholder = { games: 'Search games…', demos: 'Search demos…', tunes: 'Filter tunes…' }[current] || '';
-  $('#search').closest('label').hidden = current === 'hack';
+  // hidden but in place, so the tabs don't shift
+  $('#search').closest('label').style.visibility = current === 'hack' ? 'hidden' : '';
   $('#search').value = terms[current] || '';
   if (!started.has(current)) started.set(current, Promise.resolve(views[current]()).then(boot, boot));
   if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item));

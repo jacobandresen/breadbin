@@ -64,6 +64,14 @@ export function art(urls, label, { boxart = false, badge, tag, wip } = {}) {
   return wrap;
 }
 
+/** The end of a shelf page: what breadbin runs on, and the way to its credits. */
+export function footer() {
+  return h('footer.foot', {},
+    h('img', { src: '../images/breadbin.svg', alt: '', width: 20, height: 20 }),
+    h('span', {}, 'breadbin bakes on free software: the MEGA65 Open ROMs, Pascual DOS, vc64web and the scene\'s own archives. '),
+    h('button.linkish', { onclick: () => document.querySelector('#open-settings')?.click() }, 'Credits'));
+}
+
 /** What a playtest failure (tools/playtest's reason) means for a visitor. */
 const WIP_WORDS = [
   [/joystick moved nothing/, 'it starts, but the playtest couldn\'t yet show the joystick moving the player'],

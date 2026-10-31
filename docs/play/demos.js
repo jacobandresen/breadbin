@@ -5,10 +5,11 @@ import * as ia from './ia.js';
 import * as csdb from './csdb.js';
 import { verified, recent } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton, wipNote } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote, footer } from './ui.js';
 
-// IA's own thumbnail is often the loading screen; a later capture shows the demo
-const cover = (d, size = '_thumb') => [ia.fileUrl(d.id, `screenshot_06${size}.jpg`), ia.thumb(d.id)];
+
+// its most telling capture (tools/playtest picks the biggest), else the sixth: the first are the loading
+const cover = (d, size = '_thumb') => [ia.fileUrl(d.id, `${d.shot || 'screenshot_06'}${size}.jpg`), ia.thumb(d.id)];
 const groupsOf = (d) => (d.group || '').split(/,\s*/).filter(Boolean);
 
 export function demoCard(d) {
@@ -38,6 +39,7 @@ export async function initDemos() {
     if (theirs.length >= 3) shelf(shelves, g, theirs, demoCard, opts);
   }
   shelf(shelves, 'Work in progress', all.filter((d) => d.wip), demoCard, opts);
+  shelves.after(footer());
 }
 
 export async function showDemo(d) {

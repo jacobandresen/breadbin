@@ -311,6 +311,10 @@ const BASIC_BLUE = [54, 51, 165];
  * gets FIRE, then the usual start keys, between tries.
  */
 async function controlledPort({ inFrame, joy, key, screenText, proof, settle, picture, swap, title }) {
+  // a game that never shows control would otherwise go round its menus and
+  // attract screens for good: four minutes, and ten answered prompts
+  const until = Date.now() + 240e3;
+  const inTime = () => Date.now() < until;
   const look = () =>
     inFrame('look', () => {
       // from the VIC itself: peeking $D000 reads RAM when a game banks the I/O out;
@@ -346,6 +350,7 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
   const responds = async (port) => {
     const idle = await hold(port, [], 0);
     for (const [plus, minus, axis] of WAYS) {
+      if (!inTime()) return false;
       const [a, b, c, d] = [await hold(port, plus, axis), await hold(port, minus, axis), await hold(port, plus, axis), await hold(port, minus, axis)];
       if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${a.moved}|${b.moved}|${c.moved}|${d.moved} scrolls ${a.scrolls},${b.scrolls},${c.scrolls},${d.scrolls} idle ${idle.moved} (${idle.scrolls})`);
       const sprite = a.moved.some((m, i) => m >= 6 && c.moved[i] >= 6 && b.moved[i] <= -6 && d.moved[i] <= -6 && Math.abs(idle.moved[i]) < 6);
@@ -360,6 +365,7 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
   const shows = async (port) => {
     const quiet = change(await picture(), (await sleep(1200), await picture()));
     for (const [plus, minus] of WAYS.slice(0, 2)) {
+      if (!inTime()) return false;
       const d = [];
       for (const dirs of [plus, minus, plus, minus]) {
         const a = await picture();
@@ -449,17 +455,20 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
   // after each answered prompt the start keys begin again
   // each screen's prompt is answered at most twice (its text may stay on screen)
   const answered = new Map();
-  for (let next = 0; next < starts.length; ) {
+  let answers = 0;
+  for (let next = 0; next < starts.length && inTime(); ) {
     await settle();
     const text = await screenText();
     if (/READY\.|BYTES FREE/.test(text)) return 0; // back at BASIC: nothing to control
     // prompts are only read off screens of text, not graphics shown as characters
     const wordy = (text.match(/[A-Z ]/g) || []).length > text.length * 0.7;
-    const screen = text.replace(/\s+/g, ' ').trim();
-    const prompt = (answered.get(screen) || 0) < 2 && prompts.find(([re, , any]) => (wordy || (any && !named)) && re.test(screen));
+    // the same screen, whatever the cursor, a scroller or an animation changes on it
+    const screen = (text.match(/[A-Z]{3,}/g) || []).slice(0, 12).join(' ');
+    const prompt = answers < 10 && (answered.get(screen) || 0) < 2 && prompts.find(([re, , any]) => (wordy || (any && !named)) && re.test(screen));
     if (process.env.DEBUG) console.log(`  ${prompt ? 'answer ' + prompt[0] : 'start ' + next} | ${text.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
     if (prompt) {
       answered.set(screen, (answered.get(screen) || 0) + 1);
+      answers++;
       next = 0;
       await prompt[1](text);
       await sleep(2500);
@@ -738,6 +747,13 @@ const compact = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v 
  * archive's own browser emulator. The C64 games collection always does; other
  * titles are looked up in the whole C64 software library.
  */
+/** A demo's most telling Archive capture: the biggest screenshot JPEG (a loader or a black screen packs small). */
+async function bestShot(id) {
+  const meta = await (await fetch(`https://archive.org/metadata/${id}/files`, { headers: UA })).json().catch(() => ({}));
+  const shots = (meta.result || []).filter((f) => /^screenshot_\d+\.jpg$/.test(f.name));
+  return shots.sort((a, b) => Number(b.size) - Number(a.size))[0]?.name.replace('.jpg', '') || '';
+}
+
 async function onlineCopy(g) {
   return g.ia || (await archiveCopies(g.title))[0] || '';
 }
@@ -784,6 +800,11 @@ async function writeVerified() {
       .sort((a, b) => TUNE_PICKS.findIndex((p) => p.hvsc === a.hvsc) - TUNE_PICKS.findIndex((p) => p.hvsc === b.hvsc))
       .map(({ id, name, composer, group, rating, year, party, hvsc }) => ({ id, name, composer, group, rating, year, party, hvsc })),
   };
+  // each demo's card shows its most telling capture
+  for (const d of out.demos) {
+    const shot = await bestShot(d.id);
+    if (shot) d.shot = shot;
+  }
   fs.writeFileSync(VERIFIED, JSON.stringify(out, (_, v) => (typeof v === 'string' ? unescape(v) : v)));
   console.log(`wrote ${path.relative(REPO, VERIFIED)}: ${out.games.length} games, ${out.demos.length} demos, ${out.tunes.length} tunes`);
 }

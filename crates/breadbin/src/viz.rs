@@ -129,7 +129,7 @@ impl Viz {
     /// The border colour for this frame, as 0xRRGGBB.
     pub fn border(&self) -> u32 {
         // warm: a red ramp flashing on the beat, brown at rest
-        let c = if self.playing { PEPTO[ramp_index(RAMP_RED, 0.55 + self.beat * 0.45) as usize] } else { PEPTO[9] };
+        let c = if self.playing { PEPTO[ramp_index(RAMP_RED, 0.55 + self.beat * 0.45) as usize] } else { PEPTO[0] };
         ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff)
     }
 
@@ -186,14 +186,21 @@ impl Viz {
         }
     }
 
-    // ── idle: the oven warming up ───────────────────────────────────────────
+    // ── idle: the toaster warming up ────────────────────────────────────────
 
     fn ready_screen(&mut self, t: f64) {
         self.fb.fill(PEPTO[0]);
-        // a slow warm glow rising from the bottom, brown into orange
-        for y in 120..H as i32 {
-            let d = (y - 120) as f64 / (H as f64 - 120.0);
-            self.row(y, if d + (t * 0.8).sin() * 0.05 > 0.7 { PEPTO[8] } else if d > 0.35 { PEPTO[9] } else { PEPTO[0] });
+        // three heating coils glowing under the text: wavy elements that warm
+        // from red through light red to orange, each a beat behind the one above
+        for (k, base) in [138.0, 156.0, 174.0].into_iter().enumerate() {
+            let heat = 0.5 + 0.5 * (t * 1.3 - k as f64 * 0.9).sin();
+            let c = if heat > 0.66 { PEPTO[8] } else if heat > 0.33 { PEPTO[10] } else { PEPTO[2] };
+            for x in (16..W as i32 - 16).step_by(2) {
+                let y = base + ((x as f64) * 0.09 + t * 1.8 + k as f64).sin() * 3.0;
+                for dy in 0..3 {
+                    self.span(y as i32 + dy, x as f64, x as f64 + 2.0, c);
+                }
+            }
         }
         let lines = [("breadbin sid player", PEPTO[7]), ("", 0), ("pick a tune, or press radio", PEPTO[15]), ("the chip is warming up", PEPTO[12])];
         for (i, (l, c)) in lines.iter().enumerate() {

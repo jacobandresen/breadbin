@@ -3281,10 +3281,10 @@
     "D@8000"
    ],
    "port": 0,
-   "moving": 0.9929,
+   "moving": 0.9943,
    "ok": false,
    "reason": "the joystick moved nothing",
-   "testedAt": "2026-10-31T11:57:13.657Z"
+   "testedAt": "2026-10-31T20:50:40.281Z"
   },
   "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352": {
    "id": "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352",
