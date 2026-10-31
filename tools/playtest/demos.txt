@@ -1,0 +1,61 @@
+# The demos breadbin offers, handpicked: twenty greats of the C64 demoscene,
+# oldest first, from those that play here. "Title = CSDb release id"; the
+# Internet Archive's copy (softwarelibrary_c64_demos) is what plays.
+# tools/playtest checks they load, move and make sound; one that doesn't is
+# shelved as "wip". `playtest.mjs demos --scout` lists CSDb's favourites that
+# play. "[1541]" marks a trackmo: it runs on the emulated 1541 with breadbin's
+# free DOS (tools/drive).
+Rutig Banan = 684
+Digital Madness = 26593
+Brutal III = 2580
+Delirious 10 = 21903
+The Un-named Demo = 1758
+Hexagone = 5922
+Wonderland VIII = 633
+The Last Traktor III = 11672
+Crest Light = 2563
+Parapsykolog = 3309
+Spasmolytic = 636
+Legoland 3 = 11664
+Krestology = 11586
+Krestage = 2968
+Water = 8139
+Disappear = 47942
+Decline of Kali = 51654
+Verzin maar iets Leuks = 93278
+Zak Is Back = 90364
+Daah, Those Acid Pills! = 118639
+Edge of Disgrace = 72550 [1541]
+# backups that also pass
+# One Year Camelot 3 = 96
+# Splish Splash = 829
+# Royal Touch = 11666
+# Purple = 61765
+# Industrial Dusk = 98727
+# trackmos, on the free 1541 DOS
+Lunatico = 151273 [1541]
+Wonderland XII = 120907 [1541]
+The Star Wars Demo = 170922 [1541]
+Wonderland XIII = 151275 [1541]
+The Phoenix Code = 151255 [1541]
+The Megademo = 12518 [1541]
+We Are New = 94445 [1541]
+La Linea 85% = 4358 [1541]
+Ice Cream Castle = 2552 [1541]
+Desert Dream = 48039 [1541]
+Altered States 50% = 11610 [1541]
+Amplifire = 72559 [1541]
+Tower Power 100% = 11791 [1541]
+Dutch Breeze = 11584 [1541]
+Mekanix = 94438 [1541]
+1991 = 101506 [1541]
+Another Beginning = 94448 [1541]
+So-Phisticated III = 11667 [1541]
+Cycle = 11959 [1541]
+Natural Wonders 2 = 72560 [1541]
+Soiled Legacy = 11613 [1541]
+Red Storm = 11592 [1541]
+Radio Napalm = 11665 [1541]
+Natural Wonders = 48037 [1541]
+Road of Excess = 2493 [1541]
+Coma Light 13 = 11623 [1541]

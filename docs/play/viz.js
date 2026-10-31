@@ -1,6 +1,6 @@
 // viz - the Tunes visualisers. The effects are rendered by the Rust engine into
 // a 320x200 framebuffer; this blits it with hard pixels inside a border that
-// flashes on the beat, and gives the engine Sixtyfour as 1-bit glyphs.
+// flashes on the beat, and gives the engine Silkscreen as 1-bit glyphs.
 
 import { visualiser } from './engine.js';
 
@@ -10,11 +10,11 @@ export const NAMES = [
   "Char Plasma · for Crest & Oxyron's Deus Ex Machina",
 ];
 
-/** Sixtyfour at 8px, ASCII 32..127, thresholded to 8x10 masks. */
+/** Silkscreen at 8px, ASCII 32..127, thresholded to 8x10 masks. */
 function glyphMasks() {
   const c = new OffscreenCanvas(8, 10);
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.font = '8px Sixtyfour';
+  x.font = '8px Silkscreen';
   const masks = new Uint8Array(96 * 80);
   for (let i = 0; i < 96; i++) {
     x.clearRect(0, 0, 8, 10);
@@ -39,7 +39,7 @@ export class Viz {
     this.ready = visualiser().then(async (engine) => {
       this.engine = engine;
       engine.font(glyphMasks());
-      await document.fonts?.load('8px Sixtyfour');
+      await document.fonts?.load('8px Silkscreen');
       engine.font(glyphMasks());
     });
   }

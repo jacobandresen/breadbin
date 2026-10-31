@@ -5,7 +5,7 @@ import * as ia from './ia.js';
 import { boxartIndex, canon } from './covers.js';
 import { verified } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote } from './ui.js';
 
 let covers = new Map();
 export const coversReady = boxartIndex().then((m) => (covers = m));
@@ -15,7 +15,7 @@ const artFor = (g) => [covers.get(canon(g.title)), g.ia && ia.thumb(g.ia), g.sho
 export function gameCard(g) {
   const sub = [g.year || '', g.publisher].filter(Boolean).join(' · ');
   return h('button.card', { onclick: () => showGame(g), title: g.title },
-    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null, tag: ia.onlineAt(g) && '🌐 archive.org' }),
+    art(artFor(g), g.title, { boxart: covers.has(canon(g.title)), badge: g.rating >= 4 ? '★' : null, wip: g.wip, tag: g.rom1541 ? '💾 real 1541' : ia.onlineAt(g) && '🌐 archive.org' }),
     h('div.card-title', {}, g.title),
     sub && h('div.card-sub', {}, sub));
 }
@@ -30,7 +30,9 @@ export async function initGames() {
   shelves.before(h('p.banner.online', {}, '🌐', h('span', {},
     h('b', {}, `${online} of these ${games.length} games are already free to play online`),
     ' at the Internet Archive, in its own browser emulator. breadbin gathers the ones that run well here; each game links to its archive.org copy.')));
-  const top = shelf(shelves, 'Games', games, gameCard, { grid: true, size: games.length });
+  // the ones still in the works go last
+  const ordered = [...games.filter((g) => !g.wip), ...games.filter((g) => g.wip)];
+  const top = shelf(shelves, 'Games', ordered, gameCard, { grid: true, size: games.length });
   return top.ready;
 }
 
@@ -47,6 +49,9 @@ export async function showGame(g) {
       h('p.by', {}, [g.publisher, g.year || ''].filter(Boolean).join(' · ')),
       info,
       h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('game', g) }, '▶ Play')),
+      wipNote(g),
+      g.rom1541 && h('p.needs', {}, h('b', {}, '💾 Real 1541. '),
+        'Its loader runs its own code on the disk drive, so it gets an emulated 1541 with breadbin\'s free DOS (or your own drive ROM from Settings). Loading takes real-drive time.'),
       ia.onlineAt(g)
         ? h('a.online', { href: ia.onlineAt(g), target: '_blank', rel: 'noopener' },
           h('b', {}, '🌐 Already free to play online'), h('span', {}, 'Internet Archive (archive.org) · runs in your browser ↗'))

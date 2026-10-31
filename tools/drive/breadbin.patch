@@ -1,0 +1,883 @@
+diff --git a/src/dos.s b/src/dos.s
+index 6c32026..1c0fdca 100644
+--- a/src/dos.s
++++ b/src/dos.s
+@@ -31,6 +31,11 @@ VIA2_PB   = $1C00
+ VIA2_PA   = $1C01
+ VIA2_DDRB = $1C02
+ VIA2_DDRA = $1C03
++VIA2_T1CL = $1C04         ; (breadbin: timer, ACR and interrupt registers)
++VIA2_T1CH = $1C05
++VIA2_ACR  = $1C0B
++VIA2_IFR  = $1C0D
++VIA2_IER  = $1C0E
+ VIA2_PCR  = $1C0C         ; Peripheral Control Register de VIA2
+ 
+ ; PCR: CB2 (bits 7-5) = modo de cabeza (110 escritura, 111 lectura);
+@@ -71,6 +76,7 @@ EOI_PULSE = $20
+ BIT_DELAY = $10
+ 
+ DATA_BUF  = $0300         ; buffer provisional de recepcion
++MW_STAGE  = $01A6         ; M-W data on its way to its address (added for breadbin)
+ TX_LEN    = 3             ; longitud del buffer de transmision de prueba
+ 
+ ; --- controlador de disco ---
+@@ -78,8 +84,10 @@ MOTOR_BIT  = %00000100    ; VIA2_PB bit 2: motor del disco (1 = encendido)
+ STEP_MASK  = %00000011    ; VIA2_PB bits 0-1: fase del stepper (medias pistas)
+ ZONE_MASK  = %01100000    ; VIA2_PB bits 5-6: zona de velocidad (bitrate)
+ SYNC_FLAG  = %10000000    ; VIA2_PB bit 7: /SYNC, activo en bajo (0 = en SYNC)
+-RAW_BUF    = $02C0        ; cabecera GCR cruda (10 bytes); usado tambien en pruebas
+-RAW_BUF2   = $02D0        ; segundo buffer crudo de prueba (10 bytes)
++; (breadbin: the header buffers live in $0180-$01A5, clear of $0200-$02FF,
++;  which drive code may keep its own tables in while it queues jobs)
++RAW_BUF    = $0180        ; cabecera GCR cruda (10 bytes); usado tambien en pruebas
++RAW_BUF2   = $018A        ; segundo buffer crudo de prueba (10 bytes)
+ GCR_BLK    = $04BB        ; bloque de datos GCR crudo (325 bytes, $04BB-$05FF).
+                           ; Termina justo antes de BAM_BUF ($0600) para no pisarlo,
+                           ; permitiendo mantener la BAM en RAM durante un SAVE. El
+@@ -91,8 +99,8 @@ NAME_BUF   = $0280        ; nombre de fichero buscado (16 bytes)
+ CMD_BUF    = $0240        ; comando recibido por el canal 15 (texto)
+ NAME_BUF2  = $0268        ; segundo nombre (RENAME: nombre nuevo, 16 bytes)
+ STATUS_BUF = $0290        ; cadena del canal de estado (hasta $02BF)
+-HEADER_BUF = $02F0        ; 8 bytes decodificados de la cabecera
+-HDR_TPL    = $02E0        ; 10 bytes GCR: plantilla de la cabecera buscada (escritura)
++HEADER_BUF = $019E        ; 8 bytes decodificados de la cabecera
++HDR_TPL    = $0194        ; 10 bytes GCR: plantilla de la cabecera buscada (escritura)
+ DATA_DEC_BUF = $0400      ; 260 bytes decodificados del bloque de datos (RAM real)
+ DIR_BUF    = $0700        ; sector de directorio (256 bytes)
+ CHAIN_BUF  = $0700        ; buffer de sector para la cadena de fichero (compartido)
+@@ -111,22 +119,10 @@ BAM_BUF    = $0600        ; sector BAM (pista 18 sector 0) en RAM
+ LIST_BUF   = $0300        ; programa BASIC del directorio generado (LOAD "$")
+ 
+ .zeropage
+-iec_dev:   .res 1
+-iec_state: .res 1
+-iec_sa:    .res 1
+-iec_cmd:   .res 1
+-iec_byte:  .res 1
+-iec_eoi:   .res 1         ; EOI del ultimo byte recibido (transitorio)
+-iec_data_eoi: .res 1      ; una transferencia de datos termino con EOI
+-iec_abort: .res 1         ; recepcion abortada por cambio de ATN
+-iec_atn_exp: .res 1       ; nivel de ATN esperado ($80 comando, 0 datos)
+-data_idx:  .res 1
+-iec_chan_mode: .res 1     ; 0 = normal (nombre/LOAD), 1 = recibiendo datos de SAVE
+-iec_out:   .res 1         ; byte en transmision
+-iec_send_eoi: .res 1      ; $FF si el byte a enviar lleva EOI
+-tx_ptr:    .res 2         ; puntero del buffer a transmitir (talker)
+-tx_len:    .res 2         ; bytes restantes a transmitir (16 bits)
+-tx_last:   .res 1         ; $FF si este buffer es el ultimo (EOI en su ultimo byte)
++; (breadbin) $00-$11 are the job queue: job codes at $00-$04, track and
++; sector at $06-$11, written by code running in the drive; the bus state that
++; was here follows save_append
++job_queue: .res $12
+ 
+ ; --- codec GCR ---
+ gcr_src:   .res 2         ; puntero de origen
+@@ -220,6 +216,7 @@ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
+ ; --- canal de comandos por el bus ---
+ cmd_pending: .res 1       ; $FF: comando recibido por el canal 15, pendiente
+ stat_rd:     .res 1       ; indice de lectura del canal de estado (TALK 15)
++mptr:        .res 2       ; M-W/M-R/M-E: the drive address (added for breadbin)
+ cmd_pos:     .res 1       ; posicion de lectura en CMD_BUF
+ scr_count:   .res 1       ; ficheros borrados por SCRATCH
+ dir_dirty:   .res 1       ; $FF si el sector de directorio en DIR_BUF cambio
+@@ -246,14 +243,31 @@ rd_state:    .res 1       ; 0 bloque por cargar, 1 cargado, 2 fin de fichero
+ rd_gen:      .res 1       ; dsk_gen cuando se cargo el bloque
+ dsk_gen:     .res 1       ; cambia cada vez que se pisa DATA_DEC_BUF
+ save_append: .res 1       ; $FF si la escritura anade a un fichero existente
++iec_dev:   .res 1
++iec_state: .res 1
++iec_sa:    .res 1
++iec_cmd:   .res 1
++iec_byte:  .res 1
++iec_eoi:   .res 1         ; EOI del ultimo byte recibido (transitorio)
++iec_data_eoi: .res 1      ; una transferencia de datos termino con EOI
++iec_abort: .res 1         ; recepcion abortada por cambio de ATN
++iec_atn_exp: .res 1       ; nivel de ATN esperado ($80 comando, 0 datos)
++data_idx:  .res 1
++iec_chan_mode: .res 1     ; 0 = normal (nombre/LOAD), 1 = recibiendo datos de SAVE
++iec_out:   .res 1         ; byte en transmision
++iec_send_eoi: .res 1      ; $FF si el byte a enviar lleva EOI
++tx_ptr:    .res 2         ; puntero del buffer a transmitir (talker)
++tx_len:    .res 2         ; bytes restantes a transmitir (16 bits)
++tx_last:   .res 1         ; $FF si este buffer es el ultimo (EOI en su ultimo byte)
++
+ 
+ .code
+ ; ----------------------------------------------------------------------------
+ reset:
+     sei
+     cld
+-    ldx #$FF
+-    txs
++    ldx #$45                    ; the stack below $0146, as on a 1541: drive code
++    txs                         ; may take $0180-$01FF for itself (breadbin)
+ 
+     lda #VIA2_PB_OUTS
+     sta VIA2_DDRB
+@@ -261,6 +275,14 @@ reset:
+     sta VIA2_PA
+     sta VIA2_DDRA
+     sta VIA2_PB
++    ; the head in read mode with byte-ready on SO, and port A latching each
++    ; byte as it is ready (added for breadbin): from reset the PCR and ACR are
++    ; $00, which leaves SO unconnected and port A showing the shift register
++    ; as it shifts, on a real 1541 (and in VirtualC64)
++    lda #PCR_READ
++    sta VIA2_PCR
++    lda #$01
++    sta VIA2_ACR
+ 
+     lda #VIA1_DDRB_INIT
+     sta VIA1_DDRB
+@@ -357,6 +379,12 @@ mainloop:
+ ;  iec_recv_data: recibe datos como listener hasta EOI o retorno de ATN
+ ; ----------------------------------------------------------------------------
+ iec_recv_data:
++    ; ATN is released: the hardware ATN acknowledge must be off again (ATNA=0),
++    ; or it holds DATA low and the talker never sees "ready for data". A host
++    ; that drops ATN quickly can leave it set (breadbin, with the Open ROMs).
++    lda VIA1_PB
++    and #ATNA_CLR
++    sta VIA1_PB
+     lda #$00
+     sta iec_atn_exp
+     lda iec_chan_mode
+@@ -1013,6 +1041,12 @@ iec_recv_byte:
+     lda VIA1_PB
+     and #CLK_IN
+     bne @w_clkrel
++    ; a host may release ATN and CLK in the same write (the Open ROMs do): CLK
++    ; released together with ATN is a turnaround, not a byte. Look at ATN again.
++    lda VIA1_PB
++    and #ATN_IN
++    cmp iec_atn_exp
++    bne @abort
+     ; listener listo: liberar DATA
+     lda VIA1_PB
+     and #DATA_OUT_CLR
+@@ -1044,6 +1078,10 @@ iec_recv_byte:
+     and #DATA_OUT_CLR
+     sta VIA1_PB
+ @w_first:
++    lda VIA1_PB
++    and #ATN_IN                 ; a change of ATN ends the wait (no byte follows)
++    cmp iec_atn_exp
++    bne @abort
+     lda VIA1_PB
+     and #CLK_IN
+     beq @w_first
+@@ -2849,6 +2887,10 @@ dir_find_in_buf:
+     bne @slot
+     rts
+ 
++; (breadbin) the code goes on past $D044, leaving $D042 for the entry point
++; drive code calls there (segment D042)
++.segment "CODE1"
++
+ ;  dir_make_entry: escribe una entrada nueva en el primer slot libre de DIR_BUF
+ ;  (tipo 0). Toma dir_ftype, dir_track, dir_sector, dir_blocks_lo/hi y el nombre
+ ;  en NAME_BUF. dir_found = $FF si se creo, $00 si no habia slot libre.
+@@ -3488,6 +3530,35 @@ status_set:
+ cmd_execute:
+     lda #$00
+     sta cmd_pending
++    ; M-W, M-R, M-E (added for breadbin): memory commands, read raw from
++    ; DATA_BUF since their bytes are binary. Fast loaders upload their drive
++    ; code with M-W and start it with M-E; M-R reads drive memory back.
++    lda data_idx
++    cmp #5
++    bcc @text
++    lda DATA_BUF
++    cmp #'M'
++    bne @text
++    lda DATA_BUF+1
++    cmp #'-'
++    bne @text
++    lda DATA_BUF+3
++    sta mptr
++    lda DATA_BUF+4
++    sta mptr+1
++    lda DATA_BUF+2
++    cmp #'W'
++    bne @n_mw
++    jmp cmd_mw
++@n_mw:
++    cmp #'R'
++    bne @n_mr
++    jmp cmd_mr
++@n_mr:
++    cmp #'E'
++    bne @text
++    jmp cmd_me
++@text:
+     ldx #$00
+ @cp:
+     cpx data_idx
+@@ -3546,6 +3617,100 @@ cmd_execute:
+ @ret:
+     rts
+ 
++; (breadbin) the code goes on past $D589, leaving $D586 for the entry point
++; drive code calls there (segment D586)
++.segment "CODE2"
++
++;  cmd_mw: M-W lo hi n data... writes n bytes at (lo hi). Staged through
++;  MW_STAGE, because the target may overlap DATA_BUF itself.
++cmd_mw:
++    ldx DATA_BUF+5
++    lda data_idx                ; no more than arrived
++    sec
++    sbc #6
++    bcc @ok
++    sta data_idx
++    cpx data_idx
++    bcc @n
++    ldx data_idx
++@n:
++    txa
++    beq @ok
++    pha
++    ldy #$00
++@stage:
++    lda DATA_BUF+6,y
++    sta MW_STAGE,y
++    iny
++    dex
++    bne @stage
++    pla
++    tax
++    ldy #$00
++@put:
++    lda MW_STAGE,y
++    sta (mptr),y
++    iny
++    dex
++    bne @put
++@ok:
++    lda #$00
++    sta data_idx
++    jsr set_error
++    jmp status_set
++
++;  cmd_mr: M-R lo hi [n] puts n bytes (default 1) of drive memory on the status
++;  channel, for the next read of channel 15.
++cmd_mr:
++    ldx #1
++    lda data_idx
++    cmp #6
++    bcc @one
++    ldx DATA_BUF+5
++    beq @max
++    cpx #48                     ; STATUS_BUF holds 48 bytes
++    bcc @one
++@max:
++    ldx #48
++@one:
++    stx stat_idx
++    ldy #$00
++@get:
++    lda (mptr),y
++    sta STATUS_BUF,y
++    iny
++    dex
++    bne @get
++    lda #$00
++    sta stat_rd
++    sta data_idx
++    rts
++
++;  cmd_me: M-E lo hi runs the code at (lo hi), as a subroutine. The command
++;  line goes to $0200 first, where the 1541 keeps its command buffer: loaders
++;  send their first bit of drive code inside the M-E command itself and start
++;  it there (M-E $0205 and the like).
++cmd_me:
++    ldx #$00
++@cmd:
++    lda DATA_BUF,x
++    sta $0200,x
++    inx
++    cpx data_idx
++    bne @cmd
++    lda #$00
++    sta data_idx
++    jsr job_start               ; drive code may queue jobs for the DOS
++    jsr @call
++    sei
++    lda #$40
++    sta VIA2_IER                ; timer interrupt off again
++    lda #$00
++    jsr set_error
++    jmp status_set
++@call:
++    jmp (mptr)
++
+ ;  cmd_find_colon: cmd_pos = posicion tras el ':' de CMD_BUF. C = 1 si no hay ':'.
+ cmd_find_colon:
+     ldx #$00
+@@ -4755,11 +4920,505 @@ disk_link_valid:
+     rts
+ 
+ ; ----------------------------------------------------------------------------
++;  irq_brk: the timer interrupt services the job queue (see job_scan); a BRK
++;  (no timer flag) just returns, as before.
+ irq_brk:
++    pha
++    txa
++    pha
++    tya
++    pha
++    lda VIA2_IFR
++    and #$40
++    beq @out
++    lda VIA2_T1CL               ; acknowledge
++    lda job_busy
++    bne @out                    ; a job is under way: no re-entry
++    inc job_busy
++    jsr job_scan
++    lda #$00
++    sta job_busy
++@out:
++    pla
++    tay
++    pla
++    tax
++    pla
+     rti
+ nmi:
+     rti
+ 
++; ----------------------------------------------------------------------------
++;  Job queue (added for breadbin). The 1541's documented interface for code
++;  running in the drive: job codes at $00-$04 for buffers 0-4 ($0300-$07FF),
++;  track and sector at $06+2n/$07+2n. The DOS carries them out from its timer
++;  interrupt and leaves the result in place ($01 OK, $02 header not found, $05
++;  checksum). Fast loaders read sectors this way. READ ($80), SEEK ($B0), BUMP
++;  ($C0), JUMP ($D0) and EXECUTE ($E0) are done; WRITE ($90) and VERIFY ($A0)
++;  answer OK without writing. The code that set the jobs owns the zero page, so
++;  what the disk routines use of it ($12-$2C) is saved around each job.
++; ----------------------------------------------------------------------------
++JOB_ZP    = $12           ; what the disk routines use: $12-$2C
++JOB_ZPLEN = $2C - $12 + 1
++JOB_SAVE  = $0146         ; the saved zero page ($0146-$0160)
++job_busy  = $0161
++job_n     = $0162
++job_si    = $0163         ; 2 bytes: GCR byte read next
++job_k     = $0165         ; 2 bytes: decoded byte written next
++job_j     = $0167
++job_mark  = $0168
++job_sum   = $0169
++job_byte  = $016A
++job_jmp   = $016B         ; 2 bytes
++f50a_tpl  = $016D         ; 5 bytes: the header looked for, raw GCR
++f50a_tries = $0172
++JOB_OVF   = $01BA         ; GCR beyond the buffer's first 256 bytes, as on a 1541
++;  Drive code may use the whole stack page as a buffer, so what must outlive
++;  it is kept where the 1541 DOS keeps it: the job running in $3F, the stack
++;  pointer to return to in $49.
++JOB_CUR   = $3F
++JOB_SP    = $49
++;  ...and the head's track in $22, which loaders that step the head set too.
++JOB_TRACK = JOB_SAVE + $22 - JOB_ZP
++
++
++;  job_start: the timer interrupt, every 10 ms, and interrupts on.
++job_start:
++    lda #$00
++    sta job_busy
++    lda #$41                    ; T1 free-running, port A still latched
++    sta VIA2_ACR
++    lda #<10000
++    sta VIA2_T1CL
++    lda #>10000
++    sta VIA2_T1CH
++    lda #$C0                    ; T1 interrupt on
++    sta VIA2_IER
++    cli
++    rts
++
++job_scan:
++    ldx #$00
++js_next:
++    lda $00,x
++    bpl js_skip
++    stx job_n
++    and #$F0
++    cmp #$D0
++    beq js_jump
++    cmp #$E0
++    bne js_dos
++    jsr job_save_zp             ; EXECUTE: put the head there, then run the buffer
++    ldx job_n
++    jsr job_head
++    jsr job_restore_zp
++js_jump:
++    lda job_n
++    sta JOB_CUR
++    clc
++    adc #$03
++    sta job_jmp+1
++    lda #$00
++    sta job_jmp
++    tsx
++    stx JOB_SP
++    jsr js_go
++job_scan_resume:
++    ldx JOB_CUR
++    stx job_n
++    cmp #$01                    ; the result it left in A, or OK
++    bcc js_ok
++    cmp #$80
++    bcc js_done
++js_ok:
++    lda #$01
++    bne js_done
++js_go:
++    jmp (job_jmp)
++js_dos:
++    jsr job_save_zp
++    ldx job_n
++    jsr job_run
++    pha
++    jsr job_restore_zp
++    pla
++js_done:
++    ldx job_n
++    sta $00,x
++js_skip:
++    inx
++    cpx #5
++    bne js_next
++    rts
++
++; ----------------------------------------------------------------------------
++;  Entry points that drive code calls by address (added for breadbin), placed
++;  where the 1541's documented ones are (segments F50A and F969 in the linker
++;  configuration): code a job runs (JUMP/EXECUTE) uses them to read a sector.
++; ----------------------------------------------------------------------------
++;  compat_f50a: find the header of the job's sector on the current track, then
++;  wait for its data block: the next GCR byte read (BVC loop) is the block's
++;  first. The search compares raw GCR and uses no zero page, so the code that
++;  called it keeps its own.
++compat_f50a:
++    ldx JOB_CUR
++    stx job_n
++    jsr job_save_zp
++    ldx job_n
++    txa
++    asl a
++    tay
++    lda $0006,y
++    sta want_track
++    lda $0007,y
++    sta want_sector
++    lda #MAX_TRIES
++    sta dsk_tries
++@idtry:
++    jsr disk_wait_sync
++    bcs @nohdr
++    jsr disk_read10
++    lda RAW_BUF
++    cmp #$52
++    bne @idnext
++    lda #<RAW_BUF
++    sta gcr_src
++    lda #>RAW_BUF
++    sta gcr_src+1
++    jsr disk_read_header
++    lda hdr_error
++    beq @gotid
++@idnext:
++    dec dsk_tries
++    bne @idtry
++@nohdr:
++    jsr job_restore_zp
++    jmp @fail
++@gotid:
++    lda HEADER_BUF+5
++    sta want_id1
++    lda HEADER_BUF+4
++    sta want_id2
++    lda #<HDR_TPL
++    sta gcr_dst
++    lda #>HDR_TPL
++    sta gcr_dst+1
++    jsr disk_build_header
++    ldx #4
++@cp:
++    lda HDR_TPL,x
++    sta f50a_tpl,x
++    dex
++    bpl @cp
++    jsr job_restore_zp
++    lda #MAX_TRIES
++    sta f50a_tries
++@try:
++    jsr disk_wait_sync
++    bcs @fail
++    jsr disk_read10
++    ldx #4
++@cmp:
++    lda RAW_BUF,x
++    cmp f50a_tpl,x
++    bne @next
++    dex
++    bpl @cmp
++@data:
++    bit VIA2_PB                 ; the data block's SYNC
++    bmi @data
++    clv
++    rts
++@next:
++    dec f50a_tries
++    bne @try
++@fail:
++    lda #$02                    ; header not found: the job ends with 20
++    jmp compat_f969
++
++;  compat_d042: initialise the drive as the 1541's "I" does for code started
++;  by M-E (Krill's loader calls it): the head to track 18; the disk ID into
++;  $12/$13, the header read into $16-$1A (ID, track, sector, checksum) and
++;  the head's track into $22, where loaders compare and step from.
++compat_d042:
++    jsr job_save_zp
++    lda #18
++    sta want_track
++    lda JOB_TRACK
++    beq @find
++    sta cur_track
++@find:
++    jsr disk_find_current_track
++    jsr disk_seek
++    jsr disk_set_speed_zone
++    jsr disk_read_hdr_retry
++    lda cur_track
++    sta JOB_TRACK
++    jsr job_restore_zp
++    lda HEADER_BUF+5
++    sta $12
++    sta $16
++    lda HEADER_BUF+4
++    sta $13
++    sta $17
++    lda HEADER_BUF+3
++    sta $18
++    lda HEADER_BUF+2
++    sta $19
++    lda HEADER_BUF+1
++    sta $1A
++    lda #$01
++    rts
++
++;  compat_d586: read the sector of job $F9 into its buffer and wait for it,
++;  for code started by M-E (Spindle's bootstrap reads the rest of its drive
++;  code this way). Returns the job's result in A.
++compat_d586:
++    ldx $F9
++    lda #$80
++    sta $00,x
++    cli
++@wait:
++    lda $00,x
++    bmi @wait
++    rts
++
++;  compat_f969: end the running job with the result in A, back to the queue.
++compat_f969:
++    ldx JOB_SP
++    txs
++    jmp job_scan_resume
++
++job_save_zp:
++    ldx #JOB_ZPLEN - 1
++@l:
++    lda JOB_ZP,x
++    sta JOB_SAVE,x
++    dex
++    bpl @l
++    rts
++
++job_restore_zp:
++    ldx #JOB_ZPLEN - 1
++@l:
++    lda JOB_SAVE,x
++    sta JOB_ZP,x
++    dex
++    bpl @l
++    rts
++
++;  job_run: job n (X) with the DOS's zero page; returns the result in A.
++job_run:
++    lda $00,x
++    and #$F0
++    cmp #$80
++    beq job_read
++    cmp #$B0
++    bne @ok
++    jsr job_head                ; SEEK
++@ok:
++    lda #$01
++    rts
++
++;  job_head: the head to job n's track (X), motor on.
++job_head:
++    txa
++    asl a
++    tay
++    lda $0006,y
++    sta want_track
++    lda $0007,y
++    sta want_sector
++    lda JOB_TRACK
++    beq @find
++    sta cur_track
++@find:
++    jsr disk_find_current_track
++job_reseek:
++    jsr disk_seek
++    jsr disk_set_speed_zone
++    lda cur_track
++    sta JOB_TRACK
++    rts
++
++;  job_read: job n's sector into buffer n, decoded in place (the data block's
++;  GCR is read into the buffer, the 69 bytes beyond it into JOB_OVF).
++job_read:
++    stx job_n
++    jsr job_head
++    lda #$00
++    sta dsk_ptr
++    lda job_n
++    clc
++    adc #$03
++    sta dsk_ptr+1
++    lda #MAX_TRIES
++    sta dsk_tries
++@try:
++    jsr disk_wait_sync
++    bcs @fail
++    jsr disk_read10
++    lda RAW_BUF
++    cmp #$52                    ; a header's first GCR byte
++    bne @next
++    jsr disk_wait_sync
++    bcs @fail
++    jsr job_read_block
++    lda #<RAW_BUF
++    sta gcr_src
++    lda #>RAW_BUF
++    sta gcr_src+1
++    jsr disk_read_header
++    lda hdr_error
++    bne @next
++    lda hdr_track
++    cmp want_track
++    beq @track
++    sta cur_track               ; the head is elsewhere: go again
++    jsr job_reseek
++    jmp @next
++@track:
++    lda hdr_sector
++    cmp want_sector
++    bne @next
++    jsr job_decode
++    lda data_error
++    bne @bad
++    lda #$01
++    rts
++@next:
++    dec dsk_tries
++    bne @try
++@fail:
++    lda #$02
++    rts
++@bad:
++    lda #$05
++    rts
++
++job_read_block:
++    ldy #$00
++    clv
++@r1:
++    bvc @r1
++    clv
++    lda VIA2_PA
++    sta (dsk_ptr),y
++    iny
++    bne @r1
++    ldy #$00
++@r2:
++    bvc @r2
++    clv
++    lda VIA2_PA
++    sta JOB_OVF,y
++    iny
++    cpy #(325-256)
++    bne @r2
++    rts
++
++;  job_decode: 65 groups of 5 GCR bytes -> the data mark, 256 bytes into the
++;  buffer and the checksum. The output trails the input, so in place is safe.
++job_decode:
++    lda #$00
++    sta job_si
++    sta job_si+1
++    sta job_k
++    sta job_k+1
++    sta dsk_csum
++    lda #65
++    sta dsk_count
++@group:
++    ldx #$00
++@ld:
++    jsr job_get
++    sta gcr_o,x
++    inx
++    cpx #5
++    bne @ld
++    lda #4
++    sta job_j
++@out:
++    jsr gcr_get_nibble
++    asl a
++    asl a
++    asl a
++    asl a
++    sta gcr_tmp
++    jsr gcr_get_nibble
++    ora gcr_tmp
++    jsr job_emit
++    dec job_j
++    bne @out
++    dec dsk_count
++    bne @group
++    lda job_mark
++    cmp #DATA_MARK
++    bne @bad
++    lda dsk_csum
++    cmp job_sum
++    bne @bad
++    lda #$00
++    sta data_error
++    rts
++@bad:
++    lda #$FF
++    sta data_error
++    rts
++
++job_get:
++    ldy job_si
++    lda job_si+1
++    bne @ovf
++    lda (dsk_ptr),y
++    jmp @inc
++@ovf:
++    lda JOB_OVF,y
++@inc:
++    inc job_si
++    bne @r
++    inc job_si+1
++@r:
++    rts
++
++job_emit:
++    sta job_byte
++    lda job_k+1
++    bne @hi
++    lda job_k
++    beq @mark
++    tay
++    dey
++    lda job_byte
++    sta (dsk_ptr),y
++    eor dsk_csum
++    sta dsk_csum
++    jmp @inc
++@mark:
++    lda job_byte
++    sta job_mark
++    jmp @inc
++@hi:
++    lda job_k
++    bne @sum
++    ldy #$FF                    ; byte 256: the buffer's last
++    lda job_byte
++    sta (dsk_ptr),y
++    eor dsk_csum
++    sta dsk_csum
++    jmp @inc
++@sum:
++    cmp #1
++    bne @inc
++    lda job_byte
++    sta job_sum
++@inc:
++    inc job_k
++    bne @r
++    inc job_k+1
++@r:
++    rts
++
+ .segment "RODATA"
+ TX_BUF: .byte $11, $22, $33
+ 
+@@ -4841,6 +5500,30 @@ msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
+ msg_dosid:     .byte "PASCUAL DOS 1541", 0
+ msg_generic:   .byte "ERROR", 0
+ 
++.segment "D042"
++    jmp compat_d042
++.segment "D586"
++    jmp compat_d586
++;  The drive model where loaders look for it (M-R $E5C6 reads "41"), so they
++;  take this for the 1541 it stands in for.
++.segment "E5C4"
++    .byte "1541"
++.segment "F50A"
++    jmp compat_f50a
++.segment "F969"
++    jmp compat_f969
++;  The GCR decode tables at the addresses fast loaders read them from: code
++;  (0-31) -> high nibble, and -> low nibble; $FF for codes that aren't GCR.
++.segment "GCRTAB"
++    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
++    .byte $FF,$80,$00,$10,$FF,$C0,$40,$50
++    .byte $FF,$FF,$20,$30,$FF,$F0,$60,$70
++    .byte $FF,$90,$A0,$B0,$FF,$D0,$E0,$FF
++    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
++    .byte $FF,$08,$00,$01,$FF,$0C,$04,$05
++    .byte $FF,$FF,$02,$03,$FF,$0F,$06,$07
++    .byte $FF,$09,$0A,$0B,$FF,$0D,$0E,$FF
++
+ .segment "VECTORS"
+     .word nmi
+     .word reset
+diff --git a/src/dos1541.cfg b/src/dos1541.cfg
+index a596c2a..dc7d5fc 100644
+--- a/src/dos1541.cfg
++++ b/src/dos1541.cfg
+@@ -6,7 +6,7 @@
+ MEMORY {
+     # RAM de 2 KB de la 1541. El reparto fino (pagina cero del DOS, pila,
+     # buffers de sector) se definira al implementar el sistema de ficheros.
+-    ZP:   start = $0000, size = $0090, type = rw, define = yes;
++    ZP:   start = $0000, size = $00A0, type = rw, define = yes;
+     RAM:  start = $0100, size = $0700, type = rw, define = yes;
+ 
+     # 16 KB de ROM. fillval $FF imita una EPROM borrada en los huecos.
+@@ -16,6 +16,15 @@ MEMORY {
+ SEGMENTS {
+     ZEROPAGE: load = ZP,  type = zp;
+     CODE:     load = ROM, type = ro;
++    D042:     load = ROM, type = ro, start = $D042;
++    CODE1:    load = ROM, type = ro;
++    D586:     load = ROM, type = ro, start = $D586;
++    CODE2:    load = ROM, type = ro;
+     RODATA:   load = ROM, type = ro;
++    # entry points drive code calls by address (added for breadbin)
++    E5C4:     load = ROM, type = ro, start = $E5C4;
++    F50A:     load = ROM, type = ro, start = $F50A;
++    GCRTAB:   load = ROM, type = ro, start = $F8A0;
++    F969:     load = ROM, type = ro, start = $F969;
+     VECTORS:  load = ROM, type = ro, start = $FFFA;
+ }

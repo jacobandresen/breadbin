@@ -9,26 +9,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Sixtyfour:BLED,SCAN@0..100,-53..100&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=Pixelify+Sans:wght@500;700&family=Silkscreen&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="boot" class="boot" aria-hidden="true">
   <div class="boot-screen">
-    <p>PRESS PLAY ON TAPE</p>
-    <p>OK</p>
-    <p>&nbsp;</p>
-    <p>SEARCHING</p>
-    <p>FOUND BREADBIN</p>
-    <p id="boot-status">LOADING</p>
+    <img class="boot-logo" src="../images/breadbin.svg" alt="" width="96" height="96">
+    <p class="boot-word">breadbin</p>
+    <p id="boot-status">preheating</p>
+    <div class="boot-bar"><i></i></div>
   </div>
 </div>
 
 <header class="case">
   <a class="brand" href="#games" aria-label="breadbin">
+    <img class="brand-logo" src="../images/breadbin.svg" alt="" width="34" height="34">
     <span class="brand-label">breadbin</span>
-    <span class="brand-stripes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
   </a>
   <nav class="tabs" role="tablist">
     <a class="key tab" role="tab" href="#games" data-tab="games"><span class="tab-icon">🕹</span>Games</a>
@@ -79,6 +77,7 @@
     <span class="emu-title" id="emu-title"></span>
     <span class="emu-status" id="emu-status"></span>
     <a class="emu-online" id="emu-online" target="_blank" rel="noopener" hidden>🌐 Also online at archive.org ↗</a>
+    <button class="key pill" id="emu-disk" title="Put the next disk in the drive" hidden>💾 Disk 1/2</button>
     <button class="key pill" id="emu-port" title="Joystick port the controls drive">Port 2</button>
     <button class="key pill" id="emu-pad" aria-pressed="false" title="On-screen joystick">🕹 Pad</button>
     <button class="key pill" id="emu-full">Fullscreen</button>

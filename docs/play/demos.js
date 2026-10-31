@@ -5,7 +5,7 @@ import * as ia from './ia.js';
 import * as csdb from './csdb.js';
 import { verified, recent } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote } from './ui.js';
 
 // IA's own thumbnail is often the loading screen; a later capture shows the demo
 const cover = (d, size = '_thumb') => [ia.fileUrl(d.id, `screenshot_06${size}.jpg`), ia.thumb(d.id)];
@@ -13,7 +13,7 @@ const groupsOf = (d) => (d.group || '').split(/,\s*/).filter(Boolean);
 
 export function demoCard(d) {
   return h('button.card', { onclick: () => showDemo(d), title: d.title },
-    art(cover(d), d.title, { badge: d.rating ? `${d.rating.toFixed(1)}★` : null }),
+    art(cover(d), d.title, { badge: d.rating ? `${d.rating.toFixed(1)}★` : null, wip: d.wip, tag: d.rom1541 ? '💾 trackmo' : null }),
     h('div.card-title', {}, d.title),
     h('div.card-sub', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')));
 }
@@ -21,11 +21,14 @@ export function demoCard(d) {
 export async function initDemos() {
   const shelves = h('div.shelves.wide');
   $('#demos').append(shelves);
-  const { demos } = await verified();
+  const { demos: all } = await verified();
+  // the ones still in the works get a shelf of their own, at the end
+  const demos = all.filter((d) => !d.wip);
   if (!demos.length) return shelves.append(h('p.banner', {}, 'No playtested demos yet: run tools/playtest to build verified.json.'));
   const opts = { wide: true };
   shelf(shelves, 'Latest watched', await recent('demo'), demoCard, opts);
-  shelf(shelves, 'CSDb top rated', demos, demoCard, opts);
+  shelf(shelves, 'Handpicked greats', demos.filter((d) => !d.rom1541), demoCard, opts); // demos.txt, oldest first
+  shelf(shelves, 'Trackmos on the free 1541', demos.filter((d) => d.rom1541), demoCard, opts);
   shelf(shelves, 'One-file demos', demos.filter((d) => d.onefile), demoCard, opts);
   for (const decade of [2020, 2010, 2000, 1990, 1980]) {
     shelf(shelves, `The ${decade}s`, demos.filter((d) => d.year >= decade && d.year < decade + 10), demoCard, opts);
@@ -34,6 +37,7 @@ export async function initDemos() {
     const theirs = demos.filter((d) => groupsOf(d).includes(g));
     if (theirs.length >= 3) shelf(shelves, g, theirs, demoCard, opts);
   }
+  shelf(shelves, 'Work in progress', all.filter((d) => d.wip), demoCard, opts);
 }
 
 export async function showDemo(d) {
@@ -49,6 +53,10 @@ export async function showDemo(d) {
       h('p.by', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')),
       info,
       h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('demo', d) }, '▶ Run')),
+      wipNote(d),
+      d.rom1541 && h('p.needs', {}, h('b', {}, '💾 Trackmo. '),
+        'It loads with its own code on the disk drive, so it runs on an emulated 1541 with breadbin\'s free DOS, at real-drive speed.',
+        d.parts?.length > 1 ? ' When it asks for the next side, press the Disk button.' : ''),
       h('div.links', {},
         h('a', { href: ia.itemUrl(d.id), target: '_blank', rel: 'noopener' }, 'Internet Archive ↗'),
         d.csdb && h('a', { href: csdb.releaseUrl(d.csdb), target: '_blank', rel: 'noopener' }, 'CSDb ↗')),
@@ -67,6 +75,9 @@ export async function showDemo(d) {
       .filter((f) => !sizes.has(f.size) && sizes.add(f.size))
       .map((f) => f.name)
       .slice(0, 12);
+    // the capture with the most detail (the biggest JPEG), not a black loader screen
+    const best = [...all].sort((a, b) => b.size - a.size)[0];
+    if (best) hero.replaceWith((hero = art([ia.fileUrl(d.id, best.name)], d.title)));
     for (const p of pics) {
       shots.append(h('img', { src: ia.fileUrl(d.id, p.replace('.jpg', '_thumb.jpg')), alt: '', loading: 'lazy', onclick: () => hero.replaceWith((hero = art([ia.fileUrl(d.id, p)], d.title))) }));
     }

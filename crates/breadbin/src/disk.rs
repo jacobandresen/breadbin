@@ -248,6 +248,36 @@ pub fn d64(files: &[Program]) -> Vec<u8> {
     img
 }
 
+// ── EasySplit ───────────────────────────────────────────────────────────────
+
+/// "easysplt" in PETSCII, the start of each part EasySplit writes.
+const EASYSPLIT: &[u8] = b"easysplt";
+
+/// The EasySplit parts among a disk's files: a cartridge image (usually an
+/// EasyFlash .crt) crunched and cut into pieces that fit 1541 disks.
+pub fn split_parts(img: &[u8]) -> Vec<Vec<u8>> {
+    D64::new(img).map(|d| d.entries().iter().map(|e| d.read(e)).filter(|f| f.starts_with(EASYSPLIT)).collect()).unwrap_or_default()
+}
+
+/// Join EasySplit parts (any order) back into the file they were cut from.
+/// Each part: "easysplt", the whole file's length (4 bytes), an id shared by
+/// the parts (2), its number from 0 (1) and the number of parts (1), then its
+/// share of one Exomizer stream.
+pub fn easysplit(mut parts: Vec<Vec<u8>>) -> Result<Vec<u8>, String> {
+    parts.retain(|p| p.len() > 16 && p.starts_with(EASYSPLIT));
+    parts.sort_by_key(|p| p[14]);
+    let first = parts.first().ok_or("no EasySplit parts")?;
+    let (len, id, count) = (u32::from_le_bytes([first[8], first[9], first[10], first[11]]) as usize, [first[12], first[13]], first[15] as usize);
+    if parts.len() != count || parts.iter().enumerate().any(|(i, p)| p[14] as usize != i || p[12..14] != id) {
+        return Err(format!("EasySplit: {} of {count} parts", parts.len()));
+    }
+    let data = crate::exo::decrunch(&parts.iter().flat_map(|p| p[16..].iter().copied()).collect::<Vec<u8>>())?;
+    if data.len() != len {
+        return Err("EasySplit: the parts don't unpack to the recorded length".into());
+    }
+    Ok(data)
+}
+
 // ── zip ─────────────────────────────────────────────────────────────────────
 
 /// The members of a zip archive as (name, bytes), stored or deflated.
@@ -320,6 +350,8 @@ pub struct Prepared {
     pub bytes: Vec<u8>,
     /// Serve this D64 with the virtual drive (no drive ROM to mount it with).
     pub vdrive: bool,
+    /// Every disk image in the zip, in boot order: the sides to swap in.
+    pub disks: Vec<String>,
 }
 
 /// Turn a download into something to start. `prefer` names the zip member to
@@ -337,21 +369,24 @@ pub fn prepare(name: &str, bytes: Vec<u8>, prefer: &str, can_mount: bool) -> Res
                 .or_else(|| pick(&names, ""))
                 .ok_or("nothing runnable inside the zip")?
                 .to_string();
+            let mut disks: Vec<&str> = names.iter().copied().filter(|n| matches!(ext(n).as_str(), "d64" | "g64")).collect();
+            disks.sort_by_key(|n| (side_rank(n), n.to_string()));
+            let disks = disks.iter().map(|n| n.rsplit('/').next().unwrap_or(n).to_string()).collect();
             let data = members.into_iter().find(|(n, _)| *n == chosen).map(|(_, d)| d).unwrap_or_default();
-            prepare(chosen.rsplit('/').next().unwrap_or(&chosen), data, "", can_mount)
+            Ok(Prepared { disks, ..prepare(chosen.rsplit('/').next().unwrap_or(&chosen), data, "", can_mount)? })
         }
         "t64" => {
             let files = t64(&bytes)?;
-            Ok(Prepared { name: name.replace(['.', ' '], "_") + ".d64", bytes: d64(&files), vdrive: true })
+            Ok(Prepared { name: name.replace(['.', ' '], "_") + ".d64", bytes: d64(&files), vdrive: true, disks: vec![] })
         }
         "d64" if !can_mount => {
             if D64::new(&bytes)?.entries().is_empty() {
                 return Err("the disk holds no program to start".into());
             }
-            Ok(Prepared { name: name.into(), bytes, vdrive: true })
+            Ok(Prepared { name: name.into(), bytes, vdrive: true, disks: vec![] })
         }
         "g64" if !can_mount => Err("this release is a G64 copy-protected disk, which needs your own 1541 ROM (see Settings)".into()),
-        e if ext_rank(name).is_some() || e == "d64" || e == "g64" => Ok(Prepared { name: name.into(), bytes, vdrive: false }),
+        e if ext_rank(name).is_some() || e == "d64" || e == "g64" => Ok(Prepared { name: name.into(), bytes, vdrive: false, disks: vec![] }),
         _ => Err(format!("{name} is not a C64 disk, tape, cartridge or program")),
     }
 }
@@ -379,6 +414,28 @@ pub(crate) mod tests {
         assert_eq!(data.len(), 254 + 3);
         assert!(d.find(b"GA*").is_some() && d.find(b"0:GAME").is_some() && d.find(b"0:GAME,P,R").is_some() && d.find(b"NOPE").is_none());
         assert_eq!(&d.directory()[..2], &[0x01, 0x08]);
+    }
+
+    /// A stored (uncompressed) zip of `files`.
+    fn zip(files: &[(&str, &[u8])]) -> Vec<u8> {
+        let (mut z, mut dir) = (Vec::new(), Vec::new());
+        for (name, data) in files {
+            let (n, len) = (name.len() as u16, data.len() as u32);
+            dir.extend([&0x0201_4b50u32.to_le_bytes()[..], &[0; 16], &len.to_le_bytes(), &len.to_le_bytes(), &n.to_le_bytes(), &[0; 12], &(z.len() as u32).to_le_bytes(), name.as_bytes()].concat());
+            z.extend([&0x0403_4b50u32.to_le_bytes()[..], &[0; 14], &len.to_le_bytes(), &len.to_le_bytes(), &n.to_le_bytes(), &[0; 2], name.as_bytes(), data].concat());
+        }
+        let (at, count) = (z.len() as u32, files.len() as u16);
+        z.extend(dir.iter());
+        z.extend([&0x0605_4b50u32.to_le_bytes()[..], &[0; 6], &count.to_le_bytes(), &(dir.len() as u32).to_le_bytes(), &at.to_le_bytes(), &[0; 2]].concat());
+        z
+    }
+
+    #[test]
+    fn lists_the_sides_of_a_multi_disk_zip() {
+        let disk = tiny_disk();
+        let z = zip(&[("readme.txt", b"hi"), ("GAME SIDE B.D64", &disk), ("GAME SIDE A.D64", &disk)]);
+        let p = prepare("game.zip", z, "", true).unwrap();
+        assert_eq!((p.name.as_str(), p.disks), ("GAME SIDE A.D64", vec!["GAME SIDE A.D64".to_string(), "GAME SIDE B.D64".into()]));
     }
 
     #[test]

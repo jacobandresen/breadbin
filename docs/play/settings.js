@@ -63,6 +63,23 @@ function slider(key, max) {
   return input;
 }
 
+/** What breadbin is built from and on, with the licence of what it runs. */
+const CREDITS = [
+  ['vc64web', 'https://github.com/vc64web/virtualc64web', 'by mithrendal, on VirtualC64 by Dirk W. Hoffmann: the emulator (GPL-3.0).'],
+  ['MEGA65 Open ROMs', 'https://github.com/MEGA65/open-roms', 'the free KERNAL, BASIC and character set, patched by breadbin (LGPL-3.0).'],
+  ['Pascual DOS', 'https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541', 'by Pascual Candel Palazón: the free 1541 DOS, with breadbin\'s job queue for trackmos (MIT).'],
+  ['resid-rs', 'https://github.com/digitalstreamio/resid-rs', 'Rust port of reSID by Dag Lem: the SID chip of the player (GPL-3.0).'],
+  ['Exomizer', 'https://bitbucket.org/magli143/exomizer', 'by Magnus Lind: its decruncher, ported to unpack EasySplit files (zlib-style licence).'],
+  ['EasyFlash', 'https://skoe.de/easyflash/', 'by Thomas Giesel (skoe): the cartridge and EasySplit formats.'],
+  ['ACME', 'https://github.com/meonwax/acme', 'by Marco Baye: the cross-assembler of the Hack tab (GPL-2.0).'],
+  ['GameBase64', 'https://www.gb64.com/', 'the games and their facts.'],
+  ['Internet Archive', 'https://archive.org/details/softwarelibrary_c64', 'the games, demos and HVSC copy everything downloads from.'],
+  ['CSDb', 'https://csdb.dk/', 'the scene database: ratings, groups and parties.'],
+  ['High Voltage SID Collection', 'https://www.hvsc.de/', 'the music.'],
+  ['libretro-thumbnails', 'https://github.com/libretro-thumbnails/Commodore_-_64', 'the box art.'],
+  ['Pixelify Sans, Silkscreen, Figtree', 'https://fonts.google.com/', 'the type (SIL Open Font License).'],
+];
+
 export function openSettings() {
   const dlg = $('#settings');
   const hq = h('input', { type: 'checkbox', checked: settings.hq, onchange: () => save({ hq: hq.checked }) });
@@ -81,7 +98,7 @@ export function openSettings() {
     h('label.field', {}, 'Stereo width', slider('width', 1)),
     h('label.field', {}, 'Volume', slider('volume', 1.4)),
     h('h3', {}, 'Your own ROMs (optional)'),
-    h('p', {}, 'Everything on the shelves runs on the free MEGA65 Open ROMs. If you own the Commodore ROMs (C64 Forever includes them), add them here for titles with their own fast loaders: they stay in this browser and go only to the emulator.'),
+    h('p', {}, 'Everything on the shelves runs on free ROMs: the MEGA65 Open ROMs in the C64 and, for trackmos, Pascual DOS in the 1541. If you own the Commodore ROMs (C64 Forever includes them), you can add them here instead: they stay in this browser and go only to the emulator.'),
     ROMS.map(romRow),
     h('h3', {}, 'CSDb relay'),
     h('p', {}, 'csdb.dk only lets sites on its allowlist read it, so the details shown for demos and tunes go through a relay: r.jina.ai by default, or your own, with {url} where the CSDb address goes (e.g. https://your-worker.workers.dev/?url={url}).'),
@@ -89,8 +106,9 @@ export function openSettings() {
     h('h3', {}, 'Downloads'),
     h('p', {}, 'Games, demos, tunes and catalogue pages are cached so they open again without a download. ', usage),
     h('div.actions', {}, h('button.key.pill', { onclick: clear }, 'Clear cache')),
-    h('h3', {}, 'Where everything comes from'),
-    h('p', {}, 'Games: GameBase64 and the Internet Archive. Demos: the Internet Archive, ranked by CSDb. Music: the High Voltage SID Collection, ranked by CSDb. Box art: libretro-thumbnails. Emulator: vc64web with the MEGA65 Open ROMs. Engine (SID player, virtual drive, visualisers): breadbin\'s own Rust, compiled to WebAssembly.'),
+    h('h3', {}, 'Credits'),
+    h('ul.credits', {}, CREDITS.map(([name, url, what]) => h('li', {}, h('a', { href: url, target: '_blank', rel: 'noopener' }, name), ` ${what}`))),
+    h('p', {}, 'And the coders, musicians, graphicians and crackers whose work this is: each card names them, from GameBase64 and CSDb.'),
   ));
   dlg.showModal();
 }

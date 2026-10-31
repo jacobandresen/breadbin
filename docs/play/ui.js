@@ -2,7 +2,7 @@
 // cards and their cover art.
 
 export const $ = (sel, el = document) => el.querySelector(sel);
-/** Text for the Sixtyfour pixel font, which has no accented letters ("Fjälldata" -> "Fjalldata"). */
+/** Text for the pixel fonts, which have no accented letters ("Fjälldata" -> "Fjalldata"). */
 export const pixel = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export const fmt = new Intl.NumberFormat('en');
 export const CHIPS = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)'];
@@ -43,7 +43,7 @@ export function facts() {
 }
 
 /** Cover art that fades in, falls back down a list of URLs, then to text. */
-export function art(urls, label, { boxart = false, badge, tag } = {}) {
+export function art(urls, label, { boxart = false, badge, tag, wip } = {}) {
   const wrap = h(`div.art${boxart ? '.boxart' : ''}`);
   const img = h('img', { alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer' });
   const list = urls.filter(Boolean);
@@ -60,7 +60,14 @@ export function art(urls, label, { boxart = false, badge, tag } = {}) {
   wrap.append(img);
   if (badge) wrap.append(h('span.badge', {}, badge));
   if (tag) wrap.append(h('span.tag', {}, tag));
+  if (wip) wrap.append(h('span.wip', { title: `Work in progress: ${wip}` }, 'WIP'));
   return wrap;
+}
+
+/** For a title that failed its playtest (`item.wip` is why): it may not start or play right. */
+export function wipNote(item) {
+  return item.wip && h('p.needs.wip-note', {}, h('b', {}, '🚧 Work in progress. '),
+    `It didn't pass breadbin's playtest yet (${item.wip.replace(/\s+$/, '')}), so it may not start or play right.`);
 }
 
 /**

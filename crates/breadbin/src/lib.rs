@@ -14,6 +14,7 @@
 pub mod cpu;
 pub mod disk;
 pub mod drive;
+pub mod exo;
 pub mod rom;
 pub mod sid;
 pub mod viz;
@@ -22,6 +23,7 @@ use std::cell::RefCell;
 
 thread_local! {
     static OUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    static SPLIT: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
     static TEXT: RefCell<String> = const { RefCell::new(String::new()) };
     static DRIVE: RefCell<Option<drive::Drive>> = const { RefCell::new(None) };
     static VIZ: RefCell<Option<viz::Viz>> = const { RefCell::new(None) };
@@ -72,13 +74,14 @@ pub extern "C" fn bb_text_len() -> usize {
 // ── disk images ─────────────────────────────────────────────────────────────
 
 /// Prepare a download for the emulator. On success the file is in the output
-/// buffer and the text is "<name>\n<1 if for the virtual drive>"; on failure
+/// buffer and the text is "<name>\n<1 if for the virtual drive>\n<the zip's
+/// disk images, tab-separated>"; on failure
 /// the text is the reason. Returns 1 on success.
 #[no_mangle]
 pub unsafe extern "C" fn bb_prepare(name: *const u8, name_len: usize, data: *const u8, data_len: usize, prefer: *const u8, prefer_len: usize, can_mount: u32) -> u32 {
     match disk::prepare(text(name, name_len), bytes(data, data_len).to_vec(), text(prefer, prefer_len), can_mount != 0) {
         Ok(p) => {
-            set_text(format!("{}\n{}", p.name, p.vdrive as u8));
+            set_text(format!("{}\n{}\n{}", p.name, p.vdrive as u8, p.disks.join("\t")));
             OUT.with(|o| *o.borrow_mut() = p.bytes);
             1
         }
@@ -97,15 +100,42 @@ pub unsafe extern "C" fn bb_pick(names: *const u8, names_len: usize, start: *con
     set_text(disk::pick(&names, text(start, start_len)).unwrap_or(""));
 }
 
+/// Collect the EasySplit parts on a disk image (see `disk::easysplit`), for
+/// `bb_split_join`; returns how many it holds.
+#[no_mangle]
+pub unsafe extern "C" fn bb_split_add(ptr: *const u8, len: usize) -> u32 {
+    let parts = disk::split_parts(bytes(ptr, len));
+    let n = parts.len() as u32;
+    SPLIT.with(|s| s.borrow_mut().extend(parts));
+    n
+}
+
+/// Join the collected parts: the file is in the output buffer (returns 1), or
+/// the text says why not (0). Either way the collection starts over.
+#[no_mangle]
+pub extern "C" fn bb_split_join() -> u32 {
+    match disk::easysplit(SPLIT.with(|s| s.take())) {
+        Ok(file) => {
+            OUT.with(|o| *o.borrow_mut() = file);
+            1
+        }
+        Err(e) => {
+            set_text(e);
+            0
+        }
+    }
+}
+
 // ── KERNAL ──────────────────────────────────────────────────────────────────
 
-/// Patch the Open ROMs KERNAL at `ptr` in place (see `rom`). Returns 1 if patched.
+/// Patch the Open ROMs KERNAL at `ptr` in place (see `rom`), for a real 1541 if
+/// `drive` is 1. Returns 1 if patched.
 #[no_mangle]
-pub unsafe extern "C" fn bb_patch_kernal(ptr: *mut u8, len: usize) -> u32 {
+pub unsafe extern "C" fn bb_patch_kernal(ptr: *mut u8, len: usize, drive: u32) -> u32 {
     if len == 0 {
         return 0;
     }
-    rom::patch_kernal(std::slice::from_raw_parts_mut(ptr, len)) as u32
+    rom::patch_kernal(std::slice::from_raw_parts_mut(ptr, len), drive == 1) as u32
 }
 
 // ── virtual drive (runs inside the emulator frame) ──────────────────────────
@@ -151,6 +181,37 @@ pub unsafe extern "C" fn bb_drive_attach(img: *const u8, len: usize) -> u32 {
             set_text(e);
             0
         }
+    }
+}
+
+/// Add a live patch to the attached drive (see `drive::Drive::patch`): at `at`,
+/// the `len` bytes at `ptr` are the old bytes followed by their replacement.
+#[no_mangle]
+pub unsafe extern "C" fn bb_drive_patch(at: u32, ptr: *const u8, len: usize) {
+    let b = bytes(ptr, len);
+    let (old, new) = b.split_at(len / 2);
+    DRIVE.with(|s| s.borrow_mut().as_mut().map(|d| d.patch(at as u16, old.to_vec(), new.to_vec())));
+}
+
+/// Give the attached drive another disk of the release, for files the inserted
+/// one lacks. Returns 1 if it took it.
+#[no_mangle]
+pub unsafe extern "C" fn bb_drive_add_side(img: *const u8, len: usize) -> u32 {
+    let img = bytes(img, len).to_vec();
+    DRIVE.with(|s| s.borrow_mut().as_mut().map(|d| d.add_side(img).is_ok())).unwrap_or(false) as u32
+}
+
+/// Put another disk in the attached drive (the next side). Returns 1 if it took it.
+#[no_mangle]
+pub unsafe extern "C" fn bb_drive_swap(img: *const u8, len: usize) -> u32 {
+    let img = bytes(img, len).to_vec();
+    match DRIVE.with(|s| s.borrow_mut().as_mut().map(|d| d.swap(img))) {
+        Some(Ok(())) => 1,
+        Some(Err(e)) => {
+            set_text(e);
+            0
+        }
+        None => 0,
     }
 }
 

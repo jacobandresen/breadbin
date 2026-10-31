@@ -38,19 +38,27 @@ function route() {
 async function openItem(tab, id) {
   try {
     const v = await verified();
-    const known = (tab === 'games' ? v.games : v.demos).find((x) => x.id === id);
+    const query = new URLSearchParams(location.search);
+    const boot = query.get('boot') || '';
+    // ?parts= lists the items of a game split across several (see emulator.js),
+    // ?patches= the live patches for its loader (drive.js), ?rom1541=1 a real
+    // drive (emulator.js): playtests of new titles
+    const extras = Object.fromEntries(['parts', 'patches'].filter((k) => query.get(k)).map((k) => [k, query.get(k).split(',')]));
+    if (query.get('rom1541')) extras.rom1541 = 1;
+    const listed = (tab === 'games' ? v.games : v.demos).find((x) => x.id === id);
+    // the query overrides a listed game's file, parts and patches, so playtests can try others
+    const known = listed && { ...listed, ...(boot && { boot }), ...extras };
     if (known) return tab === 'games' ? showGame(known) : showDemo(known);
-    const boot = new URLSearchParams(location.search).get('boot') || '';
     if (id.startsWith('gb64:')) {
       await coversReady;
       const gb = id.slice(5);
-      return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: new URLSearchParams(location.search).get('run') || '', boot });
+      return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: query.get('run') || '', boot, ...extras });
     }
     const m = (await ia.metadata(id)).metadata;
     if (!m) throw new Error('no such item');
     const first = (x) => (Array.isArray(x) ? x[0] : x);
     const title = ia.displayTitle(String(first(m.title) || id));
-    const item = { id, ia: id, boot, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || '') };
+    const item = { id, ia: id, boot, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || ''), ...extras };
     return tab === 'games' ? showGame(item) : showDemo(item);
   } catch (e) {
     toast(`Couldn't open ${id}: ${e.message}`);

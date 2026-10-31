@@ -128,7 +128,8 @@ impl Viz {
 
     /// The border colour for this frame, as 0xRRGGBB.
     pub fn border(&self) -> u32 {
-        let c = if self.playing { PEPTO[ramp_index(RAMP_BLUE, 0.55 + self.beat * 0.45) as usize] } else { PEPTO[14] };
+        // warm: a red ramp flashing on the beat, brown at rest
+        let c = if self.playing { PEPTO[ramp_index(RAMP_RED, 0.55 + self.beat * 0.45) as usize] } else { PEPTO[9] };
         ((c & 0xff) << 16) | (c & 0xff00) | ((c >> 16) & 0xff)
     }
 
@@ -185,18 +186,24 @@ impl Viz {
         }
     }
 
-    // ── idle: the power-on screen ───────────────────────────────────────────
+    // ── idle: the oven warming up ───────────────────────────────────────────
 
     fn ready_screen(&mut self, t: f64) {
-        self.fb.fill(PEPTO[6]);
-        let lines = ["    **** BREADBIN SID PLAYER ****", "", " 64K RAM SYSTEM  38911 BASIC BYTES FREE", "", "READY.", "LOAD\"*\",8,1"];
-        for (i, l) in lines.iter().enumerate() {
-            self.text(0.0, 20.0 + i as f64 * 10.0, l, |_| PEPTO[14]);
+        self.fb.fill(PEPTO[0]);
+        // a slow warm glow rising from the bottom, brown into orange
+        for y in 120..H as i32 {
+            let d = (y - 120) as f64 / (H as f64 - 120.0);
+            self.row(y, if d + (t * 0.8).sin() * 0.05 > 0.7 { PEPTO[8] } else if d > 0.35 { PEPTO[9] } else { PEPTO[0] });
+        }
+        let lines = [("breadbin sid player", PEPTO[7]), ("", 0), ("pick a tune, or press radio", PEPTO[15]), ("the chip is warming up", PEPTO[12])];
+        for (i, (l, c)) in lines.iter().enumerate() {
+            let x = (W as f64 - l.len() as f64 * GW as f64) / 2.0;
+            self.text(x, 40.0 + i as f64 * 12.0, l, |_| *c);
         }
         if (t * 1.6) as i64 % 2 == 0 {
-            let y0 = 20 + lines.len() as i32 * 10 - 8;
-            for y in y0..y0 + 9 {
-                self.span(y, 0.0, 8.0, PEPTO[14]);
+            let y0 = 40 + lines.len() as i32 * 12;
+            for y in y0..y0 + 8 {
+                self.span(y, W as f64 / 2.0 - 4.0, W as f64 / 2.0 + 4.0, PEPTO[8]);
             }
         }
     }

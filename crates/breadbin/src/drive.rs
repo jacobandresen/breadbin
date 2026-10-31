@@ -95,6 +95,11 @@ pub struct Drive {
     pub loads: u32,
     /// Address of the first program's SYS stub, for the boot script.
     pub sys: u16,
+    /// Live patches for a game's own loader: (address, bytes, replacement),
+    /// written whenever the bytes show up in memory (see `patch`).
+    patches: Vec<(u16, Vec<u8>, Vec<u8>)>,
+    /// The release's other disks (sides), for files not on the one inserted.
+    others: Vec<Vec<u8>>,
 }
 
 fn peek16(m: &mut impl Machine, a: u16) -> u16 {
@@ -114,9 +119,36 @@ impl Drive {
         for (i, v) in own_vectors.iter_mut().enumerate() {
             *v = peek16(m, 0x300 + 2 * i as u16);
         }
-        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, stub: STUB_SPOTS[0], job: None, used: vec![], loads: 0, sys: 0 };
+        let d = Drive { img, rom_load: peek16(m, 0x330), own_vectors, stub: STUB_SPOTS[0], job: None, used: vec![], loads: 0, sys: 0, patches: vec![], others: vec![] };
         d.install(m);
         Ok(d)
+    }
+
+    /// Watch for `old` at `at` and replace it with `new` (same length) each
+    /// time it appears: a crack's loader that calls stock KERNAL internals, say,
+    /// rewritten to use LOAD, which this drive serves. Code that is unpacked or
+    /// copied in later gets patched as soon as it lands.
+    pub fn patch(&mut self, at: u16, old: Vec<u8>, new: Vec<u8>) {
+        if old.len() == new.len() && !old.is_empty() {
+            self.patches.push((at, old, new));
+        }
+    }
+
+    /// Keep another disk of the release at hand: a file the inserted disk
+    /// lacks is looked for there, and that disk goes in, as a person would turn
+    /// the disk over when the game asks.
+    pub fn add_side(&mut self, img: Vec<u8>) -> Result<(), String> {
+        D64::new(&img)?;
+        self.others.push(img);
+        Ok(())
+    }
+
+    /// Put another disk in, as a person turns a two-sided game over; the
+    /// KERNAL hooks stay as they are.
+    pub fn swap(&mut self, img: Vec<u8>) -> Result<(), String> {
+        D64::new(&img)?;
+        self.img = img;
+        Ok(())
     }
 
     /// Whether `len` bytes at `at` stay clear of every file loaded so far.
@@ -135,10 +167,19 @@ impl Drive {
 
     /// Serve any pending LOAD. Call every few milliseconds.
     pub fn tick(&mut self, m: &mut impl Machine) {
+        for (at, old, new) in &self.patches {
+            if old.iter().enumerate().all(|(i, &b)| m.peek(at.wrapping_add(i as u16)) == b) {
+                poke_all(m, *at, new);
+            }
+        }
         match self.job.take() {
             None => {
                 if m.peek(self.flag()) == 0x80 && peek16(m, 0x330) == self.stub {
                     self.start(m);
+                } else if peek16(m, 0x330) == self.stub && entry(self.stub).iter().enumerate().any(|(i, &b)| m.peek(self.stub + i as u16) != b) {
+                    // a program copied its own memory over the stub (not a load: those
+                    // are seen to), and LOAD still points here
+                    self.install(m);
                 } else if peek16(m, 0x330) == self.rom_load {
                     // a program that resets the KERNAL vectors (RESTOR) gets the drive back
                     self.install(m);
@@ -176,13 +217,18 @@ impl Drive {
         self.job = Some(Job { spot, file });
     }
 
-    fn lookup(&self, name: &[u8]) -> Option<(String, Vec<u8>)> {
+    fn lookup(&mut self, name: &[u8]) -> Option<(String, Vec<u8>)> {
         let disk = D64::new(&self.img).ok()?;
         if name == b"$" {
             return Some(("$".into(), disk.directory()));
         }
-        let e = disk.find(name)?;
-        Some((petscii(&e.name), disk.read(&e)))
+        if let Some(e) = disk.find(name) {
+            return Some((petscii(&e.name), disk.read(&e)));
+        }
+        // on another side: turn the disk over
+        let i = self.others.iter().position(|img| D64::new(img).is_ok_and(|d| d.find(name).is_some()))?;
+        std::mem::swap(&mut self.img, &mut self.others[i]);
+        self.lookup(name)
     }
 
     /// The CPU is parked: copy the file, then release it the way the stock ROMs would.
@@ -318,6 +364,44 @@ mod tests {
         d.tick(&mut ram);
         let spot = d.job.as_ref().unwrap().spot;
         assert!(!overlaps(spot, spot + PARK_LEN, 0x02a7, 0x0304), "parked at {spot:04x}, inside the loader");
+    }
+
+    #[test]
+    fn swapping_sides_keeps_the_hooks() {
+        let (mut d, mut ram) = load_first(crate::disk::tests::tiny_disk());
+        let hooked = peek16(&mut ram, 0x330);
+        d.swap(crate::disk::d64(&[(b"SIDE2".to_vec(), vec![0x01, 0x08, 7])])).unwrap();
+        assert!(d.swap(vec![1, 2, 3]).is_err());
+        assert_eq!((peek16(&mut ram, 0x330), petscii(&D64::new(&d.img).unwrap().entries()[0].name)), (hooked, "SIDE2".to_string()));
+    }
+
+    #[test]
+    fn patches_code_when_it_shows_up() {
+        let (mut d, mut ram) = load_first(crate::disk::tests::tiny_disk());
+        d.patch(0x4800, vec![0x20, 0x09, 0xed], vec![0x20, 0xd5, 0xff]);
+        d.tick(&mut ram);
+        assert_eq!(&ram.0[0x4800..0x4803], &[0, 0, 0]); // not there yet: left alone
+        ram.0[0x4800..0x4803].copy_from_slice(&[0x20, 0x09, 0xed]);
+        d.tick(&mut ram);
+        assert_eq!(&ram.0[0x4800..0x4803], &[0x20, 0xd5, 0xff]);
+    }
+
+    #[test]
+    fn turns_the_disk_over_for_a_file_on_the_other_side() {
+        let (mut d, _) = load_first(crate::disk::tests::tiny_disk());
+        d.add_side(crate::disk::d64(&[(b"TA".to_vec(), vec![0x00, 0x58, 1, 2])])).unwrap();
+        assert_eq!(d.lookup(b"TA").map(|(n, f)| (n, f.len())), Some(("TA".to_string(), 4)));
+        assert!(d.lookup(b"GAME").is_some()); // and back
+        assert!(d.lookup(b"NOPE").is_none());
+    }
+
+    #[test]
+    fn puts_the_stub_back_when_a_copy_overwrites_it() {
+        let (mut d, mut ram) = load_first(crate::disk::tests::tiny_disk());
+        let at = d.stub as usize;
+        ram.0[at..at + STUB_LEN as usize].fill(0);
+        d.tick(&mut ram);
+        assert_eq!(ram.0[at..at + STUB_LEN as usize], entry(d.stub));
     }
 
     #[test]

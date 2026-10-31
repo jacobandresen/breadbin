@@ -1,19 +1,24 @@
 # The games breadbin offers, in shelf order. tools/playtest tests each one and
 # docs/play/verified.json keeps those whose joystick controls the player.
 # "Title = source > file" pins a version: a GameBase64 path or an Internet Archive
-# id, and optionally the file on its disk to boot.
+# id, and optionally the file on its disk to boot. "id + id + id" names Internet
+# Archive items that together hold a release: an EasySplit cartridge, or the
+# sides of a disk game (the Disk button swaps them). "[1541]" at the end marks a
+# game whose loader runs code on the drive: it is tested with a 1541 ROM
+# (ROM1541) and shelved as needing the visitor's own.
 Bruce Lee
 Gauntlet
 Airwolf
 Commando
 Wizard of Wor
 1943 - The Battle of Midway = 0/1943-BOM_00018_01.zip
-Turrican II
+Turrican II = uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352
 Q*bert = q/Q-BERT1_06058_03.zip
 Bubble Bobble
 WarGames = Compilation_Wargames_Gyruss_Dragonfire_Laser_Cycle_Alcazar_Boulderdash_Jungle_Hu > WARGAMES
 Ghosts'n Goblins
-Last Ninja 2
-Creatures II - Torture Trouble
+Last Ninja 2 = Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04 + Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_B_cr_John64_docs_EasyFlash_2011-04 + Last_Ninja_1_2_198x_System_3_Disk_2_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04
+Creatures II - Torture Trouble = c3/CREAT2-0_01787_03.zip [1541]
 The Great Giana Sisters
 Ghostbusters
+Out Run = o/OUTRUN-E_05482_01.zip > OUT RUN ROUTE A*

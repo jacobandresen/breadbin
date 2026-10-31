@@ -39,7 +39,8 @@ const text = (w) => dec.decode(new Uint8Array(w.memory.buffer, w.bb_text_ptr(), 
 const out = (w) => new Uint8Array(w.memory.buffer, w.bb_out_ptr(), w.bb_out_len()).slice();
 
 /**
- * Turn a download into something the emulator starts: { name, bytes, vdrive }.
+ * Turn a download into something the emulator starts: { name, bytes, vdrive,
+ * disks } (`disks`: the zip's disk images, in order, for swapping sides).
  * `prefer` names the zip member to use; `canMount` means a 1541 ROM is present.
  */
 export async function prepare(name, data, { prefer = '', canMount = false } = {}) {
@@ -48,17 +49,31 @@ export async function prepare(name, data, { prefer = '', canMount = false } = {}
   const ok = w.bb_prepare(...args.flatMap(([p, n]) => [p, n]), canMount ? 1 : 0);
   args.forEach(([, , free]) => free());
   if (!ok) throw new Error(text(w));
-  const [file, vdrive] = text(w).split('\n');
-  return { name: file, bytes: out(w), vdrive: vdrive === '1' };
+  const [file, vdrive, disks] = text(w).split('\n');
+  return { name: file, bytes: out(w), vdrive: vdrive === '1', disks: disks ? disks.split('\t') : [] };
 }
 
-/** The MEGA65 Open ROMs KERNAL with breadbin's compatibility patches (rom.rs), or
- *  null if it can't be fetched or isn't the build the patches are for. */
-export async function patchedKernal(fetchBytes) {
+/** The file EasySplit cut across `disks` (D64 images, any order), usually an
+ *  EasyFlash cartridge: its bytes, or an error saying what is missing. */
+export async function joinSplit(disks) {
+  const w = await engine();
+  for (const d of disks) {
+    const [p, n, free] = put(w, d);
+    w.bb_split_add(p, n);
+    free();
+  }
+  if (!w.bb_split_join()) throw new Error(text(w));
+  return out(w);
+}
+
+/** The MEGA65 Open ROMs KERNAL with breadbin's compatibility patches (rom.rs),
+ *  for a real 1541 if `drive` (else breadbin's virtual drive), or null if it
+ *  can't be fetched or isn't the build the patches are for. */
+export async function patchedKernal(fetchBytes, drive = false) {
   try {
     const w = await engine();
     const [p, n, free] = put(w, await fetchBytes(OPEN_KERNAL));
-    const ok = w.bb_patch_kernal(p, n);
+    const ok = w.bb_patch_kernal(p, n, drive ? 1 : 0);
     const rom = new Uint8Array(w.memory.buffer, p, n).slice();
     free();
     return ok ? rom : null;

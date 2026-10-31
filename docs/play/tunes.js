@@ -31,7 +31,8 @@ function byParty(tunes) {
   const loners = [];
   for (const [party, list] of groups) (party && list.length > 1 ? sections.push([party, list]) : loners.push(...list));
   sections.sort((a, b) => b[1][0].rating - a[1][0].rating || b[1].length - a[1].length);
-  if (loners.length) sections.push(['Released outside parties', loners.sort((a, b) => b.rating - a.rating)]);
+  // the handpicked list keeps its order (sort is stable: unrated tunes stay put)
+  if (loners.length) sections.push([sections.length ? 'Released outside parties' : 'All-time greats', loners.sort((a, b) => b.rating - a.rating)]);
   return sections;
 }
 
@@ -107,7 +108,8 @@ async function playRow(row, song = 0) {
     row.song = song || header.startSong;
     viz.title = row.tune.name;
     renderNowPlaying(row, null, header);
-    csdb.release(row.tune.id).then((info) => token === playToken && renderNowPlaying(row, info, header)).catch(() => {});
+    // CSDb details exist for scene releases (numeric ids), not for game tunes (HVSC paths)
+    if (typeof row.tune.id === 'number') csdb.release(row.tune.id).then((info) => token === playToken && renderNowPlaying(row, info, header)).catch(() => {});
     if (radio) radioTimer = setTimeout(next, RADIO_MAX_MS);
     const following = nextRow();
     if (following && !radio) sid(following.tune.hvsc).catch(() => {}); // warm the cache
@@ -183,16 +185,17 @@ function renderNowPlaying(row, info, header) {
   }
 }
 
-/** Stand-in "screenshot": the SID header on a C64 screen. */
+/** Stand-in "screenshot": the SID header as a card in breadbin's colours. */
 function sidArt(header) {
   const c = h('canvas', { width: 320, height: 200, style: { width: '100%', height: '100%', imageRendering: 'pixelated' } });
   const x = c.getContext('2d');
-  x.fillStyle = '#40318d';
+  x.fillStyle = '#1b1729';
   x.fillRect(0, 0, 320, 200);
-  x.fillStyle = '#7869c4';
-  x.font = '8px Sixtyfour';
-  const lines = ['  **** SID TUNE ****', '', header.name, header.author, header.released, '', `${header.model || 'SID'} ${header.clock}`.trim(), '', 'READY.'];
-  lines.forEach((l, i) => x.fillText(l.slice(0, 38).toUpperCase(), 8, 24 + i * 14));
+  x.fillStyle = '#c4622d';
+  x.fillRect(0, 186, 320, 14);
+  x.font = '8px Silkscreen';
+  const lines = [['#ffd36b', header.name], ['#f4ead8', header.author], ['#b2a8c6', header.released], ['', ''], ['#f2a23c', `${header.model || 'SID'} ${header.clock}`.trim()]];
+  lines.forEach(([c, l], i) => ((x.fillStyle = c || '#000'), x.fillText(l.slice(0, 38), 12, 40 + i * 18)));
   return c;
 }
 

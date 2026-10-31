@@ -1,0 +1,29 @@
+# The tunes breadbin offers, handpicked: twenty all-time greats of SID music,
+# in shelf order. "Title = HVSC path"; composer and year come from the SID file.
+# tools/playtest keeps those that load from the page's sources (hvsc.js) and
+# make sound in breadbin's player.
+Commando = /MUSICIANS/H/Hubbard_Rob/Commando.sid
+Monty on the Run = /MUSICIANS/H/Hubbard_Rob/Monty_on_the_Run.sid
+Sanxion = /MUSICIANS/H/Hubbard_Rob/Sanxion.sid
+Delta = /MUSICIANS/H/Hubbard_Rob/Delta.sid
+International Karate = /MUSICIANS/H/Hubbard_Rob/International_Karate.sid
+Wizball = /MUSICIANS/G/Galway_Martin/Wizball.sid
+Parallax = /MUSICIANS/G/Galway_Martin/Parallax.sid
+Times of Lore = /MUSICIANS/G/Galway_Martin/Times_of_Lore.sid
+The Last Ninja = /MUSICIANS/D/Daglish_Ben/Last_Ninja.sid
+Gauntlet = /MUSICIANS/D/Daglish_Ben/Gauntlet.sid
+Last Ninja 2 = /MUSICIANS/G/Gray_Matt/Last_Ninja_2.sid
+Driller = /MUSICIANS/G/Gray_Matt/Driller.sid
+The Great Giana Sisters = /MUSICIANS/H/Huelsbeck_Chris/Great_Giana_Sisters.sid
+R-Type = /MUSICIANS/H/Huelsbeck_Chris/R-Type.sid
+Cybernoid II = /MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid
+Supremacy = /MUSICIANS/T/Tel_Jeroen/Supremacy.sid
+Myth = /MUSICIANS/T/Tel_Jeroen/Myth.sid
+Ghouls 'n' Ghosts = /MUSICIANS/F/Follin_Tim/Ghouls_n_Ghosts.sid
+Bionic Commando = /MUSICIANS/F/Follin_Tim/Bionic_Commando.sid
+Lazy Jones = /MUSICIANS/W/Whittaker_David/Lazy_Jones.sid
+# backups, should one fail
+# Warhawk = /MUSICIANS/H/Hubbard_Rob/Warhawk.sid
+# Arkanoid = /MUSICIANS/G/Galway_Martin/Arkanoid.sid
+# Mutants = /MUSICIANS/G/Gray_Fred/Mutants.sid
+# Katakis = /MUSICIANS/H/Huelsbeck_Chris/Katakis.sid

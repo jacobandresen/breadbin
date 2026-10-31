@@ -3,8 +3,10 @@
 // "script" message) with vc64web's peek/poke as the C64, then ticked every few
 // milliseconds; it serves the D64's files to the KERNAL's LOAD.
 
-/** Runs inside the vc64web frame; sent as source, so self-contained. */
-async function attach(engineB64, diskB64) {
+/** Runs inside the vc64web frame; sent as source, so self-contained. `patches`:
+ *  live patches for the game's loader, "addr:old=new" in hex (drive.rs);
+ *  `sidesB64`: the release's other disks, for files not on this one. */
+async function attach(engineB64, diskB64, patches, sidesB64) {
   const bin = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const say = (m) => window.parent.postMessage({ msg: 'breadbin_drive', ...m }, '*');
   const dec = new TextDecoder();
@@ -30,6 +32,18 @@ async function attach(engineB64, diskB64) {
   const p = w.bb_alloc(disk.length);
   new Uint8Array(w.memory.buffer, p, disk.length).set(disk);
   if (!w.bb_drive_attach(p, disk.length)) return say({ event: 'error' });
+  for (const side of sidesB64) {
+    const s = bin(side), q = w.bb_alloc(s.length);
+    new Uint8Array(w.memory.buffer, q, s.length).set(s);
+    w.bb_drive_add_side(q, s.length);
+  }
+  for (const patch of patches) {
+    const [at, old, rep] = patch.split(/[:=]/);
+    const bytes = Uint8Array.from((old + rep).match(/../g), (x) => parseInt(x, 16));
+    const q = w.bb_alloc(bytes.length);
+    new Uint8Array(w.memory.buffer, q, bytes.length).set(bytes);
+    w.bb_drive_patch(parseInt(at, 16), q, bytes.length);
+  }
   setInterval(() => w.bb_drive_tick(), 4);
   window.breadbinDrive = w;
   say({ event: 'ready' });
@@ -71,7 +85,18 @@ const b64 = (bytes) => {
   return btoa(s);
 };
 
+/** Script source that puts `disk` (the next side) in the attached virtual drive. */
+export function swapScript(disk) {
+  return `(() => {
+    const w = window.breadbinDrive, disk = Uint8Array.from(atob(${JSON.stringify(b64(disk))}), (c) => c.charCodeAt(0));
+    const p = w.bb_alloc(disk.length);
+    new Uint8Array(w.memory.buffer, p, disk.length).set(disk);
+    w.bb_drive_swap(p, disk.length);
+  })();`;
+}
+
 /** Script sources for vc64web's {cmd: "script"}: attach the drive, then boot. */
-export function driveScripts(engine, disk, file = '*') {
-  return [`(${attach})(${JSON.stringify(b64(new Uint8Array(engine)))}, ${JSON.stringify(b64(disk))});`, `(${boot})(${JSON.stringify(file)});`];
+export function driveScripts(engine, disk, file = '*', patches = [], sides = []) {
+  const args = [b64(new Uint8Array(engine)), b64(disk), patches, sides.map(b64)].map((a) => JSON.stringify(a)).join(', ');
+  return [`(${attach})(${args});`, `(${boot})(${JSON.stringify(file)});`];
 }
