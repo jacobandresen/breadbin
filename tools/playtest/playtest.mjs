@@ -439,7 +439,8 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
     [/HAVE AN ACCOUNT/, () => type('n')],
     [/YOUR NAME|ENTER NAME|NAME[^?:]{0,16}[?:]\s*$/, () => type('breadbin\n')],
     [/\[L\]OAD OR \[R\]ESTORE/, () => type('r')],
-    [/CHALLENGE LEVEL|SELECT (A |THE )?(SKILL )?LEVEL/, () => key(7, 0), true], // 1: the easiest (WarGames, in a box of fill characters)
+    [/CHALLENGE LEVEL/, () => key(7, 0), true], // 1: the easiest (WarGames, in a box of fill characters)
+    [/CONTROL STICK TO SELECT/, () => fire(2)], // a level picked with the stick: the one shown
     [/H\/T|\[H\]IGH ?SCORE/, () => type('h')],
     [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, () => type('n')],
     [/^[^?]{0,160}\?{1,2}$/, () => type('n')], // one short question on the screen

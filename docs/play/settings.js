@@ -108,7 +108,7 @@ export function openSettings() {
     h('p', {}, 'Games, demos, tunes and catalogue pages are cached so they open again without a download. ', usage),
     h('div.actions', {}, h('button.key.pill', { onclick: clear }, 'Clear cache')),
     h('h3', {}, 'Credits'),
-    h('ul.credits', {}, CREDITS.map(([name, url, what]) => h('li', {}, h('a', { href: url, target: '_blank', rel: 'noopener' }, name), ` ${what}`))),
+    h('ul.credits', {}, CREDITS.map(([name, url, what]) => h('li', {}, h('a', { href: url, target: '_blank', rel: 'noopener' }, name), h('span', {}, what[0].toUpperCase() + what.slice(1))))),
     h('p', {}, 'And the coders, musicians, graphicians and crackers whose work this is: each card names them, from GameBase64 and CSDb.'),
   ));
   dlg.showModal();
