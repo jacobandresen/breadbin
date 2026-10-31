@@ -11,7 +11,7 @@ import { swapScript } from './drive.js';
 import { scroller } from './scroller.js';
 import { pollGamepads } from './gamepad.js';
 import { settings, save, loadRoms } from './settings.js';
-import { $, h, pixel } from './ui.js';
+import { $, h, pixel, toast } from './ui.js';
 
 let session = null;
 let pad = null;
@@ -52,6 +52,14 @@ async function freeDrive() {
   return new Uint8Array(await (await fetch(new URL('dos1541.rom', import.meta.url))).arrayBuffer());
 }
 
+/** A download that failed, in words: the archive's servers are often just busy. */
+function loadError(e) {
+  const m = e.message || String(e);
+  if (/^(429|5\d\d)\b/.test(m)) return `The Internet Archive is busy right now (${m.split(' ')[0]}). Try again in a minute.`;
+  if (/Failed to fetch|NetworkError|Load failed|network/i.test(m)) return 'The download didn\'t come through. Check the connection and try again.';
+  return m;
+}
+
 /** The scroller for a game whose loader breadbin patched. */
 const hackedBy = (title) =>
   `HACKED BY CLAUDE CODE ... ${title.toUpperCase()} HAD ITS LOADER PATCHED TO RUN ON THE FREE MEGA65 OPEN ROMS AND BREADBIN'S VIRTUAL DRIVE, NO COMMODORE ROMS NEEDED ... GREETINGS TO THE MEGA65 TEAM, VICE, EXOMIZER, EASYFLASH AND THE SCENE THAT KEPT THESE GAMES ALIVE ...      `;
@@ -66,11 +74,11 @@ export async function launch(kind, item) {
   online.hidden = kind !== 'game' || !ia.onlineAt(item);
   if (!online.hidden) online.href = ia.onlineAt(item);
   note.textContent = status.textContent = '';
-  if (item.wip) note.textContent = `Work in progress: this one didn't pass breadbin's playtest yet, so it may not start or play right.`;
   const bar = h('i');
   const label = h('div', {}, `SEARCHING FOR ${item.title.toUpperCase()}`);
   stage.replaceChildren(h('div.emu-loading', {}, label, h('div.bar', {}, bar)));
   $('#emu').hidden = false;
+  if (!history.state?.emu) history.pushState({ emu: true }, '');
   const progress = (got, total) => {
     label.textContent = 'LOADING';
     bar.style.width = total ? `${Math.round((got / total) * 100)}%` : `${Math.min(95, got / 2000)}%`;
@@ -107,6 +115,8 @@ export async function launch(kind, item) {
         if (d.event === 'load') status.textContent = `loaded ${d.name}`;
         if (d.event === 'missing') note.textContent = `The program asked the drive for "${d.name}", which isn't on this disk.`;
       },
+      // Safari starts vc64web's sound only after a tap inside it: say so
+      onAudio: (state) => ($('#emu-sound').hidden = state !== 'suspended'),
       onAlert: (text) => {
         note.textContent = /jammed/.test(text) ? 'The program crashed the C64 (its CPU jammed), so the emulator restarted it.' : text;
       },
@@ -115,9 +125,11 @@ export async function launch(kind, item) {
     stopGamepads?.();
     stopGamepads = pollGamepads((m) => session?.send(m), () => port);
     setPort(port);
-    setPad(settings.pad);
+    setPad(settings.pad && kind === 'game'); // a demo is watched: the Pad button brings it back
+    if (item.wip) toast('🚧 Work in progress: this one may not start or play right.');
   } catch (e) {
-    stage.replaceChildren(h('div.emu-error', {}, h('b', {}, '?LOAD ERROR'), e.message));
+    stage.replaceChildren(h('div.emu-error', {}, h('b', {}, '?LOAD ERROR'), loadError(e),
+      h('button.key.pill.primary', { onclick: () => launch(kind, item) }, '↻ Try again')));
   }
 }
 
@@ -169,10 +181,12 @@ $('#emu-disk').addEventListener('click', () => {
   session?.frame.focus();
 });
 $('#emu-pad').addEventListener('click', () => {
-  save({ pad: !settings.pad });
-  setPad(settings.pad);
+  const on = !$('#emu').classList.contains('touch');
+  save({ pad: on });
+  setPad(on);
 });
-$('#emu-close').addEventListener('click', () => {
+/** Stop the session and hide the player. */
+function closeEmu() {
   intro?.stop();
   intro?.el.remove();
   intro = null;
@@ -182,9 +196,19 @@ $('#emu-close').addEventListener('click', () => {
   session?.stop();
   session = null;
   $('#emu').hidden = true;
+  $('#emu-sound').hidden = true;
   if (document.fullscreenElement) document.exitFullscreen();
-});
+}
+// the player is a step in the history, so Back (a swipe on a phone) closes it
+$('#emu-close').addEventListener('click', () => (history.state?.emu ? history.back() : closeEmu()));
+addEventListener('popstate', () => $('#emu').hidden || closeEmu());
+// iPhone Safari has no fullscreen for pages (the player fills the screen
+// anyway); iPad Safari has it with the webkit prefix
+const emuEl = $('#emu');
+const goFull = emuEl.requestFullscreen?.bind(emuEl) || emuEl.webkitRequestFullscreen?.bind(emuEl);
+$('#emu-full').hidden = !goFull;
 $('#emu-full').addEventListener('click', () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else $('#emu').requestFullscreen?.().then(() => session?.frame.focus());
+  const exit = document.exitFullscreen?.bind(document) || document.webkitExitFullscreen?.bind(document);
+  if (document.fullscreenElement || document.webkitFullscreenElement) exit();
+  else Promise.resolve(goFull()).then(() => session?.frame.focus());
 });

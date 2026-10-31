@@ -258,10 +258,10 @@
    "drive": [
     "BRUCE LEE+@801"
    ],
-   "port": 1,
-   "moving": 0.5326,
+   "port": 2,
+   "moving": 0.8767,
    "ok": true,
-   "testedAt": "2026-10-31T00:55:11.186Z"
+   "testedAt": "2026-10-31T19:04:36.526Z"
   },
   "gb64:m2/MISOCCER_04802_01.zip": {
    "id": "gb64:m2/MISOCCER_04802_01.zip",
@@ -3347,11 +3347,11 @@
    "party": "X'2008",
    "year": 2008,
    "drive": [],
-   "sound": 0.081,
+   "sound": 0.083,
    "loud": 20,
-   "moving": 0.8971,
+   "moving": 0.8953,
    "ok": true,
-   "testedAt": "2026-10-31T15:24:21.286Z"
+   "testedAt": "2026-10-31T19:03:25.754Z"
   },
   "Lunatico_2016-10-29_Lft_Side_A": {
    "title": "Lunatico",

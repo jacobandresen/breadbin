@@ -21,6 +21,8 @@ export class SidPlayer extends EventTarget {
   /** Create the audio graph; must run from a user gesture the first time. */
   async init() {
     this.ready ??= (async () => {
+      // on an iPhone, play even with the silent switch on, as music apps do
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
       const ctx = new AudioContext({ latencyHint: 'playback' });
       this.ctx = ctx;
       const [engine] = await Promise.all([engineBytes(), ctx.audioWorklet.addModule(WORKLET_URL)]);

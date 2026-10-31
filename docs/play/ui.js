@@ -64,10 +64,21 @@ export function art(urls, label, { boxart = false, badge, tag, wip } = {}) {
   return wrap;
 }
 
+/** What a playtest failure (tools/playtest's reason) means for a visitor. */
+const WIP_WORDS = [
+  [/joystick moved nothing/, 'it starts, but the playtest couldn\'t yet show the joystick moving the player'],
+  [/CPU jammed/, 'it crashed in the playtest'],
+  [/stayed at BASIC|blank screen/, 'it didn\'t start in the playtest'],
+  [/picture never changed/, 'its picture stood still in the playtest'],
+  [/no sound/, 'no sound came out in the playtest'],
+  [/ERROR|BRK AT/, 'it stopped with an error in the playtest'],
+];
+
 /** For a title that failed its playtest (`item.wip` is why): it may not start or play right. */
 export function wipNote(item) {
-  return item.wip && h('p.needs.wip-note', {}, h('b', {}, '🚧 Work in progress. '),
-    `It didn't pass breadbin's playtest yet (${item.wip.replace(/\s+$/, '')}), so it may not start or play right.`);
+  if (!item.wip) return null;
+  const why = WIP_WORDS.find(([re]) => re.test(item.wip))?.[1] || `the playtest said: ${item.wip.trim()}`;
+  return h('p.needs.wip-note', { title: item.wip.trim() }, h('b', {}, '🚧 Work in progress. '), `Breadbin is still working on this one: ${why}. It may not start or play right.`);
 }
 
 /**

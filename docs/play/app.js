@@ -22,7 +22,9 @@ const boot = () => $('#boot').classList.add('done');
 setTimeout(boot, 3500);
 
 function route() {
-  const [tab, item] = (location.hash.slice(1) || 'games').split('/');
+  // everything after the tab is the id, which may hold a "/" of its own
+  const [tab, ...rest] = (location.hash.slice(1) || 'games').split('/');
+  const item = rest.join('/');
   current = tab in views ? tab : 'games';
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== current;
   for (const a of document.querySelectorAll('.tab')) a.setAttribute('aria-selected', String(a.dataset.tab === current));
@@ -65,7 +67,7 @@ async function openItem(tab, id) {
   }
 }
 
-$('#detail').addEventListener('close', () => history.replaceState(null, '', `#${current}`));
+$('#detail').addEventListener('close', () => history.replaceState(history.state, '', `#${current}`)); // keeps the player's step
 
 // ── search ───────────────────────────────────────────────────────────────────
 

@@ -17,6 +17,8 @@ const KERNAL_IN = `(async () => {
   await new Promise((r) => setTimeout(r, 500));
   parent.postMessage({ msg: 'breadbin_kernal' }, '*');
 })();`;
+// on an iPhone, sound that plays even with the silent switch on, like a video
+const AUDIO_SESSION = `if (navigator.audioSession) navigator.audioSession.type = 'playback';`;
 // script lines: wait (up to 10 s) until READY is on the screen; readies() counts them
 const WAIT_READY = `const readies = () => { let n = 0; for (let a = 0x400; a < 0x7e3; a++) if (wasm_peek(a) === 0x12 && wasm_peek(a + 1) === 5 && wasm_peek(a + 2) === 1 && wasm_peek(a + 3) === 4 && wasm_peek(a + 4) === 0x19) n++; return n; };
         for (let i = 0; i < 100 && !readies(); i++) await new Promise((r) => setTimeout(r, 100));`;
@@ -34,7 +36,7 @@ const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)'
  * the joystick port (1 or 2) the controls drive.
  * Returns { frame, send(), stop() }.
  */
-export function run(host, file, { roms = {}, kernal = null, port = 2, onState, onDrive, onAlert } = {}) {
+export function run(host, file, { roms = {}, kernal = null, port = 2, onState, onDrive, onAlert, onAudio } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -66,6 +68,8 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
       onDrive?.(ev.data);
     } else if (msg === 'breadbin_alert') {
       onAlert?.(ev.data.text);
+    } else if (msg === 'render_current_audio_state') {
+      onAudio?.(ev.data.value); // 'suspended' until a tap inside vc64web on Safari
     } else if (msg === 'render_run_state') {
       onState?.({ running: ev.data.value, warping: ev.data.is_warping });
       // vc64web reports "running" once its ROMs are in; only then inject.
@@ -74,6 +78,7 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
         clearInterval(poll);
         script(ALERTS);
         script(SID_QUALITY);
+        script(AUDIO_SESSION);
         // a patched Open ROMs KERNAL resets the C64; the program goes in once the
         // patch shows in the ROM and the C64 has booted again
         if (kernal && !roms.kernal) {
