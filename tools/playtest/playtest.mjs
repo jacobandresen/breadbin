@@ -646,8 +646,9 @@ async function runBrowserTests(kind, candidates) {
         for (let attempt = 0; attempt < 2; attempt++) {
           if (!browser.connected) browser = await launch(w);
           res = await playtest(browser, kind, item);
-          // GameBase64's version failed: try the Internet Archive's copies
-          if (kind === 'games' && !res.ok && !res.harness) {
+          // GameBase64's version failed: try the Internet Archive's copies (not
+          // for a version games.txt pins: each copy is a full playtest of minutes)
+          if (kind === 'games' && !res.ok && !res.harness && !PINS.has(canon(item.title))) {
             const alts = [...new Set([item.ia, ...(await archiveCopies(item.title))])].filter((id) => id && id !== item.id).slice(0, 4);
             for (const id of alts) {
               const alt = await playtest(browser, kind, { ...item, id, ia: id, gb: '', run: '' });

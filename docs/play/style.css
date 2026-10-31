@@ -297,6 +297,15 @@ main { flex: 1; min-height: 0; position: relative; }
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), inset 0 0 24px rgb(0 0 0 / 0.35);
   border-radius: inherit;
 }
+/* under the pointer a card offers to play: a toast-coloured ▶ in the middle of the art */
+.card .art::after {
+  display: grid; place-items: center; content: "▶";
+  font: 18px/1 var(--ui-font); color: #2a1408; text-indent: 3px;
+  background: radial-gradient(circle, var(--butter) 0 23px, rgb(242 162 60 / 0.55) 24px 26px, transparent 27px) center / 100% 100% no-repeat;
+  opacity: 0; transform: scale(0.8); transition: opacity 140ms ease, transform 140ms ease;
+}
+.card:hover .art::after, .card:focus-visible .art::after { opacity: 1; transform: scale(1); }
+@media (pointer: coarse) { .card .art::after { content: none; } } /* a finger has no hover */
 .wide .art { aspect-ratio: 16 / 10; }
 .art img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 250ms ease; }
 .art img.loaded { opacity: 1; }
