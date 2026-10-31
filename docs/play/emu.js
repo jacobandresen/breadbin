@@ -10,6 +10,10 @@ import { PAD_LISTENER } from './touch.js';
 const VC64WEB = 'https://vc64web.github.io/';
 const ORIGIN = new URL(VC64WEB).origin;
 // vc64web reports problems (a jammed CPU, say) with alert(), which would freeze the frame
+// vc64web's own menu button fades in at any touch on the screen and opens its
+// whole interface over the C64, with no way back to breadbin's: breadbin's
+// player has the controls, so the menu stays hidden
+const NO_MENU = `const s = document.createElement('style'); s.textContent = '#button_show_menu, #navbar { display: none !important; }'; document.head.append(s);`;
 const ALERTS = "window.alert = (text) => parent.postMessage({ msg: 'breadbin_alert', text: String(text) }, '*');";
 // the C64 restarts on the new KERNAL: give it a moment before anything is typed
 // (wasm_peek reads the RAM under the ROM, so the swap can't be watched directly)
@@ -75,7 +79,8 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
 
   let sent = false;
   let poll = 0;
-  const script = (s) => frame.contentWindow.postMessage({ cmd: 'script', script: s }, ORIGIN);
+  // the frame may already be gone (the player closed while a timer was waiting)
+  const script = (s) => frame.contentWindow?.postMessage({ cmd: 'script', script: s }, ORIGIN);
   const onMessage = (ev) => {
     if (ev.origin !== ORIGIN || ev.source !== frame.contentWindow) return;
     const msg = ev.data?.msg;
@@ -94,6 +99,7 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
         sent = true;
         clearInterval(poll);
         script(ALERTS);
+        script(NO_MENU);
         script(SID_QUALITY);
         script(AUDIO_SESSION);
         // a patched Open ROMs KERNAL resets the C64; the program goes in once the
@@ -106,7 +112,7 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
           // for the new boot's, and keys typed before it are lost
           script(CLEAR_SCREEN);
           script(kernalGuard(kernal));
-          frame.contentWindow.postMessage({ cmd: 'load', kernal_rom: kernal, ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
+          frame.contentWindow?.postMessage({ cmd: 'load', kernal_rom: kernal, ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
           script(KERNAL_IN);
           setTimeout(start, 4000); // in case the message never comes
         } else start();
@@ -115,7 +121,7 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
   };
   let started = false;
   const start = () => {
-    if (started) return;
+    if (started || !frame.contentWindow) return;
     started = true;
     const load = { cmd: 'load' };
     if (!file.vdrive) Object.assign(load, { file_name: file.name, file: file.bytes });
