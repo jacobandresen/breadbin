@@ -1,75 +1,83 @@
 # Breadbin
 
-**Your Commodore 64, in a browser tab.** Breadbin is a shelf of the best C64
-games, demos and SID music that runs at
-**[jacobandresen.github.io/breadbin](https://jacobandresen.github.io/breadbin/play/)**,
-with nothing to install and no Commodore ROMs needed.
+**Your Commodore 64, in a browser tab.** Pick a card, press Play. Nothing to
+install, no Commodore ROMs needed.
 
-It's named after the "breadbin", the nickname of the case that sat on desks in
-a million bedrooms, and it has a look of its own: a midnight bakery. Plum-ink
-night, warm toast and butter for what you touch, pixel type for names, and a
-logo that is a pixel slice of toast with a play button in the crumb.
+### [▶ Play now](https://jacobandresen.github.io/breadbin/play/)
+
+[![The Games shelf: box art on a midnight-plum page](docs/images/shots/shelf.png)](https://jacobandresen.github.io/breadbin/play/)
+
+Named after the nickname of the case that sat on desks in a million bedrooms,
+Breadbin dresses the C64 as a midnight bakery: plum-ink night, warm toast and
+butter, and pixel type on every shelf.
 
 ## What's on the shelf
 
-- **Games**: GameBase64's top-rated titles, ranked by rating, GameBase64's
-  "classic" pick and how popular they are on the Internet Archive.
-- **Demos**: CSDb's top-rated demos, by decade and by group, and trackmos
-  such as Edge of Disgrace and Lunatico on a free 1541 DOS.
-- **Tunes**: CSDb's top-rated SID music, grouped by the party it was released
-  at, with three visualisers in a real 320x200 framebuffer, each a nod to a
-  classic demo (Comaland, Edge of Disgrace, Deus Ex Machina).
+**16 games**, from Bruce Lee to Out Run. **46 demos**, from the 1980s to
+trackmos like Edge of Disgrace and Lunatico, running on a free 1541 DOS.
 
-Everything offered has been playtested (see below). A title that hasn't passed
-yet stays on the shelf with a **WIP** badge and the reason, since it may not
-start or play right. On a phone or tablet the emulator gets an on-screen
-joystick.
+| | |
+|:---:|:---:|
+| ![The Great Giana Sisters, mid-jump](docs/images/shots/game-giana-sisters.png) | ![Out Run on the start line](docs/images/shots/game-out-run.png) |
+| *The Great Giana Sisters* | *Out Run* |
+| ![Edge of Disgrace by Booze Design](docs/images/shots/demo-edge-of-disgrace.png) | ![Lunatico's title screen](docs/images/shots/demo-lunatico.png) |
+| *Edge of Disgrace*, Booze Design | *Lunatico* |
+
+**20 SID classics** by Hubbard, Galway and friends, with stereo for 2SID and 3SID
+tunes and three visualisers in a real 320x200 framebuffer, each a nod to a
+classic demo (Comaland, Edge of Disgrace, Deus Ex Machina).
+
+![Sanxion playing in the Tunes tab, with a filled-vector visualiser](docs/images/shots/tunes.png)
+
+**Hack** puts an assembler in the page. Open a classic intro's source or write
+your own, press Run, and ACME builds it and starts it on the C64 beside the code.
+
+![Fairlight's classic intro, assembled and running in the Hack tab](docs/images/shots/hack.png)
+
+**On a phone or tablet** the player grows a ball-top arcade stick, a red button
+and the keys games ask for.
+
+![Giana Sisters in landscape on a phone, between the stick and the fire button](docs/images/shots/phone.png)
+
+## Playtested, honestly
+
+A robot plays everything before you do. `tools/playtest` runs each title in
+headless Chromium: it gets past the menus and trainers, then checks that the
+stick really moves the player, that demos move and make sound, and that tunes
+stay audible. Anything that hasn't passed yet stays on the shelf with a **WIP**
+badge and the reason.
+
+```sh
+make serve-web &               # build the engine, serve docs/ on :8064
+cd tools/playtest && npm install
+node playtest.mjs games        # also: demos, tunes; --ids <substring> to filter
+node playtest.mjs write        # results.json -> docs/play/verified.json
+```
+
+`make serve-web` needs Rust's `wasm32-unknown-unknown` target and emscripten.
+See [`tools/playtest`](tools/playtest/README.md) for how a pass is decided.
 
 ## How it works
 
-- **Emulation**: [vc64web](https://vc64web.github.io/) (VirtualC64 in
-  WebAssembly) running the free [MEGA65 Open ROMs](https://github.com/MEGA65/open-roms).
-  Most titles load through breadbin's virtual drive: it answers the KERNAL's
-  LOAD straight from the D64 (tape images are turned into one first), handles
-  autostarting loaders, patches a few cracks' loaders live and steps around
-  the places where the Open ROMs differ from the originals. Trackmos, whose
-  loaders run their own code in the disk drive, get an emulated 1541 with a free
-  DOS instead: [Pascual DOS](https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541)
-  with breadbin's patch for fast loaders (job queue, memory commands, the entry
-  points and memory map loaders expect; see `tools/drive`). If you own the
-  Commodore ROMs you can add them under Settings (they stay in your browser).
-- **Engine**: the virtual drive, disk-image handling, SID player (reSID driven
-  by a small cycle-counted C64: 6502, CIAs and raster interrupt, enough for
-  digi tricks; 2SID and 3SID tunes play in stereo) and visualisers are Rust, compiled to WebAssembly
-  (`crates/breadbin`). JavaScript (`docs/play`) does the page and browser APIs.
-- **Data**: nothing is bundled. Each shelf loads when it scrolls into view and
-  the browser caches what it fetches: game files from GameBase64's collection on
-  the Internet Archive, demos from the Internet Archive, SID files from the
-  Archive's copy of HVSC 79 (then [hvsc.de](https://www.hvsc.de/)), box art from
-  libretro-thumbnails. The playtested list itself is `docs/play/verified.json`;
-  the only ROM breadbin ships is its own build of the free 1541 DOS.
-- **CSDb**: csdb.dk only lets sites on its allowlist read it from a web page, so
-  the details shown for demos and tunes go through a relay:
+- **Emulator**: [vc64web](https://vc64web.github.io/) (VirtualC64 in
+  WebAssembly) on the free [MEGA65 Open ROMs](https://github.com/MEGA65/open-roms).
+  Own the Commodore ROMs? Add them under Settings; they stay in your browser.
+- **Disks**: a virtual drive answers the KERNAL's LOAD straight from the D64,
+  and steps around the places where the Open ROMs differ from the originals.
+  Trackmos, whose loaders run code in the drive itself, get an emulated 1541
+  with [Pascual DOS](https://github.com/Pascual-Candel-Palazon/Pascual_DOS-1541)
+  and breadbin's patch for fast loaders (`tools/drive`).
+- **Engine**: the virtual drive, disk images, visualisers and SID player (reSID
+  driven by a small cycle-counted C64, enough for digi tricks) are Rust compiled
+  to WebAssembly (`crates/breadbin`). JavaScript (`docs/play`) does the page.
+- **Data**: nothing is bundled. Shelves load as they scroll into view, from
+  GameBase64's collection and the demos on the Internet Archive, the Archive's
+  copy of HVSC 79, and libretro-thumbnails. The only ROM breadbin ships is its
+  own build of the free 1541 DOS.
+- **CSDb**: csdb.dk only lets allowlisted sites read it from a web page, so demo
+  and tune details go through a relay:
   [r.jina.ai](https://jina.ai/reader/) by default, or your own
   (`docs/play/relay/worker.js` is a Cloudflare Worker for it).
-
-## Playtests
-
-`tools/playtest` decides what the shelves offer. It plays each candidate in
-headless Chromium against a local copy of the site (pressing FIRE, SPACE, F1,
-saying no to trainer menus and moving the stick), classifies the screenshots,
-and plays tunes through the WebAssembly SID player (they must stay audible and
-keep changing), then writes the ones that work to `verified.json`:
-
-```sh
-make serve-web &                       # build the engine, serve docs/ on :8064
-cd tools/playtest && npm install
-node playtest.mjs games --top 300      # also: demos, tunes
-node playtest.mjs write                # results.json -> docs/play/verified.json
-```
-
-Downloads are cached in `tools/playtest/cache/` and results in `results.json`,
-so later runs only test new titles.
 
 ## Credits
 
