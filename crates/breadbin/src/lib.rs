@@ -295,7 +295,7 @@ pub unsafe extern "C" fn bb_player_songs(p: *const Player) -> u32 {
 /// Render `n` stereo frames (2n interleaved i16) into `out`.
 #[no_mangle]
 pub unsafe extern "C" fn bb_player_render(p: *mut Player, out: *mut i16, n: usize) {
-    (*p).render(std::slice::from_raw_parts_mut(out, n));
+    (*p).render(std::slice::from_raw_parts_mut(out, 2 * n));
 }
 
 /// Copy the SID register shadow (`NUM_REGS` bytes) into `out`; returns the frame counter.
