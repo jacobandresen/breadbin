@@ -2175,15 +2175,20 @@
    "year": 1986,
    "publisher": "US Gold",
    "shot": "G/Gauntlet.png",
-   "ia": "Gauntlet_1986_U.S._Gold",
+   "ia": "gauntlet_202308",
    "downloads": 5963,
    "drive": [
-    "GAUNTLET@801"
+    "GAUNTLET@2c0",
+    "SPIC@2000",
+    "GAUNT.SPR@6740",
+    "DATATITLE 244@1000",
+    "MODED OPTION@4000",
+    "GLOVE.BIN@6740"
    ],
    "port": 1,
-   "moving": 0.0032,
+   "moving": 0.4913,
    "ok": true,
-   "testedAt": "2026-10-31T00:57:46.917Z"
+   "testedAt": "2026-11-03T19:56:44.051Z"
   },
   "gb64:a1/AIRWOLF1_00197_04.zip": {
    "id": "gb64:a1/AIRWOLF1_00197_04.zip",
@@ -2203,9 +2208,9 @@
     "AIRWOLF@801"
    ],
    "port": 2,
-   "moving": 0.3145,
+   "moving": 0.3112,
    "ok": true,
-   "testedAt": "2026-10-31T01:02:01.830Z"
+   "testedAt": "2026-11-03T19:58:22.542Z"
   },
   "gb64:b1/BATMAN-0_00652_02.zip": {
    "id": "gb64:b1/BATMAN-0_00652_02.zip",
@@ -3281,11 +3286,10 @@
     "C@800",
     "D@8000"
    ],
-   "port": 0,
+   "port": 2,
    "moving": 0.9943,
-   "ok": false,
-   "reason": "the joystick moved nothing",
-   "testedAt": "2026-10-31T21:03:44.412Z"
+   "ok": true,
+   "testedAt": "2026-11-03T19:47:01.606Z"
   },
   "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352": {
    "id": "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352",

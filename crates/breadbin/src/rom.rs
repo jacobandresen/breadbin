@@ -82,6 +82,19 @@ const FIXES: [(u16, u8, u8); 8] = [
 /// LOAD and SAVE looking for a parallel cable; it returns at once instead.
 const DOLPHIN: (u16, u8) = (0xfe7a, 0xa9);
 
+/// The hardware IRQ vector ($FFFE) points at the Open ROMs' entry $EA53; the
+/// stock KERNAL's is $FF48. Games that copy the KERNAL to the RAM under it,
+/// bank the ROM out and then reuse $E000-$EFFF (WarGames) keep the stock entry,
+/// but wipe the Open ROMs' one and BRK forever. The stock entry, plus the Open
+/// ROMs' CLD, goes in dolphindos_detect's body, dead since DOLPHIN: PHA / TXA /
+/// PHA / TYA / PHA / CLD / TSX / LDA $0104,X / AND #$10 / BEQ +3 / JMP ($0316) /
+/// JMP ($0314).
+const IRQ_ENTRY: (u16, [u8; 20]) =
+    (0xfe7b, [0x48, 0x8a, 0x48, 0x98, 0x48, 0xd8, 0xba, 0xbd, 0x04, 0x01, 0x29, 0x10, 0xf0, 0x03, 0x6c, 0x16, 0x03, 0x6c, 0x14, 0x03]);
+/// dolphindos_detect after its first byte, overwritten by IRQ_ENTRY.
+const DOLPHIN_BODY: [u8; 20] = [0x7f, 0x8d, 0x0d, 0xdd, 0xa9, 0x00, 0x8d, 0x03, 0xdd, 0xa2, 0x20, 0xad, 0x0d, 0xdd, 0xc9, 0x10, 0xf0, 0x07, 0xad, 0x01];
+const IRQ_VECTOR: (u16, u16) = (0xfffe, 0xea53);
+
 /// The KERNAL's default vector table (copied to $0314 by RESTOR), and the
 /// channels.asm entry points for IOPEN, ICLOSE, ICHKIN, ICKOUT, ICLRCH, IBASIN, IBSOUT.
 const VECTORS: u16 = 0xfd30;
@@ -103,6 +116,8 @@ pub fn patch_kernal(k: &mut [u8], drive: bool) -> bool {
         || at(k, FREE, 187).iter().any(|&b| b != 0)
         || FIXES.iter().any(|&(a, b, _)| !moved(a) && at(k, a, 1)[0] != b)
         || at(k, DOLPHIN.0, 1)[0] != DOLPHIN.1
+        || at(k, IRQ_ENTRY.0, DOLPHIN_BODY.len()) != DOLPHIN_BODY
+        || at(k, IRQ_VECTOR.0, 2) != IRQ_VECTOR.1.to_le_bytes()
         || IEC_CALLS.iter().any(|(a, old, _)| at(k, *a, 4) != old)
     {
         return false;
@@ -116,6 +131,8 @@ pub fn patch_kernal(k: &mut [u8], drive: bool) -> bool {
         at(k, a, 1)[0] = fix;
     }
     at(k, DOLPHIN.0, 1)[0] = 0x60; // RTS
+    at(k, IRQ_ENTRY.0, IRQ_ENTRY.1.len()).copy_from_slice(&IRQ_ENTRY.1);
+    at(k, IRQ_VECTOR.0, 2).copy_from_slice(&IRQ_ENTRY.0.to_le_bytes());
     if drive {
         at(k, CHANNELS.0, IEC.len()).copy_from_slice(&IEC);
         for (a, _, new) in IEC_CALLS {
@@ -144,6 +161,8 @@ mod tests {
             at(&mut k, a, 1)[0] = b;
         }
         at(&mut k, DOLPHIN.0, 1)[0] = DOLPHIN.1;
+        at(&mut k, IRQ_ENTRY.0, DOLPHIN_BODY.len()).copy_from_slice(&DOLPHIN_BODY);
+        at(&mut k, IRQ_VECTOR.0, 2).copy_from_slice(&IRQ_VECTOR.1.to_le_bytes());
         for (a, old, _) in IEC_CALLS {
             at(&mut k, a, 4).copy_from_slice(&old);
         }
@@ -174,6 +193,14 @@ mod tests {
             assert_eq!(at(&mut k, DOLPHIN.0, 1), [0x60]);
             assert_eq!(at(&mut k, 0xfa15, 4)[0] == 0x20, drive);
             assert_eq!(at(&mut k, VECTORS + 8, 2) == [0x2c, 0xf7], drive); // ICLOSE
+        }
+        // the IRQ entry lives above $F000, inside the dead detection routine
+        for drive in [false, true] {
+            let mut k = open_roms();
+            assert!(patch_kernal(&mut k, drive));
+            assert_eq!(at(&mut k, 0xfffe, 2), [0x7b, 0xfe]);
+            assert_eq!(at(&mut k, 0xfe7a, 2), [0x60, 0x48]); // RTS, then PHA
+            assert!(IRQ_ENTRY.0 as usize + IRQ_ENTRY.1.len() <= 0xfe99); // dolphindos_detect ends at $FE98
         }
         // iec.asm's entries where IEC_CALLS and ICLOSE expect them
         assert_eq!((IEC[0], IEC[8], IEC[16]), (0xa5, 0xa5, 0xaa));
