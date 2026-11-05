@@ -31,11 +31,20 @@ JMP ($0316)/JMP ($0314)`) at `$FE7B`, in `dolphindos_detect`'s body (dead since 
   KERNAL patched with `kernal.mjs`. Open ROMs don't autostart through `$0302` after
   `LOAD"WARGAMES",8,1`; type `SYS705` (the loader's entry, `$02C1`).
 
+## Flaky boot — resolved
+
+About 1 in 5 boots ended `LOAD"WARGAMES",8,1:` / `? ERROR` with the drive attached and
+`$0330` on its stub. The stub had raised its flag (`$80`), but the engine's hand-off to the
+park loop rewrote the stub's spin (`BIT flag`) into `JMP park` while the CPU ran it.
+vc64web can pause its cycle-exact CPU mid-instruction, so a `BIT` whose opcode was already
+fetched read the new bytes as its operand: `BIT $023C` or `BIT $03B9` (WarGames' boot file
+pushes the park loop to `$033C`), bit 7 clear, so the CPU fell out to `SEC / RTS` with A=`$80`.
+Now the stub ends `BVS go / SEC / RTS / go: JMP park`. `tick` sets the JMP's target, then the
+flag to `$60`, so only data changes under the spinning CPU
+(`drive.rs`, test `a_load_survives_a_pause_at_any_cycle`). 30 of 30 parallel boots load.
+
 ## Still open
 
-- **Flaky boot**: often `LOAD"WARGAMES",8,1:` gives `? ERROR` with no drive `load`/`missing`
-  events (the drive's stub was not hit: `$0330` was not the stub when LOAD ran). ~5 of 8
-  probe runs failed this way; the playtest passed. Not investigated.
 - **Copy protection**: `B` seeks track 37 via M-W/M-R on the command channel and stores the
   job result in `$03FF` (1 = original disk). On a D64 it fails (`$03FF=3`, tape buffer filled
   with `$80`); `D` then skips `JSR $AFCE` (`$8125`) and `JSR $0801` (`$8260`). The game plays

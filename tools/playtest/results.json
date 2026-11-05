@@ -2,7 +2,7 @@
  "games": {
   "gb64:g1/GHOSTNG1_03136_05.zip": {
    "id": "gb64:g1/GHOSTNG1_03136_05.zip",
-   "gb": "g1/GHOSTNG1_03136_05.zip",
+   "gb": "",
    "run": "",
    "title": "Ghosts'n Goblins",
    "rating": 5,
@@ -15,13 +15,17 @@
    "ia": "Ghosts_n_Goblins_1986_Elite",
    "downloads": 21409,
    "drive": [
-    "GHOSTS'N GOBLIN+@801",
-    "GHOSTS'N G.H/REM@d10"
+    "GHOSTS N GOBLINS@1f8",
+    ".1@c00",
+    ".2@d800",
+    ".3@4000",
+    ".4@4000",
+    ".5@850"
    ],
    "port": 2,
-   "moving": 0.1379,
+   "moving": 0.1202,
    "ok": true,
-   "testedAt": "2026-10-31T12:05:27.879Z"
+   "testedAt": "2026-11-05T03:03:55.650Z"
   },
   "gb64:b2/BLUEMAX1_00893_03.zip": {
    "id": "gb64:b2/BLUEMAX1_00893_03.zip",
@@ -58,14 +62,70 @@
    "shot": "G/Ghostbusters.png",
    "ia": "Ghostbusters_1985_Drean_Commodore_es",
    "downloads": 9126,
+   "portPin": 1,
+   "start": [
+    "key:SPACE",
+    "wait:10",
+    "key:SPACE",
+    "wait:12",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:CRSR_DOWN",
+    "wait:0.3",
+    "key:RETURN",
+    "wait:10",
+    "key:F1",
+    "wait:15",
+    "key:B",
+    "wait:0.4",
+    "key:R",
+    "wait:0.4",
+    "key:E",
+    "wait:0.4",
+    "key:A",
+    "wait:0.4",
+    "key:D",
+    "wait:0.4",
+    "key:B",
+    "wait:0.4",
+    "key:I",
+    "wait:0.4",
+    "key:N",
+    "wait:0.4",
+    "key:RETURN",
+    "wait:3",
+    "key:N",
+    "wait:1",
+    "key:RETURN",
+    "wait:25",
+    "key:1",
+    "wait:2",
+    "key:RETURN",
+    "wait:15"
+   ],
    "drive": [
     "GHOSTBUSTERS+@801"
    ],
-   "port": 0,
-   "moving": 0.5213,
-   "ok": false,
-   "reason": "the joystick moved nothing",
-   "testedAt": "2026-10-31T13:29:00.142Z"
+   "port": 1,
+   "moving": 0.5048,
+   "ok": true,
+   "testedAt": "2026-11-05T03:14:15.408Z"
   },
   "gb64:t2/TURRI2D0_17610_02.zip": {
    "id": "gb64:t2/TURRI2D0_17610_02.zip",
@@ -105,13 +165,12 @@
    "ia": "d64_Wizard_of_Wor_1983_Commodore",
    "downloads": 6752,
    "drive": [
-    "WIZARD OF WOR+@801",
-    "WIZARDWOR.SAV@5000"
+    "WIZARD OF WOR+@801"
    ],
    "port": 1,
-   "moving": 0.6227,
+   "moving": 0.6208,
    "ok": true,
-   "testedAt": "2026-10-31T01:02:47.317Z"
+   "testedAt": "2026-11-05T02:46:14.598Z"
   },
   "gb64:s3/SPACETAX_07107_02.zip": {
    "id": "gb64:s3/SPACETAX_07107_02.zip",
@@ -262,7 +321,7 @@
    "port": 1,
    "moving": 0.9863,
    "ok": true,
-   "testedAt": "2026-10-31T21:26:50.053Z"
+   "testedAt": "2026-11-05T02:27:20.617Z"
   },
   "gb64:m2/MISOCCER_04802_01.zip": {
    "id": "gb64:m2/MISOCCER_04802_01.zip",
@@ -324,9 +383,9 @@
     "COMMANDO+@801"
    ],
    "port": 2,
-   "moving": 0.4834,
+   "moving": 0.4792,
    "ok": true,
-   "testedAt": "2026-10-31T00:59:27.098Z"
+   "testedAt": "2026-11-05T06:09:03.957Z"
   },
   "gb64:w/WIZBALL_08669_03.zip": {
    "id": "gb64:w/WIZBALL_08669_03.zip",
@@ -393,7 +452,7 @@
   },
   "gb64:b3/BUBBLEBO_01138_02.zip": {
    "id": "gb64:b3/BUBBLEBO_01138_02.zip",
-   "gb": "b3/BUBBLEBO_01138_02.zip",
+   "gb": "",
    "run": "",
    "title": "Bubble Bobble",
    "rating": 5,
@@ -403,15 +462,15 @@
    "year": 1987,
    "publisher": "Firebird",
    "shot": "B/Bubble_Bobble.png",
-   "ia": "Bubble_Bobble_1987_Firebird_t_4M_TCS",
+   "ia": "Bubble_Bobble_1987_Firebird",
    "downloads": 1901,
    "drive": [
-    "BUBBLE BOBBLE+@801"
+    "BUBBLE BOBBLE@801"
    ],
    "port": 1,
-   "moving": 0.1858,
+   "moving": 0.2072,
    "ok": true,
-   "testedAt": "2026-10-31T02:52:15.758Z"
+   "testedAt": "2026-11-05T03:00:13.295Z"
   },
   "gb64:j/JUMPMAN1_04000_02.zip": {
    "id": "gb64:j/JUMPMAN1_04000_02.zip",
@@ -676,14 +735,12 @@
    "shot": "C/Creatures_2_-_Torture_Trouble.png",
    "ia": "",
    "downloads": 0,
-   "drive": [
-    "CREATURES II+@801"
-   ],
-   "port": 0,
-   "moving": 0.1453,
-   "ok": false,
-   "reason": "the joystick moved nothing",
-   "testedAt": "2026-10-31T01:43:54.870Z"
+   "rom1541": 1,
+   "drive": [],
+   "port": 2,
+   "moving": 0.1863,
+   "ok": true,
+   "testedAt": "2026-11-05T22:37:25.167Z"
   },
   "gb64:d1/DOTC-E_02082_02.zip": {
    "id": "gb64:d1/DOTC-E_02082_02.zip",
@@ -724,9 +781,9 @@
     "GREAT GIANA S.+@801"
    ],
    "port": 2,
-   "moving": 0.566,
+   "moving": 0.1207,
    "ok": true,
-   "testedAt": "2026-10-31T01:37:32.056Z"
+   "testedAt": "2026-11-05T03:11:42.662Z"
   },
   "gb64:h/HAWKEYE0_03446_01.zip": {
    "id": "gb64:h/HAWKEYE0_03446_01.zip",
@@ -1806,10 +1863,10 @@
     "OUT RUN ROUTE A@801",
     "OUT RUN SCORE A@c90"
    ],
-   "port": 2,
-   "moving": 0.6154,
+   "port": 1,
+   "moving": 0.6096,
    "ok": true,
-   "testedAt": "2026-10-31T19:49:21.649Z"
+   "testedAt": "2026-11-05T03:17:48.986Z"
   },
   "gb64:c1/CHOPLI-E_01459_03.zip": {
    "id": "gb64:c1/CHOPLI-E_01459_03.zip",
@@ -2177,22 +2234,55 @@
    "shot": "G/Gauntlet.png",
    "ia": "gauntlet_202308",
    "downloads": 5963,
+   "portPin": 1,
+   "start": [
+    "wait:10",
+    "key:SPACE",
+    "wait:6",
+    "key:SPACE",
+    "wait:6",
+    "key:SPACE",
+    "wait:6",
+    "key:SPACE",
+    "wait:6",
+    "joy:1:PULL_LEFT:250",
+    "fire:1",
+    "wait:3",
+    "joy:1:PULL_LEFT,PULL_UP:1500",
+    "wait:1",
+    "fire:1",
+    "wait:12",
+    "fire:1",
+    "wait:10"
+   ],
    "drive": [
     "GAUNTLET@2c0",
     "SPIC@2000",
     "GAUNT.SPR@6740",
+    "SPIC F GAUNTLET@4000",
     "DATATITLE 244@1000",
+    "GAUNTFONT $7000@7000",
     "MODED OPTION@4000",
-    "GLOVE.BIN@6740"
+    "GLOVE.BIN@6740",
+    "GAUNTPROG $8000@8000",
+    "GAUNT CHR $4800@4800",
+    "PLAYER-$E000@e000",
+    "DATATREASURE 446@e800",
+    "DITTIDATA 146@ea00",
+    "OBJDIS@f000",
+    "PLYRS.SPR@2000",
+    "PINN232 5000@4400",
+    "LEVEL 001@a00",
+    "LEVEL 001@a00"
    ],
    "port": 1,
-   "moving": 0.4913,
+   "moving": 0.3798,
    "ok": true,
-   "testedAt": "2026-11-03T19:56:44.051Z"
+   "testedAt": "2026-11-05T02:28:22.410Z"
   },
   "gb64:a1/AIRWOLF1_00197_04.zip": {
    "id": "gb64:a1/AIRWOLF1_00197_04.zip",
-   "gb": "",
+   "gb": "a1/AIRWOLF1_00197_04.zip",
    "run": "",
    "title": "Airwolf",
    "rating": 0,
@@ -2204,13 +2294,38 @@
    "shot": "A/Airwolf.png",
    "ia": "Airwolf_1985_Elite",
    "downloads": 5971,
+   "start": [
+    "until:Y/N",
+    "wait:2",
+    "key:N",
+    "wait:1",
+    "key:N",
+    "wait:1",
+    "key:N",
+    "wait:1",
+    "key:N",
+    "until:PRESENTS",
+    "key:SPACE",
+    "until:DOCUMENTS",
+    "wait:3",
+    "key:RUNSTOP",
+    "until:INVINCIB",
+    "wait:2",
+    "key:N",
+    "until:BONUS",
+    "wait:2",
+    "key:N",
+    "wait:8",
+    "fire:2",
+    "wait:2"
+   ],
    "drive": [
-    "AIRWOLF@801"
+    "AIRWOLF+@801"
    ],
    "port": 2,
-   "moving": 0.3112,
+   "moving": 0.3035,
    "ok": true,
-   "testedAt": "2026-11-03T19:58:22.542Z"
+   "testedAt": "2026-11-05T23:49:03.613Z"
   },
   "gb64:b1/BATMAN-0_00652_02.zip": {
    "id": "gb64:b1/BATMAN-0_00652_02.zip",
@@ -3214,14 +3329,14 @@
    "drive": [
     "1943 ++   /IKARI@801"
    ],
-   "port": 1,
-   "moving": 0.9126,
+   "port": 2,
+   "moving": 0.8767,
    "ok": true,
-   "testedAt": "2026-10-31T01:11:41.230Z"
+   "testedAt": "2026-11-05T02:49:57.402Z"
   },
   "gb64:q/Q-BERT1_06058_03.zip": {
    "id": "gb64:q/Q-BERT1_06058_03.zip",
-   "gb": "",
+   "gb": "q/Q-BERT1_06058_03.zip",
    "run": "",
    "title": "Q*bert",
    "rating": 0,
@@ -3233,13 +3348,14 @@
    "shot": "Q/Q-bert_v1.png",
    "ia": "d64_Q-Bert_1983_Parker_Brothers",
    "downloads": 7361,
+   "portPin": 1,
    "drive": [
-    "QBERT@801"
+    "Q-BERT+@801"
    ],
    "port": 1,
-   "moving": 0.0216,
+   "moving": 0.2827,
    "ok": true,
-   "testedAt": "2026-10-31T07:52:02.643Z"
+   "testedAt": "2026-11-05T02:57:24.936Z"
   },
   "gb64:w/WARGAME2_11014_02.zip": {
    "id": "gb64:w/WARGAME2_11014_02.zip",
@@ -3289,7 +3405,7 @@
    "port": 2,
    "moving": 0.9943,
    "ok": true,
-   "testedAt": "2026-11-03T19:47:01.606Z"
+   "testedAt": "2026-11-05T03:02:25.591Z"
   },
   "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352": {
    "id": "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352",
@@ -3305,13 +3421,18 @@
    "shot": "T/Turrican_II_(Disk_Version).png",
    "ia": "uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352",
    "downloads": 7466,
+   "portPin": 2,
+   "start": [
+    "wait:30",
+    "fire:2",
+    "wait:10"
+   ],
    "boot": "",
    "drive": [],
-   "port": 0,
-   "moving": 0.498,
-   "ok": false,
-   "reason": "the joystick moved nothing",
-   "testedAt": "2026-10-31T11:26:46.463Z"
+   "port": 2,
+   "moving": 0.471,
+   "ok": true,
+   "testedAt": "2026-11-05T02:55:22.104Z"
   },
   "Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04": {
    "id": "Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04",
@@ -3335,9 +3456,45 @@
    ],
    "drive": [],
    "port": 2,
-   "moving": 0.4452,
+   "moving": 0.4321,
    "ok": true,
-   "testedAt": "2026-10-31T19:45:22.253Z"
+   "testedAt": "2026-11-05T03:10:08.769Z"
+  },
+  "Creatures_2_Torture_Trouble_1992_Thalamus_Side_A_cr_ILS_t_3_ILS": {
+   "id": "Creatures_2_Torture_Trouble_1992_Thalamus_Side_A_cr_ILS_t_3_ILS",
+   "gb": "",
+   "run": "",
+   "title": "Creatures II - Torture Trouble",
+   "rating": 5,
+   "classic": 1,
+   "genre": "Arcade",
+   "sub": "Platformer (Scrolling Screen)",
+   "year": 1992,
+   "publisher": "Thalamus",
+   "shot": "C/Creatures_2_-_Torture_Trouble.png",
+   "ia": "Creatures_2_Torture_Trouble_1992_Thalamus_Side_A_cr_ILS_t_3_ILS",
+   "downloads": 0,
+   "start": [
+    "wait:25",
+    "key:SPACE",
+    "wait:10",
+    "key:N",
+    "wait:2",
+    "key:N",
+    "wait:3"
+   ],
+   "boot": "",
+   "parts": [
+    "Creatures_2_Torture_Trouble_1992_Thalamus_Side_A_cr_ILS_t_3_ILS",
+    "Creatures_2_Torture_Trouble_1992_Thalamus_Side_B_cr_ILS_t_3_ILS"
+   ],
+   "drive": [
+    "-   ILLUSION   -@801"
+   ],
+   "port": 2,
+   "moving": 0.989,
+   "ok": true,
+   "testedAt": "2026-11-05T16:38:33.022Z"
   }
  },
  "demos": {
@@ -3352,11 +3509,11 @@
    "party": "X'2008",
    "year": 2008,
    "drive": [],
-   "sound": 0.083,
-   "loud": 20,
-   "moving": 0.8953,
+   "sound": 0.082,
+   "loud": 16,
+   "moving": 0.47,
    "ok": true,
-   "testedAt": "2026-10-31T19:03:25.754Z"
+   "testedAt": "2026-11-05T22:43:05.185Z"
   },
   "Lunatico_2016-10-29_Lft_Side_A": {
    "title": "Lunatico",
@@ -3369,11 +3526,11 @@
    "party": "X'2016",
    "year": 2016,
    "drive": [],
-   "sound": 0.126,
+   "sound": 0.119,
    "loud": 20,
-   "moving": 0.0736,
+   "moving": 0.078,
    "ok": true,
-   "testedAt": "2026-10-31T19:50:47.889Z"
+   "testedAt": "2026-11-05T22:43:00.661Z"
   },
   "c64_Wonderland_XII_Censor_s3": {
    "title": "Wonderland XII",
@@ -3387,10 +3544,10 @@
    "year": 2013,
    "drive": [],
    "sound": 0.005,
-   "loud": 13,
+   "loud": 12,
    "moving": 0.0014,
    "ok": true,
-   "testedAt": "2026-10-31T15:26:27.221Z"
+   "testedAt": "2026-11-05T22:44:23.546Z"
   },
   "Daah_Those_Acid_Pills_2013-05-04_Censor_Design": {
    "title": "Daah, Those Acid Pills!",
@@ -3464,11 +3621,11 @@
    "party": "X'2016",
    "year": 2016,
    "drive": [],
-   "sound": 0.122,
-   "loud": 20,
-   "moving": 0.0802,
+   "sound": 0.082,
+   "loud": 8,
+   "moving": 0.6157,
    "ok": true,
-   "testedAt": "2026-10-31T16:10:30.171Z"
+   "testedAt": "2026-11-05T22:44:22.850Z"
   },
   "Krestage_1997-04_Crest": {
    "title": "Krestage",
@@ -3535,11 +3692,11 @@
    "party": "Mekka &amp; Symposium 2002",
    "year": 2002,
    "drive": [],
-   "sound": 0.087,
-   "loud": 20,
-   "moving": 0.0163,
+   "sound": 0.097,
+   "loud": 19,
+   "moving": 0.0171,
    "ok": true,
-   "testedAt": "2026-10-31T16:11:37.971Z"
+   "testedAt": "2026-11-05T22:45:40.901Z"
   },
   "Ice_Cream_Castle_1991-04_Crest_Side_A_f_NTSC_99_Percent": {
    "title": "Ice Cream Castle",
@@ -3552,11 +3709,11 @@
    "party": "",
    "year": 1991,
    "drive": [],
-   "sound": 0.086,
+   "sound": 0.093,
    "loud": 20,
-   "moving": 0.0017,
+   "moving": 0.0576,
    "ok": true,
-   "testedAt": "2026-10-31T16:12:29.227Z"
+   "testedAt": "2026-11-05T22:49:06.912Z"
   },
   "c64_poor": {
    "title": "Poor/Bias Crusher [fixed]",
@@ -3700,11 +3857,11 @@
    "party": "X'2010",
    "year": 2010,
    "drive": [],
-   "sound": 0.098,
-   "loud": 20,
-   "moving": 0.9873,
+   "sound": 0.115,
+   "loud": 18,
+   "moving": 0.7572,
    "ok": true,
-   "testedAt": "2026-10-31T15:34:44.517Z"
+   "testedAt": "2026-11-05T22:46:33.024Z"
   },
   "1991_2011-08-07_Booze_Design": {
    "title": "1991",
@@ -3910,10 +4067,6 @@
    "title": "Red Storm",
    "csdb": 11592,
    "rom1541": 1,
-   "parts": [
-    "Red_Storm_1992-07-28_Triad",
-    "Red_Storm_1992-07-28_Triad_h_Triad"
-   ],
    "id": "Red_Storm_1992-07-28_Triad",
    "group": "Triad",
    "rating": 9.09,
@@ -3921,11 +4074,11 @@
    "party": "",
    "year": 1992,
    "drive": [],
-   "sound": 0.114,
-   "loud": 19,
-   "moving": 0.1272,
+   "sound": 0.043,
+   "loud": 10,
+   "moving": 0.1276,
    "ok": true,
-   "testedAt": "2026-10-31T16:18:44.417Z"
+   "testedAt": "2026-11-05T22:46:47.429Z"
   },
   "Last_Traktor_III_The_1992-06-29_Horizon": {
    "title": "The Last Traktor III",
@@ -3956,11 +4109,11 @@
    "party": "X'95",
    "year": 1995,
    "drive": [],
-   "sound": 0.143,
-   "loud": 15,
-   "moving": 0.1106,
+   "sound": 0.067,
+   "loud": 20,
+   "moving": 0.9651,
    "ok": true,
-   "testedAt": "2026-10-31T15:40:51.345Z"
+   "testedAt": "2026-11-05T22:47:35.561Z"
   },
   "Natural_Wonders_2007_Oxyron": {
    "title": "Natural Wonders",
@@ -6130,7 +6283,7 @@
    "moving": 0,
    "ok": false,
    "reason": "stayed at BASIC",
-   "testedAt": "2026-10-31T19:14:48.609Z"
+   "testedAt": "2026-11-05T22:25:11.823Z"
   }
  },
  "tunes": {

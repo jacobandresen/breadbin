@@ -1,8 +1,8 @@
 diff --git a/src/dos.s b/src/dos.s
-index 6c32026..1c0fdca 100644
+index 6c32026..f757ec9 100644
 --- a/src/dos.s
 +++ b/src/dos.s
-@@ -31,6 +31,11 @@ VIA2_PB   = $1C00
+@@ -31,6 +31,12 @@ VIA2_PB   = $1C00
  VIA2_PA   = $1C01
  VIA2_DDRB = $1C02
  VIA2_DDRA = $1C03
@@ -11,18 +11,11 @@ index 6c32026..1c0fdca 100644
 +VIA2_ACR  = $1C0B
 +VIA2_IFR  = $1C0D
 +VIA2_IER  = $1C0E
++VIA1_IER  = $180E         ; (breadbin) VIA1's interrupt enable
  VIA2_PCR  = $1C0C         ; Peripheral Control Register de VIA2
  
  ; PCR: CB2 (bits 7-5) = modo de cabeza (110 escritura, 111 lectura);
-@@ -71,6 +76,7 @@ EOI_PULSE = $20
- BIT_DELAY = $10
- 
- DATA_BUF  = $0300         ; buffer provisional de recepcion
-+MW_STAGE  = $01A6         ; M-W data on its way to its address (added for breadbin)
- TX_LEN    = 3             ; longitud del buffer de transmision de prueba
- 
- ; --- controlador de disco ---
-@@ -78,8 +84,10 @@ MOTOR_BIT  = %00000100    ; VIA2_PB bit 2: motor del disco (1 = encendido)
+@@ -78,8 +84,16 @@ MOTOR_BIT  = %00000100    ; VIA2_PB bit 2: motor del disco (1 = encendido)
  STEP_MASK  = %00000011    ; VIA2_PB bits 0-1: fase del stepper (medias pistas)
  ZONE_MASK  = %01100000    ; VIA2_PB bits 5-6: zona de velocidad (bitrate)
  SYNC_FLAG  = %10000000    ; VIA2_PB bit 7: /SYNC, activo en bajo (0 = en SYNC)
@@ -30,23 +23,29 @@ index 6c32026..1c0fdca 100644
 -RAW_BUF2   = $02D0        ; segundo buffer crudo de prueba (10 bytes)
 +; (breadbin: the header buffers live in $0180-$01A5, clear of $0200-$02FF,
 +;  which drive code may keep its own tables in while it queues jobs)
-+RAW_BUF    = $0180        ; cabecera GCR cruda (10 bytes); usado tambien en pruebas
++;  (breadbin) RAW_BUF, HEADER_BUF and HDR_TPL live in zero page above the DOS's
++;  own ($99-$BA), where a 1541 keeps DOS variables that drive code using the
++;  job queue leaves alone. Code a job runs may own all of the stack page above
++;  the 1541's stack ($0146-$01FF): Creatures II's NOSDOS V1.8 keeps its read
++;  code at $0146-$01A7, then a copy of a ROM routine at $0146-$01AA, and calls
++;  $F50A (which reads a header into these) in between.
++RAW_BUF    = $0099        ; cabecera GCR cruda (10 bytes); usado tambien en pruebas
 +RAW_BUF2   = $018A        ; segundo buffer crudo de prueba (10 bytes)
  GCR_BLK    = $04BB        ; bloque de datos GCR crudo (325 bytes, $04BB-$05FF).
                            ; Termina justo antes de BAM_BUF ($0600) para no pisarlo,
                            ; permitiendo mantener la BAM en RAM durante un SAVE. El
-@@ -91,8 +99,8 @@ NAME_BUF   = $0280        ; nombre de fichero buscado (16 bytes)
+@@ -91,8 +105,8 @@ NAME_BUF   = $0280        ; nombre de fichero buscado (16 bytes)
  CMD_BUF    = $0240        ; comando recibido por el canal 15 (texto)
  NAME_BUF2  = $0268        ; segundo nombre (RENAME: nombre nuevo, 16 bytes)
  STATUS_BUF = $0290        ; cadena del canal de estado (hasta $02BF)
 -HEADER_BUF = $02F0        ; 8 bytes decodificados de la cabecera
 -HDR_TPL    = $02E0        ; 10 bytes GCR: plantilla de la cabecera buscada (escritura)
-+HEADER_BUF = $019E        ; 8 bytes decodificados de la cabecera
-+HDR_TPL    = $0194        ; 10 bytes GCR: plantilla de la cabecera buscada (escritura)
++HEADER_BUF = $00A3        ; 8 bytes decodificados de la cabecera
++HDR_TPL    = $00AB        ; 10 bytes GCR: plantilla de la cabecera buscada (escritura)
  DATA_DEC_BUF = $0400      ; 260 bytes decodificados del bloque de datos (RAM real)
  DIR_BUF    = $0700        ; sector de directorio (256 bytes)
  CHAIN_BUF  = $0700        ; buffer de sector para la cadena de fichero (compartido)
-@@ -111,22 +119,10 @@ BAM_BUF    = $0600        ; sector BAM (pista 18 sector 0) en RAM
+@@ -111,22 +125,10 @@ BAM_BUF    = $0600        ; sector BAM (pista 18 sector 0) en RAM
  LIST_BUF   = $0300        ; programa BASIC del directorio generado (LOAD "$")
  
  .zeropage
@@ -73,7 +72,7 @@ index 6c32026..1c0fdca 100644
  
  ; --- codec GCR ---
  gcr_src:   .res 2         ; puntero de origen
-@@ -220,6 +216,7 @@ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
+@@ -220,6 +222,7 @@ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
  ; --- canal de comandos por el bus ---
  cmd_pending: .res 1       ; $FF: comando recibido por el canal 15, pendiente
  stat_rd:     .res 1       ; indice de lectura del canal de estado (TALK 15)
@@ -81,7 +80,7 @@ index 6c32026..1c0fdca 100644
  cmd_pos:     .res 1       ; posicion de lectura en CMD_BUF
  scr_count:   .res 1       ; ficheros borrados por SCRATCH
  dir_dirty:   .res 1       ; $FF si el sector de directorio en DIR_BUF cambio
-@@ -246,14 +243,31 @@ rd_state:    .res 1       ; 0 bloque por cargar, 1 cargado, 2 fin de fichero
+@@ -246,14 +249,31 @@ rd_state:    .res 1       ; 0 bloque por cargar, 1 cargado, 2 fin de fichero
  rd_gen:      .res 1       ; dsk_gen cuando se cargo el bloque
  dsk_gen:     .res 1       ; cambia cada vez que se pisa DATA_DEC_BUF
  save_append: .res 1       ; $FF si la escritura anade a un fichero existente
@@ -115,7 +114,7 @@ index 6c32026..1c0fdca 100644
  
      lda #VIA2_PB_OUTS
      sta VIA2_DDRB
-@@ -261,6 +275,14 @@ reset:
+@@ -261,6 +281,30 @@ reset:
      sta VIA2_PA
      sta VIA2_DDRA
      sta VIA2_PB
@@ -127,10 +126,48 @@ index 6c32026..1c0fdca 100644
 +    sta VIA2_PCR
 +    lda #$01
 +    sta VIA2_ACR
++
++    ;  (breadbin) every interrupt source off and no job queued: the RAM and
++    ;  the VIAs are not cleared at power-on or by a reset into this ROM, and an
++    ;  interrupt that found a stray job in $00-$04 (or job_busy clear) ran
++    ;  garbage. In vc64web, which resets the drive into a new ROM, the drive
++    ;  jammed at boot and never got its disk.
++    lda #$7F
++    sta VIA1_IER
++    sta VIA2_IER
++    lda #$00
++    sta job_busy
++    ldx #4
++@nojob:
++    sta $00,x
++    dex
++    bpl @nojob
  
      lda #VIA1_DDRB_INIT
      sta VIA1_DDRB
-@@ -357,6 +379,12 @@ mainloop:
+@@ -284,6 +328,9 @@ reset:
+     sta cmd_pending
+     sta save_err
+     sta open_pending
++    sta load_pending            ; (breadbin) RAM is not clear at power-on: in
++                                ; VirtualC64 a stray value ran load_peek with no
++                                ; disk, and the drive never got its disk
+     sta ch_dir
+     sta open_repl
+     lda #FTYPE_PRG_CLOSED
+@@ -335,6 +382,11 @@ mainloop:
+     beq @noopen
+     jsr chan_open
+ @noopen:
++    lda load_pending            ; (breadbin) a channel 0 file closed unread (load_peek)
++    cmp #$01
++    bne @noload
++    jsr load_peek
++@noload:
+     lda VIA1_PB
+     and #ATN_IN
+     bne @atn
+@@ -357,6 +409,12 @@ mainloop:
  ;  iec_recv_data: recibe datos como listener hasta EOI o retorno de ATN
  ; ----------------------------------------------------------------------------
  iec_recv_data:
@@ -143,7 +180,107 @@ index 6c32026..1c0fdca 100644
      lda #$00
      sta iec_atn_exp
      lda iec_chan_mode
-@@ -1013,6 +1041,12 @@ iec_recv_byte:
+@@ -450,6 +508,10 @@ iec_talk:
+     sta iec_state
+     rts
+ 
++; (breadbin) the code goes on past $C196, leaving $C194 for the entry point
++; drive code calls there (segment C194)
++.segment "CODE0"
++
+ ;  iec_turnaround: la 1541 toma el rol de talker (asierta CLK, libera DATA) y
+ ;  espera a que el host se vuelva listener (asierte DATA). Si el host retoma ATN
+ ;  antes, iec_abort = $FF.
+@@ -604,11 +666,61 @@ iec_copy_name:
+ @done:
+     rts
+ 
++;  ul_load_check (added for breadbin): at UNLISTEN, with A the channel mode,
++;  the end of a name for channel 0 (LOAD). A 1541 opens the file now, reading
++;  its first block, and that header's track and sector stay in $18/$19.
++;  Creatures II's NOSDOS V1.8 opens its marker file on channel 0, closes it
++;  unread and starts its drive code from that block. Only that case is looked
++;  up (load_peek), once CLOSE comes with no TALK in between (close0_check): a
++;  lookup on every LOAD, before the TALK, stopped the boot of Lunatico and The
++;  Phoenix Code. load_pending: $FF a name came, $01 closed unread, $00 none.
++ul_load_check:
++    cmp #0
++    bne @r
++    lda iec_sa
++    bne @r
++    lda data_idx
++    beq @r
++    lda #$FF
++    sta load_pending
++@r:
++    rts
++
++;  close0_check (added for breadbin): CLOSE of channel 0. A name that came
++;  for it and was never read (no TALK: iec_load_file clears load_pending) is
++;  looked up by the main loop.
++close0_check:
++    lda load_pending
++    beq @r
++    lda #$01
++    sta load_pending
++@r:
++    rts
++
++;  load_peek (added for breadbin): find the file named for channel 0 and leave
++;  its first block's track and sector in $18/$19, as a 1541 does when it opens
++;  it (see @ul_out). The name stays in DATA_BUF for the LOAD at TALK.
++load_peek:
++    lda #$00
++    sta load_pending
++    jsr iec_copy_name
++    jsr dir_find_chain
++    lda dir_found
++    beq @r
++    lda dir_track
++    sta $18
++    lda dir_sector
++    sta $19
++@r:
++    rts
++
+ ;  iec_load_file: localiza el fichero cuyo nombre se recibio (DATA_BUF, data_idx
+ ;  bytes) y transmite su contenido por el bus, bloque a bloque, siguiendo la
+ ;  cadena de sectores. El ultimo byte del ultimo bloque lleva EOI. Si el fichero
+ ;  no existe, no transmite nada (el host obtiene FILE NOT FOUND por tiempo).
+ iec_load_file:
++    lda #$00                    ; (breadbin) read after all: no lookup at CLOSE
++    sta load_pending
+     jsr iec_copy_name           ; nombre recibido (DATA_BUF) -> NAME_BUF, relleno $A0
+     jsr dir_find_chain          ; busca en la cadena de sectores de directorio
+     lda dir_found
+@@ -861,6 +973,7 @@ iec_atn:
+     lda #$00
+     sta iec_chan_mode
+ @ul_out:
++    jsr ul_load_check           ; (breadbin) A = the channel mode
+     jmp @cmdloop
+ @not_unlisten:
+     cmp #$5F
+@@ -976,7 +1089,7 @@ iec_atn:
+     lda #$00
+     sta iec_chan_mode
+     lda iec_sa
+-    beq @sc_done
++    beq @sc_ch0
+     cmp ch_sa
+     bne @sc_done                ; nada abierto en ese canal
+     lda ch_dir
+@@ -986,6 +1099,9 @@ iec_atn:
+ @sc_free:
+     lda #CH_NONE
+     sta ch_dir
++    jmp @cmdloop
++@sc_ch0:
++    jsr close0_check            ; (breadbin) a name for channel 0, never read
+ @sc_done:
+     jmp @cmdloop
+ @done:
+@@ -1013,6 +1129,12 @@ iec_recv_byte:
      lda VIA1_PB
      and #CLK_IN
      bne @w_clkrel
@@ -156,7 +293,7 @@ index 6c32026..1c0fdca 100644
      ; listener listo: liberar DATA
      lda VIA1_PB
      and #DATA_OUT_CLR
-@@ -1044,6 +1078,10 @@ iec_recv_byte:
+@@ -1044,6 +1166,10 @@ iec_recv_byte:
      and #DATA_OUT_CLR
      sta VIA1_PB
  @w_first:
@@ -167,7 +304,7 @@ index 6c32026..1c0fdca 100644
      lda VIA1_PB
      and #CLK_IN
      beq @w_first
-@@ -2849,6 +2887,10 @@ dir_find_in_buf:
+@@ -2849,6 +2975,10 @@ dir_find_in_buf:
      bne @slot
      rts
  
@@ -178,7 +315,7 @@ index 6c32026..1c0fdca 100644
  ;  dir_make_entry: escribe una entrada nueva en el primer slot libre de DIR_BUF
  ;  (tipo 0). Toma dir_ftype, dir_track, dir_sector, dir_blocks_lo/hi y el nombre
  ;  en NAME_BUF. dir_found = $FF si se creo, $00 si no habia slot libre.
-@@ -3488,6 +3530,35 @@ status_set:
+@@ -3488,6 +3618,35 @@ status_set:
  cmd_execute:
      lda #$00
      sta cmd_pending
@@ -214,7 +351,7 @@ index 6c32026..1c0fdca 100644
      ldx #$00
  @cp:
      cpx data_idx
-@@ -3546,6 +3617,100 @@ cmd_execute:
+@@ -3546,6 +3705,121 @@ cmd_execute:
  @ret:
      rts
  
@@ -237,23 +374,36 @@ index 6c32026..1c0fdca 100644
 +@n:
 +    txa
 +    beq @ok
-+    pha
++    ;  (breadbin) copied as memmove does: forwards when the target is below the
++    ;  data (DATA_BUF+6), else backwards, so a target overlapping DATA_BUF is
++    ;  safe without a staging buffer. The stack page above $0146 belongs to the
++    ;  drive code: NOSDOS V1.8 (Creatures II) keeps code there while it uploads
++    ;  more with M-W.
++    lda mptr+1
++    cmp #>(DATA_BUF+6)
++    bne @dir
++    lda mptr
++    cmp #<(DATA_BUF+6)
++@dir:
++    bcs @back
 +    ldy #$00
-+@stage:
++@fwd:
 +    lda DATA_BUF+6,y
-+    sta MW_STAGE,y
-+    iny
-+    dex
-+    bne @stage
-+    pla
-+    tax
-+    ldy #$00
-+@put:
-+    lda MW_STAGE,y
 +    sta (mptr),y
 +    iny
 +    dex
-+    bne @put
++    bne @fwd
++    beq @ok
++@back:
++    dex                         ; the last byte first
++    txa
++    tay
++@bk:
++    lda DATA_BUF+6,y
++    sta (mptr),y
++    dey
++    cpy #$FF
++    bne @bk
 +@ok:
 +    lda #$00
 +    sta data_idx
@@ -301,21 +451,45 @@ index 6c32026..1c0fdca 100644
 +    bne @cmd
 +    lda #$00
 +    sta data_idx
++    ;  (breadbin) the head's track in $22, where a 1541 keeps it and the job
++    ;  queue looks for it (JOB_TRACK): code that queues jobs at once, without
++    ;  stepping the head itself, gets the head where it is.
++    lda cur_track
++    sta $22
 +    jsr job_start               ; drive code may queue jobs for the DOS
-+    jsr @call
++    tsx                         ; (breadbin) for code that ends with JMP $C194
++    stx me_sp
++    jsr me_call
++me_done:
 +    sei
 +    lda #$40
 +    sta VIA2_IER                ; timer interrupt off again
 +    lda #$00
 +    jsr set_error
 +    jmp status_set
-+@call:
++me_call:
 +    jmp (mptr)
 +
  ;  cmd_find_colon: cmd_pos = posicion tras el ':' de CMD_BUF. C = 1 si no hay ':'.
  cmd_find_colon:
      ldx #$00
-@@ -4755,11 +4920,505 @@ disk_link_valid:
+@@ -4263,8 +4537,15 @@ chan_open:
+ @tok:
+     lda dir_track
+     sta rd_track
++    sta $18                     ; (breadbin) see below
+     lda dir_sector
+     sta rd_sector
++    ;  (breadbin) a 1541 opening a file reads its first block, and the header
++    ;  read last stays in $18/$19 (track, sector). Creatures II's NOSDOS V1.8
++    ;  opens its marker file, then starts its drive code at that block to find
++    ;  the game's files on the disk. (These are gcr_o's bytes: the next block
++    ;  decoded overwrites them, as the next header read would on a 1541.)
++    sta $19
+     lda #2
+     sta rd_pos
+     lda #$00
+@@ -4755,11 +5036,649 @@ disk_link_valid:
      rts
  
  ; ----------------------------------------------------------------------------
@@ -359,18 +533,26 @@ index 6c32026..1c0fdca 100644
 +; ----------------------------------------------------------------------------
 +JOB_ZP    = $12           ; what the disk routines use: $12-$2C
 +JOB_ZPLEN = $2C - $12 + 1
-+JOB_SAVE  = $0146         ; the saved zero page ($0146-$0160)
-+job_busy  = $0161
-+job_n     = $0162
-+job_si    = $0163         ; 2 bytes: GCR byte read next
-+job_k     = $0165         ; 2 bytes: decoded byte written next
-+job_j     = $0167
-+job_mark  = $0168
-+job_sum   = $0169
-+job_byte  = $016A
-+job_jmp   = $016B         ; 2 bytes
-+f50a_tpl  = $016D         ; 5 bytes: the header looked for, raw GCR
-+f50a_tries = $0172
++;  (breadbin) all of it in zero page, $BC-$EB, past what the DOS uses: drive
++;  code may take the stack page above $0146 for itself (NOSDOS V1.8, Creatures
++;  II, keeps code there while its jobs run). $BB is skipped: NOSDOS uses it.
++JOB_SAVE  = $00BC         ; the saved zero page ($BC-$D6)
++job_busy  = $00D7
++job_n     = $00D8
++job_si    = $00D9         ; 2 bytes: GCR byte read next
++job_k     = $00DB         ; 2 bytes: decoded byte written next
++job_j     = $00DD
++job_mark  = $00DE
++job_sum   = $00DF
++job_byte  = $00E0
++job_jmp   = $00E1         ; 2 bytes
++f50a_tpl  = $00E3         ; 5 bytes: the header looked for, raw GCR
++f50a_tries = $00E8
++me_sp     = $00E9         ; the stack pointer an M-E's code returns to (compat_c194)
++f7e8_code = $00EA         ; compat_f7e8: the 5-bit code being put together
++f7e8_n    = $00EB         ; compat_f7e8: codes left
++f7e8_buf  = $00B5         ; compat_f7e8: the 5 GCR bytes ($B5-$B9)
++load_pending = $00EC      ; a name for channel 0 to look up (load_peek)
 +JOB_OVF   = $01BA         ; GCR beyond the buffer's first 256 bytes, as on a 1541
 +;  Drive code may use the whole stack page as a buffer, so what must outlive
 +;  it is kept where the 1541 DOS keeps it: the job running in $3F, the stack
@@ -380,6 +562,26 @@ index 6c32026..1c0fdca 100644
 +;  ...and the head's track in $22, which loaders that step the head set too.
 +JOB_TRACK = JOB_SAVE + $22 - JOB_ZP
 +
++
++;  job_sectors: the number of sectors on track A (21, 19, 18 or 17 by zone).
++job_sectors:
++    cmp #18
++    bcc @z3
++    cmp #25
++    bcc @z2
++    cmp #31
++    bcc @z1
++    lda #17
++    rts
++@z1:
++    lda #18
++    rts
++@z2:
++    lda #19
++    rts
++@z3:
++    lda #21
++    rts
 +
 +;  job_start: the timer interrupt, every 10 ms, and interrupts on.
 +job_start:
@@ -411,6 +613,15 @@ index 6c32026..1c0fdca 100644
 +    ldx job_n
 +    jsr job_head
 +    jsr job_restore_zp
++    ;  (breadbin) and the number of sectors on that track in $43, as a 1541's
++    ;  job loop leaves it: Creatures II's NOSDOS V1.8 counts the sectors of a
++    ;  track down from $43 as it scans the track for its files.
++    lda job_n
++    asl a
++    tax
++    lda $06,x
++    jsr job_sectors
++    sta $43
 +js_jump:
 +    lda job_n
 +    sta JOB_CUR
@@ -457,7 +668,7 @@ index 6c32026..1c0fdca 100644
 +; ----------------------------------------------------------------------------
 +;  compat_f50a: find the header of the job's sector on the current track, then
 +;  wait for its data block: the next GCR byte read (BVC loop) is the block's
-+;  first. The search compares raw GCR and uses no zero page, so the code that
++;  first, and Y = 0. The search compares raw GCR and uses no zero page, so the code that
 +;  called it keeps its own.
 +compat_f50a:
 +    ldx JOB_CUR
@@ -527,6 +738,10 @@ index 6c32026..1c0fdca 100644
 +    bit VIA2_PB                 ; the data block's SYNC
 +    bmi @data
 +    clv
++    ;  (breadbin) and Y = 0, as on a 1541: the caller stores the block with
++    ;  STA ($30),Y / INY from there (Creatures II's NOSDOS V1.8 reads each
++    ;  sector this way; Y left at 10 shifted every block by 10 bytes)
++    ldy #$00
 +    rts
 +@next:
 +    dec f50a_tries
@@ -587,6 +802,109 @@ index 6c32026..1c0fdca 100644
 +    ldx JOB_SP
 +    txs
 +    jmp job_scan_resume
++
++;  The entry points below were added for Creatures II's crack loader, NOSDOS
++;  V1.8 by Nostalgia, which detects a 1541 and then runs its own reader as
++;  EXECUTE jobs (see its notes in tools/drive/README.md).
++
++;  compat_f418: end the running job with OK (result 1), as drive code does
++;  when its EXECUTE job is done (NOSDOS V1.8, after scanning or reading a track).
++compat_f418:
++    lda #$01
++    jmp compat_f969
++
++;  compat_c194: end the command in progress with "00, OK", for code started by
++;  M-E that ends with JMP $C194 instead of RTS (NOSDOS V1.8's first stage, once
++;  it has left its reader in the stack page). Back where cmd_me called it.
++compat_c194:
++    ldx me_sp
++    txs
++    jmp me_done
++
++;  compat_f556: wait for a SYNC mark on the disk, from a job (NOSDOS V1.8 reads
++;  each header and the start of each data block after one). Returns with the
++;  read latch cleared (LDA $1C01, CLV), so the next byte ready is the first
++;  after the SYNC, and Y = 0; X is kept. No SYNC for long: the job ends with 21.
++compat_f556:
++    txa
++    pha
++    ldx #$00
++    ldy #$00
++@w:
++    bit VIA2_PB
++    bpl @sync                   ; bit 7 = 0: SYNC
++    iny
++    bne @w
++    inx
++    bne @w
++    pla
++    lda #$03                    ; no SYNC: error 21
++    jmp compat_f969
++@sync:
++    pla
++    tax
++    lda VIA2_PA
++    clv
++    ldy #$00
++    rts
++
++;  compat_f7e8: decode the 5 GCR bytes at ($30),Y into 4 bytes at $52-$55 and
++;  leave Y past them (Y+5); X is kept. NOSDOS V1.8 decodes a header (ID mark,
++;  checksum, sector, track) and the first bytes of a data block (data mark,
++;  the link to the next block) this way. The 8 five-bit codes come off the
++;  top of the 40 bits in turn and go through the decode tables at $F8A0
++;  (high nibble) and $F8C0 (low nibble).
++GCR_HI = $F8A0
++GCR_LO = $F8C0
++compat_f7e8:
++    txa
++    pha
++    ldx #$00
++@ld:
++    lda ($30),y
++    sta f7e8_buf,x
++    iny
++    inx
++    cpx #5
++    bne @ld
++    tya
++    pha
++    ldx #$00                    ; the byte being made, $52+X
++    lda #8
++    sta f7e8_n
++@code:
++    lda #$00
++    sta f7e8_code
++    ldy #5
++@bit:
++    asl f7e8_buf+4
++    rol f7e8_buf+3
++    rol f7e8_buf+2
++    rol f7e8_buf+1
++    rol f7e8_buf+0
++    rol f7e8_code
++    dey
++    bne @bit
++    ldy f7e8_code
++    lda f7e8_n
++    lsr a                       ; 8, 6, 4, 2 codes left: a high nibble
++    bcs @lo
++    lda GCR_HI,y
++    sta $52,x
++    bcc @next                   ; (carry still clear)
++@lo:
++    lda GCR_LO,y
++    ora $52,x
++    sta $52,x
++    inx
++@next:
++    dec f7e8_n
++    bne @code
++    pla
++    tay
++    pla
++    tax
++    rts
 +
 +job_save_zp:
 +    ldx #JOB_ZPLEN - 1
@@ -821,7 +1139,7 @@ index 6c32026..1c0fdca 100644
  .segment "RODATA"
  TX_BUF: .byte $11, $22, $33
  
-@@ -4841,6 +5500,30 @@ msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
+@@ -4841,6 +5760,63 @@ msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
  msg_dosid:     .byte "PASCUAL DOS 1541", 0
  msg_generic:   .byte "ERROR", 0
  
@@ -829,12 +1147,45 @@ index 6c32026..1c0fdca 100644
 +    jmp compat_d042
 +.segment "D586"
 +    jmp compat_d586
-+;  The drive model where loaders look for it (M-R $E5C6 reads "41"), so they
-+;  take this for the 1541 it stands in for.
++;  The drive model where loaders look for it, so they take this for the 1541
++;  it stands in for. On a 1541 it is the end of the power-on message in the
++;  DOS's message table, "...1541", whose last character carries bit 7 as
++;  every entry's does: M-R $E5C6 reads "4", $B1. Creatures II's crack loader
++;  (NOSDOS V1.8) compares exactly those two bytes to tell a 1541 from a 1570,
++;  1571, 1581 or CMD drive, and stops with "DRIVE ERROR!" on anything else.
 +.segment "E5C4"
-+    .byte "1541"
++    .byte "154", '1' | $80
++;  NOSDOS V1.8 (Creatures II's crack loader) reads one byte at $FEA0 before
++;  the model text: $0D on a 1541 sends it to "1541" at $E5C6; other values
++;  stand for the 1571, 1581 and CMD drives, whose model text it looks for
++;  elsewhere ($FEA4, $A6E9, $FEA3). Erased ROM ($FF) took this for a 1581,
++;  found no 1581 there and stopped with "DRIVE ERROR!".
++.segment "FEA0"
++    .byte $0D
++.segment "C194"
++    jmp compat_c194
++;  The 1541's reset routine is at $EAA0: programs reset the drive with
++;  M-E $EAA0, and VirtualC64 (vc64web) starts the drive's CPU there itself
++;  instead of reading the reset vector. Without this the drive ran through
++;  erased ROM ($FF) from $EAA0 into whatever code came next, and once the
++;  entry points below were in its way (Creatures II), jammed at power-on.
++.segment "EAA0"
++    jmp reset
++.segment "F418"
++    jmp compat_f418
 +.segment "F50A"
 +    jmp compat_f50a
++.segment "F556"
++    jmp compat_f556
++;  NOSDOS V1.8 (Creatures II) copies 100 bytes from $F575 to $0146 and ends
++;  them with an RTS: on a 1541 the ROM's routine that writes a data block,
++;  which its high score saver calls. This DOS has none to give, so the copy is
++;  an RTS that returns at once: the high scores stay in memory and the game
++;  goes on (in the browser a disk write would not outlive the visit anyway).
++.segment "F575"
++    rts
++.segment "F7E8"
++    jmp compat_f7e8
 +.segment "F969"
 +    jmp compat_f969
 +;  The GCR decode tables at the addresses fast loaders read them from: code
@@ -853,7 +1204,7 @@ index 6c32026..1c0fdca 100644
      .word nmi
      .word reset
 diff --git a/src/dos1541.cfg b/src/dos1541.cfg
-index a596c2a..dc7d5fc 100644
+index a596c2a..417fe3e 100644
 --- a/src/dos1541.cfg
 +++ b/src/dos1541.cfg
 @@ -6,7 +6,7 @@
@@ -865,10 +1216,12 @@ index a596c2a..dc7d5fc 100644
      RAM:  start = $0100, size = $0700, type = rw, define = yes;
  
      # 16 KB de ROM. fillval $FF imita una EPROM borrada en los huecos.
-@@ -16,6 +16,15 @@ MEMORY {
+@@ -16,6 +16,23 @@ MEMORY {
  SEGMENTS {
      ZEROPAGE: load = ZP,  type = zp;
      CODE:     load = ROM, type = ro;
++    C194:     load = ROM, type = ro, start = $C194;
++    CODE0:    load = ROM, type = ro;
 +    D042:     load = ROM, type = ro, start = $D042;
 +    CODE1:    load = ROM, type = ro;
 +    D586:     load = ROM, type = ro, start = $D586;
@@ -876,8 +1229,14 @@ index a596c2a..dc7d5fc 100644
      RODATA:   load = ROM, type = ro;
 +    # entry points drive code calls by address (added for breadbin)
 +    E5C4:     load = ROM, type = ro, start = $E5C4;
++    EAA0:     load = ROM, type = ro, start = $EAA0;
++    F418:     load = ROM, type = ro, start = $F418;
 +    F50A:     load = ROM, type = ro, start = $F50A;
++    F556:     load = ROM, type = ro, start = $F556;
++    F575:     load = ROM, type = ro, start = $F575;
++    F7E8:     load = ROM, type = ro, start = $F7E8;
 +    GCRTAB:   load = ROM, type = ro, start = $F8A0;
 +    F969:     load = ROM, type = ro, start = $F969;
++    FEA0:     load = ROM, type = ro, start = $FEA0;
      VECTORS:  load = ROM, type = ro, start = $FFFA;
  }

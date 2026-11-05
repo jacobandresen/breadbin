@@ -8,7 +8,7 @@
 //!
 //! The file may overwrite the stub itself (autostarting loaders often cover
 //! page 2), so before copying, the CPU is parked in a second loop outside the
-//! file's range: the stub's spin is patched into a JMP there, and the copy
+//! file's range: a flag value sends the spinning stub there, and the copy
 //! happens once the park code reports in. A stub that was loaded over moves
 //! to a free spot for the program's own LOADs. Neither goes where an earlier
 //! file landed: the program may be running there (a loader calling LOAD).
@@ -27,22 +27,31 @@ pub enum Event {
     Missing { name: String },
 }
 
-const STUB_LEN: u16 = 19;
+const STUB_LEN: u16 = 24;
 /// Where the entry stub goes, the first one free of the programs loaded over it.
 /// After page 2, the bottom of the stack page, which only very deep stacks reach;
 /// programs wipe the rest (WarGames fills the tape buffer with $80 and $7D40-$FFFF
 /// with $60).
 const STUB_SPOTS: [u16; 5] = [0x02a7, 0x0120, 0xcfc0, 0x9fc0, 0x0360];
-const SPIN: u16 = 11; // offset of the stub's wait loop
+const GO: u16 = 20; // offset of the stub's JMP to the park loop
 const PARK_LEN: u16 = 24;
 const PARK_SPOTS: [u16; 5] = [0x02c8, 0x033c, 0x0110, 0xcfe0, 0x9fe0];
 
 /// The entry stub at `at`, its flag byte last: STX $C3 / STY $C4 / STA $93 /
-/// LDA #$80 / STA flag / spin: BIT flag / BMI spin / SEC / RTS / flag
+/// LDA #$80 / STA flag / spin: BIT flag / BMI spin / BVS go / SEC / RTS /
+/// go: JMP park / flag. `tick` sends the CPU to the park loop by setting the
+/// JMP's target, then the flag to GO_PARK. Only data changes under the
+/// spinning CPU: vc64web may pause it mid-instruction, and rewriting the loop
+/// itself then tore a BIT into a read of some other byte (WarGames' "? ERROR").
 fn entry(at: u16) -> [u8; STUB_LEN as usize] {
     let [lo, hi] = (at + STUB_LEN - 1).to_le_bytes();
-    [0x86, 0xc3, 0x84, 0xc4, 0x85, 0x93, 0xa9, 0x80, 0x8d, lo, hi, 0x2c, lo, hi, 0x30, 0xfb, 0x38, 0x60, 0]
+    [0x86, 0xc3, 0x84, 0xc4, 0x85, 0x93, 0xa9, 0x80, 0x8d, lo, hi, 0x2c, lo, hi, 0x30, 0xfb, 0x70, 0x02, 0x38, 0x60, 0x4c, 0, 0, 0]
 }
+/// The flag's values: LOAD waiting (the stub), off to the park loop (tick),
+/// parked (the park loop).
+const WAITING: u8 = 0x80;
+const GO_PARK: u8 = 0x60;
+const PARKED: u8 = 0x40;
 /// Vectors autostarting programs hook, in the order the stock ROMs call them
 /// after a LOAD typed at READY: print READY (CHROUT), re-enter the BASIC loop
 /// (IMAIN), then the rest.
@@ -174,7 +183,7 @@ impl Drive {
         }
         match self.job.take() {
             None => {
-                if m.peek(self.flag()) == 0x80 && peek16(m, 0x330) == self.stub {
+                if m.peek(self.flag()) == WAITING && peek16(m, 0x330) == self.stub {
                     self.start(m);
                 } else if peek16(m, 0x330) == self.stub && entry(self.stub).iter().enumerate().any(|(i, &b)| m.peek(self.stub + i as u16) != b) {
                     // a program copied its own memory over the stub (not a load: those
@@ -185,7 +194,7 @@ impl Drive {
                     self.install(m);
                 }
             }
-            Some(job) if m.peek(self.flag()) != 0x40 => self.job = Some(job), // not parked yet
+            Some(job) if m.peek(self.flag()) != PARKED => self.job = Some(job), // not parked yet
             Some(job) => self.finish(m, job),
         }
     }
@@ -212,8 +221,8 @@ impl Drive {
             .or_else(|| PARK_SPOTS.into_iter().find(|&p| fits(p)))
             .unwrap_or(PARK_SPOTS[0]);
         poke_all(m, spot, &park(spot, self.flag()));
-        m.poke(self.stub + SPIN, 0x4c); // JMP park
-        poke16(m, self.stub + SPIN + 1, spot);
+        poke16(m, self.stub + GO + 1, spot);
+        m.poke(self.flag(), GO_PARK);
         self.job = Some(Job { spot, file });
     }
 
@@ -336,9 +345,10 @@ mod tests {
         ram.0[0xba] = 8;
         ram.0[0xb9] = 1;
         let flag = d.flag() as usize;
-        ram.0[flag] = 0x80;
+        ram.0[flag] = WAITING;
         d.tick(&mut ram);
-        ram.0[flag] = 0x40; // the park code reported in
+        assert_eq!(ram.0[flag], GO_PARK);
+        ram.0[flag] = PARKED; // the park code reported in
         d.tick(&mut ram);
         (d, ram)
     }
@@ -360,7 +370,7 @@ mod tests {
         ram.0[0xc3] = 0x00;
         ram.0[0xc4] = 0x10;
         let flag = d.flag() as usize;
-        ram.0[flag] = 0x80;
+        ram.0[flag] = WAITING;
         d.tick(&mut ram);
         let spot = d.job.as_ref().unwrap().spot;
         assert!(!overlaps(spot, spot + PARK_LEN, 0x02a7, 0x0304), "parked at {spot:04x}, inside the loader");
@@ -402,6 +412,59 @@ mod tests {
         ram.0[at..at + STUB_LEN as usize].fill(0);
         d.tick(&mut ram);
         assert_eq!(ram.0[at..at + STUB_LEN as usize], entry(d.stub));
+    }
+
+    /// The C64 with the drive ticked between any two bus accesses, as vc64web
+    /// can pause its cycle-exact CPU mid-instruction.
+    struct Paused {
+        ram: Ram,
+        drive: Drive,
+        n: u32,
+        every: u32,
+    }
+    impl crate::cpu::Bus for Paused {
+        fn read(&mut self, a: u16) -> u8 {
+            self.n += 1;
+            if self.n % self.every == 0 {
+                self.drive.tick(&mut self.ram);
+            }
+            self.ram.0[a as usize]
+        }
+        fn write(&mut self, a: u16, v: u8) {
+            self.ram.0[a as usize] = v;
+        }
+    }
+
+    #[test]
+    fn a_load_survives_a_pause_at_any_cycle() {
+        for (every, phase) in (1..=8).flat_map(|e| (0..e).map(move |p| (e, p))) {
+            let mut ram = Ram([0; 0x10000], vec![]);
+            ram.0[0x330] = 0xa5;
+            ram.0[0x331] = 0xf4;
+            // over the first stub and park spots, like WarGames' boot file (short of the vectors)
+            let disk = crate::disk::d64(&[(b"L".to_vec(), [&[0xa7, 0x02][..], &[0xea; 40]].concat())]);
+            let drive = Drive::new(disk, &mut ram).unwrap();
+            // SETNAM "*", SETLFS 1,8,1, then LOAD through $0330; $C0FF gets 1 on error, 2 when loaded
+            ram.0[0x200] = b'*';
+            ram.0[0xb7] = 1;
+            ram.0[0xbb..0xbd].copy_from_slice(&[0x00, 0x02]);
+            ram.0[0xba] = 8;
+            ram.0[0xb9] = 1;
+            // LDA #0 / JSR $C011 / LDA #1 / BCS +2 / LDA #2 / STA $C0FF / JMP * / $C011: JMP ($0330)
+            let code = [0xa9, 0x00, 0x20, 0x11, 0xc0, 0xa9, 0x01, 0xb0, 0x02, 0xa9, 0x02, 0x8d, 0xff, 0xc0, 0x4c, 0x0e, 0xc0, 0x6c, 0x30, 0x03];
+            ram.0[0xc000..0xc000 + code.len()].copy_from_slice(&code);
+            let mut bus = Paused { ram, drive, n: phase, every };
+            let mut cpu = crate::cpu::Cpu::new();
+            cpu.pc = 0xc000;
+            for _ in 0..100_000 {
+                if bus.ram.0[0xc0ff] != 0 {
+                    break;
+                }
+                cpu.step(&mut bus);
+            }
+            assert_eq!(bus.ram.0[0xc0ff], 2, "ticked every {every} accesses from {phase}: LOAD failed");
+            assert_eq!(bus.ram.1, ["L"]);
+        }
     }
 
     #[test]

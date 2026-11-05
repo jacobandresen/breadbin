@@ -6,20 +6,21 @@
 # sides of a disk game (the Disk button swaps them). "[1541]" at the end marks a
 # game whose loader runs code on the drive: it gets the emulated 1541 with
 # breadbin's free DOS. "[port 1]" pins the joystick port, for a game where
-# another sprite moves in time with the stick and fools the playtest.
+# another sprite moves in time with the stick and fools the playtest. "[start: steps]"
+# is what a player does between the boot and the game, in probe.mjs's steps.
 Bruce Lee [port 1]
-Gauntlet
-Airwolf
+Gauntlet [port 1] [start: wait:10 key:SPACE wait:6 key:SPACE wait:6 key:SPACE wait:6 key:SPACE wait:6 joy:1:PULL_LEFT:250 fire:1 wait:3 joy:1:PULL_LEFT,PULL_UP:1500 wait:1 fire:1 wait:12 fire:1 wait:10]
+Airwolf [start: until:Y/N wait:2 key:N wait:1 key:N wait:1 key:N wait:1 key:N until:PRESENTS key:SPACE until:DOCUMENTS wait:3 key:RUNSTOP until:INVINCIB wait:2 key:N until:BONUS wait:2 key:N wait:8 fire:2 wait:2]
 Commando
 Wizard of Wor
 1943 - The Battle of Midway = 0/1943-BOM_00018_01.zip
-Turrican II = uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352
-Q*bert = q/Q-BERT1_06058_03.zip
+Turrican II = uta_Turrican_II-_The_Final_Fight_1991_Rainbow_Arts_5352 [port 2] [start: wait:30 fire:2 wait:10]
+Q*bert = q/Q-BERT1_06058_03.zip [port 1]
 Bubble Bobble
 WarGames = Compilation_Wargames_Gyruss_Dragonfire_Laser_Cycle_Alcazar_Boulderdash_Jungle_Hu > WARGAMES
 Ghosts'n Goblins
 Last Ninja 2 = Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04 + Last_Ninja_1_2_198x_System_3_Disk_1_of_2_Side_B_cr_John64_docs_EasyFlash_2011-04 + Last_Ninja_1_2_198x_System_3_Disk_2_of_2_Side_A_cr_John64_docs_EasyFlash_2011-04
 Creatures II - Torture Trouble = c3/CREAT2-0_01787_03.zip [1541]
 The Great Giana Sisters
-Ghostbusters
+Ghostbusters [port 1] [start: key:SPACE wait:10 key:SPACE wait:12 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:CRSR_DOWN wait:0.3 key:RETURN wait:10 key:F1 wait:15 key:B wait:0.4 key:R wait:0.4 key:E wait:0.4 key:A wait:0.4 key:D wait:0.4 key:B wait:0.4 key:I wait:0.4 key:N wait:0.4 key:RETURN wait:3 key:N wait:1 key:RETURN wait:25 key:1 wait:2 key:RETURN wait:15]
 Out Run = o/OUTRUN-E_05482_01.zip > OUT RUN ROUTE A*

@@ -24,6 +24,18 @@ built from:
   - the memory map loaders count on: the stack below `$0146`, `$0180-$01FF`
     and `$0200-$02FF` left to them while they run, the head's track in `$22`;
   - two IEC bus fixes for hosts that release ATN and CLK together.
+  - for Creatures II's crack loader (NOSDOS V1.8, Nostalgia): the drive model
+    where it looks ("1541" at `$E5C4`, its last character with bit 7 set as in
+    the DOS's message table, and `$0D` at `$FEA0`); the entry points it calls,
+    `$F556` (wait for SYNC), `$F7E8` (decode 5 GCR bytes to `$52-$55`), `$F418`
+    (end a job OK) and `$C194` (end an M-E command); `$43` set to the track's
+    sector count for EXECUTE jobs; a file opened on channel 0 and closed unread
+    leaves its first block in `$18/$19`; and the DOS's own job state and
+    buffers out of the stack page above `$0146`, where it keeps its code. Its
+    high score saver copies the ROM's block writer from `$F575`, which this DOS
+    doesn't have: there an RTS, so high scores are not written back;
+  - a reset entry at `$EAA0`, where programs reset the drive (M-E) and where
+    VirtualC64 starts the drive's CPU instead of reading the reset vector.
 
   All of it follows the drive's published interface (the job queue and entry
   points as *Inside Commodore DOS* and loader sources document them; the tables
@@ -35,7 +47,8 @@ Build it with `make drive` (needs git, node and cc65's `ca65`/`ld65`).
 
 With it these trackmos pass breadbin's playtest in the browser, on free ROMs
 only: Edge of Disgrace, Lunatico, Wonderland XII and XIII, The Phoenix Code,
-La Linea, Ice Cream Castle, Mekanix, Red Storm and Radio Napalm. Others are
+La Linea, Ice Cream Castle, Mekanix, Red Storm and Radio Napalm, and the game
+Creatures II. Others are
 shelved as WIP; Krill's loader, for one, still stalls in its transfer. A demo marked
 `[1541]` in `tools/playtest/demos.txt` (or a game in `games.txt`) gets the
 emulated 1541 with this ROM; a visitor's own 1541 ROM (Settings) takes its place.

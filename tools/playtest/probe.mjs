@@ -27,6 +27,8 @@
 // install C64 ROMs (all three together); boot:<file> picks the disk file to start;
 // parts:<id>,<id> names the Internet Archive items of a release (games.txt's "a + b");
 // patches:<addr:old=new>,... live patches for the game's loader (games.txt's "{...}").
+// profile:<name> runs in a browser profile kept in the temp folder, with the
+// downloads it cached (the playtest's: breadbin-playtest-games-0), for when the Archive is slow.
 
 import fs from 'node:fs';
 import { launch, open, signDriveRom, sleep } from './c64.mjs';
@@ -39,7 +41,7 @@ if (!id) {
 const opt = (name) => steps.find((s) => s.startsWith(name + ':'))?.slice(name.length + 1);
 const read = (k) => opt(k) && fs.readFileSync(opt(k));
 const roms = Object.fromEntries(Object.entries({ kernal: read('kernal'), basic: read('basic'), charset: read('charset'), floppy: read('rom') && signDriveRom(read('rom')) }).filter(([, v]) => v));
-const browser = await launch();
+const browser = await launch({ profile: opt('profile') });
 try {
   const c64 = await open(browser, id, { boot: opt('boot'), parts: opt('parts')?.split(','), patches: opt('patches')?.split(','), roms });
   if (c64.error) throw new Error(c64.error);

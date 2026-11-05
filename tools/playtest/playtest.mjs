@@ -27,7 +27,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import puppeteer from 'puppeteer-core';
-import { audioTap, loudness } from './c64.mjs';
+import { audioTap, loudness, KEYS } from './c64.mjs';
 import { PNG } from 'pngjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -46,9 +46,13 @@ const flag = (name, fallback) => {
 };
 /** games.txt: the titles breadbin offers, in order. "[1541]" at the end of a line marks a game that needs a real drive. */
 const RAW_LINES = fs.readFileSync(path.join(HERE, 'games.txt'), 'utf8').split('\n').filter((l) => l.trim() && !l.startsWith('#'));
-const PICK_LINES = RAW_LINES.map((l) => l.replace(/\s*\[port [12]\]/, '').replace(/\s*\[1541\]\s*$/, '').replace(/\s*\{[^}]*\}/, ''));
+const PICK_LINES = RAW_LINES.map((l) => l.replace(/\s*\[start:[^\]]*\]/, '').replace(/\s*\[port [12]\]/, '').replace(/\s*\[1541\]\s*$/, '').replace(/\s*\{[^}]*\}/, ''));
 /** "[port 1]" on a line: the joystick port the game reads, when the playtest can't tell (another sprite moves in time with the stick). */
 const PORT_PINS = new Map(RAW_LINES.filter((l) => /\[port [12]\]/.test(l)).map((l) => [canon(l.split(' = ')[0].replace(/\s*\[.*$/, '')), Number(/\[port ([12])\]/.exec(l)[1])]));
+/** "[start: steps]" on a line: what a player does to get from the boot to the game, in
+ *  probe.mjs's steps (wait:<s>, until:<text on screen>, key:<NAME>, fire:<port>, joy:<port>:<DIR,..>:<ms>), for a
+ *  game whose menu a stick test would only stir (Gauntlet's glove picking a hero). */
+const STARTS = new Map(RAW_LINES.filter((l) => /\[start:[^\]]*\]/.test(l)).map((l) => [canon(l.split(' = ')[0].replace(/\s*\[.*$/, '')), /\[start:([^\]]*)\]/.exec(l)[1].trim().split(/\s+/)]));
 /** "{addr:old=new; ...}" on a line: live patches for the game's loader (drive.rs), in hex. */
 const PATCHES = new Map(RAW_LINES.filter((l) => /\{[^}]*\}/.test(l)).map((l) => [canon(l.split(' = ')[0]), /\{([^}]*)\}/.exec(l)[1].split(';').map((p) => p.replace(/\s+/g, '')).filter(Boolean)]));
 /** Games whose loader runs code on the drive: shelved as "needs a 1541 ROM", tested with one. */
@@ -169,6 +173,7 @@ async function gameCandidates() {
       ...(NEEDS_1541.has(key) && { rom1541: 1 }),
       ...(PATCHES.has(key) && { patches: PATCHES.get(key) }),
       ...(PORT_PINS.has(key) && { portPin: PORT_PINS.get(key) }),
+      ...(STARTS.has(key) && { start: STARTS.get(key) }),
     };
     const old = best.get(key);
     const pin = PINS.get(key)?.source;
@@ -315,8 +320,9 @@ const BASIC_BLUE = [54, 51, 165];
  */
 async function controlledPort({ inFrame, joy, key, screenText, proof, settle, picture, swap, title, ports = [2, 1] }) {
   // a game that never shows control would otherwise go round its menus and
-  // attract screens for good: four minutes, and ten answered prompts
-  const until = Date.now() + 240e3;
+  // attract screens for good: six minutes (Last Ninja II plays after its docs,
+  // menu, trainer and a level load, ~4.5), and ten answered prompts
+  const until = Date.now() + 360e3;
   const inTime = () => Date.now() < until;
   const look = () =>
     inFrame('look', () => {
@@ -356,7 +362,17 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
       if (!inTime()) return false;
       const [a, b, c, d] = [await hold(port, plus, axis), await hold(port, minus, axis), await hold(port, plus, axis), await hold(port, minus, axis)];
       if (process.env.DEBUG) console.log(`  port ${port} ${plus}: ${a.moved}|${b.moved}|${c.moved}|${d.moved} scrolls ${a.scrolls},${b.scrolls},${c.scrolls},${d.scrolls} idle ${idle.moved} (${idle.scrolls})`);
-      const sprite = a.moved.some((m, i) => m >= 6 && c.moved[i] >= 6 && b.moved[i] <= -6 && d.moved[i] <= -6 && Math.abs(idle.moved[i]) < 6);
+      const follows = (a, b, c, d, i) => a.moved[i] >= 6 && c.moved[i] >= 6 && b.moved[i] <= -6 && d.moved[i] <= -6;
+      const candidates = a.moved.map((_, i) => i).filter((i) => follows(a, b, c, d, i) && Math.abs(idle.moved[i]) < 6);
+      // then once more: a sprite on its own schedule (Ghostbusters' bouncing karaoke
+      // ball) can match one round by chance, hardly two (the same way round, as the
+      // first move may be against an edge: a forklift on the top shelf can't go up)
+      let sprite = false;
+      if (candidates.length) {
+        const [e, f, g, h] = [await hold(port, plus, axis), await hold(port, minus, axis), await hold(port, plus, axis), await hold(port, minus, axis)];
+        if (process.env.DEBUG) console.log(`  port ${port} ${plus} again: ${e.moved}|${f.moved}|${g.moved}|${h.moved}`);
+        sprite = candidates.some((i) => follows(e, f, g, h, i));
+      }
       const scroll = idle.scrolls <= 1 && ((a.scrolls >= 4 && c.scrolls >= 4) || (b.scrolls >= 4 && d.scrolls >= 4));
       if (sprite || scroll) return true;
     }
@@ -366,7 +382,11 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
   // or drawn in characters, like a racing game's road), holding the stick must
   // change much more of the screen than leaving it alone does, both times
   const shows = async (port) => {
-    const quiet = change(await picture(), (await sleep(1200), await picture()));
+    // left alone, after the last test's momentum has died down (Turrican II scrolls on
+    // for a moment): the lower of two looks
+    await sleep(2000);
+    const still = async () => change(await picture(), (await sleep(1200), await picture()));
+    const quiet = Math.min(await still(), await still());
     for (const [plus, minus] of WAYS.slice(0, 2)) {
       if (!inTime()) return false;
       const d = [];
@@ -435,7 +455,9 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
       if (n) await key(0, { 1: 4, 3: 5, 5: 6, 7: 3 }[n]);
     }],
     [/START GAME/, startGame],
-    [/RUN.?STOP\]? TO (START|PLAY)/, () => key(7, 7)],
+    // (prompts are matched against words of three letters or more: no "TO")
+    // also a docs reader's "RUNSTOP.. EXIT TO MENU" (Last Ninja II)
+    [/RUN.?STOP\]?[ .]*(TO |EXIT (TO )?)?(START|PLAY|MENU)/, () => key(7, 7)],
     // Ghostbusters asks for a name, then for an account, in text drawn outside screen memory
     // (once: the title stays in screen memory); then it buys the first car
     [/^@*(GHOSTBUSTERS|CAZAFANTASMAS)@/, async () => (named = true, await type('breadbin\nn'), await buyCar()), true],
@@ -445,7 +467,9 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
     [/CHALLENGE LEVEL/, () => key(7, 0), true], // 1: the easiest (WarGames, in a box of fill characters)
     [/CONTROL STICK TO SELECT/, () => fire(2)], // a level picked with the stick: the one shown
     [/H\/T|\[H\]IGH ?SCORE/, () => type('h')],
-    [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, () => type('n')],
+    // an N for each question on the screen: a trainer menu asks them in turn, on one
+    // screen that the two answers per screen would leave half done (Airwolf's +4 asks four)
+    [/Y\/N|\(Y\)|YES OR NO|TRAINER|CHEAT|INFINITE|UNLIMITED/, (t) => type('n'.repeat(Math.max(1, (t.match(/Y\/N/g) || []).length)))],
     [/^[^?]{0,160}\?{1,2}$/, () => type('n')], // one short question on the screen
     [/SPACE/, () => key(7, 4)],
     [/F7/, () => key(0, 3)],
@@ -465,11 +489,16 @@ async function controlledPort({ inFrame, joy, key, screenText, proof, settle, pi
     const text = await screenText();
     if (/READY\.|BYTES FREE/.test(text)) return 0; // back at BASIC: nothing to control
     // prompts are only read off screens of text, not graphics shown as characters
-    const wordy = (text.match(/[A-Z ]/g) || []).length > text.length * 0.7;
+    // (a rule of line characters, "cccccccc", is decoration)
+    const plain = text.replace(/(.)\1{7,}/g, '');
+    const wordy = (plain.match(/[A-Z ]/g) || []).length > plain.length * 0.7;
     // the same screen, whatever the cursor, a scroller or an animation changes on it
     const screen = (text.match(/[A-Z]{3,}/g) || []).slice(0, 12).join(' ');
-    const prompt = answers < 10 && (answered.get(screen) || 0) < 2 && prompts.find(([re, , any]) => (wordy || (any && !named)) && re.test(screen));
-    if (process.env.DEBUG) console.log(`  ${prompt ? 'answer ' + prompt[0] : 'start ' + next} | ${text.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
+    // prompts read as written ("[H]IGHSCORE", "[RUN/STOP] TO START"), as the screen's first
+    // words, or raw (Ghostbusters' title in a field of @)
+    const flat = plain.replace(/\s+/g, ' ').trim();
+    const prompt = answers < 10 && (answered.get(screen) || 0) < 2 && prompts.find(([re, , any]) => (wordy || (any && !named)) && (re.test(screen) || re.test(flat) || re.test(text)));
+    if (process.env.DEBUG) console.log(`  ${Math.round((Date.now() - until) / 1000 + 360)}s ${prompt ? 'answer ' + prompt[0] : 'start ' + next} | ${text.replace(/\s+/g, ' ').trim().slice(0, 100)}`);
     if (prompt) {
       answered.set(screen, (answered.get(screen) || 0) + 1);
       answers++;
@@ -571,12 +600,30 @@ async function playtest(browser, kind, item) {
     await shot('boot');
     await sleep(2500);
     await shot('idle');
+    if (kind === 'games' && item.start) {
+      for (const step of item.start) {
+        const [cmd, a = '', b = '', c = ''] = step.split(':');
+        if (cmd === 'wait') await sleep(Number(a) * 1000);
+        // until the screen shows the text (any case, up to a minute): loads take
+        // longer some runs than others (Airwolf's trainer, intro and docs)
+        else if (cmd === 'until') for (let t = 0; t < 120 && !new RegExp(a, 'i').test(await screenText()); t++) await sleep(500);
+        else if (cmd === 'key') await key(...KEYS[a]);
+        else if (cmd === 'fire') await joy(a + 'PRESS_FIRE'), await sleep(250), await joy(a + 'RELEASE_FIRE');
+        else if (cmd === 'joy') {
+          for (const d of b.split(',')) await joy(a + d);
+          await sleep(Number(c));
+          await joy(a + 'RELEASE_XY');
+        } else throw new Error(`games.txt: unknown start step ${step}`);
+      }
+    }
     if (kind === 'games') {
-      for (const p of ['2', '1']) {
-        await joy(p + 'PRESS_FIRE');
-        await sleep(250);
-        await joy(p + 'RELEASE_FIRE');
-        await sleep(400);
+      if (!item.start) {
+        for (const p of ['2', '1']) {
+          await joy(p + 'PRESS_FIRE');
+          await sleep(250);
+          await joy(p + 'RELEASE_FIRE');
+          await sleep(400);
+        }
       }
       await shot('fire');
       // a screenshot of the moment the stick was shown to work, for review
@@ -648,12 +695,24 @@ async function runBrowserTests(kind, candidates) {
         let res;
         for (let attempt = 0; attempt < 2; attempt++) {
           if (!browser.connected) browser = await launch(w);
+          // the Archive copy that passed last time goes first (a retest of the
+          // GameBase64 version and the other copies would cost minutes each)
+          const last = results[kind][item.id];
+          if (kind === 'games' && last?.ok && !last.gb && last.ia && last.ia !== item.id) {
+            const again = await playtest(browser, kind, { ...item, id: last.ia, ia: last.ia, gb: '', run: '' });
+            if (again.ok) {
+              res = { ...again, ia: last.ia, gb: '', run: '' };
+              break;
+            }
+          }
+          if (!browser.connected) browser = await launch(w);
           res = await playtest(browser, kind, item);
           // GameBase64's version failed: try the Internet Archive's copies (not
           // for a version games.txt pins: each copy is a full playtest of minutes)
           if (kind === 'games' && !res.ok && !res.harness && !PINS.has(canon(item.title))) {
             const alts = [...new Set([item.ia, ...(await archiveCopies(item.title))])].filter((id) => id && id !== item.id).slice(0, 4);
             for (const id of alts) {
+              if (!browser.connected) browser = await launch(w);
               const alt = await playtest(browser, kind, { ...item, id, ia: id, gb: '', run: '' });
               if (alt.ok) {
                 res = { ...alt, ia: id, gb: '', run: '' };

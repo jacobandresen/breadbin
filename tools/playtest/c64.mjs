@@ -21,7 +21,10 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Keys by name, as (row, column) of the C64 keyboard matrix. */
 export const KEYS = {
   RETURN: [0, 1], CRSR_RIGHT: [0, 2], F7: [0, 3], F1: [0, 4], F3: [0, 5], F5: [0, 6], CRSR_DOWN: [0, 7],
-  SPACE: [7, 4], RUNSTOP: [7, 7], 1: [7, 0], 2: [7, 3], Y: [3, 1], N: [4, 7],
+  SPACE: [7, 4], RUNSTOP: [7, 7], 1: [7, 0], 2: [7, 3], COMMA: [5, 7],
+  A: [1, 2], B: [3, 4], C: [2, 4], D: [2, 2], E: [1, 6], F: [2, 5], G: [3, 2], H: [3, 5], I: [4, 1],
+  J: [4, 2], K: [4, 5], L: [5, 2], M: [4, 4], N: [4, 7], O: [4, 6], P: [5, 1], Q: [7, 6], R: [2, 1],
+  S: [1, 5], T: [2, 6], U: [3, 6], V: [3, 7], W: [1, 1], X: [2, 7], Y: [3, 1], Z: [1, 4],
 };
 
 /**
@@ -98,9 +101,15 @@ export async function open(browser, id, { kind = 'games', boot, run, parts, patc
   page.on('dialog', (d) => ((c64.jammed ||= /jammed/.test(d.message())), d.dismiss().catch(() => {})));
   if (process.env.DEBUG) page.on('pageerror', (e) => console.log('pageerror:', e.message));
 
-  if (Object.keys(roms).length) {
-    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-    for (const [k, rom] of Object.entries(roms)) await page.evaluate(async (k, rom) => (await import('./store.js')).putBlob(`rom-${k}`, new Uint8Array(rom)), k, [...rom]);
+  // the ROMs given, and no others: a profile kept between runs (profile:) would
+  // otherwise hold on to a 1541 ROM from an earlier run, and a game for the
+  // virtual drive would get the real one
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  for (const k of ['kernal', 'basic', 'charset', 'floppy']) {
+    await page.evaluate(async (k, rom) => {
+      const store = await import('./store.js');
+      await (rom ? store.putBlob(`rom-${k}`, new Uint8Array(rom)) : store.deleteBlob(`rom-${k}`));
+    }, k, roms[k] ? [...roms[k]] : null);
   }
   const query = new URLSearchParams(Object.entries({ run, boot, parts: parts?.join(','), patches: patches?.join(',') }).filter(([, v]) => v));
   const q = query.size ? `?${query}` : '';
@@ -233,7 +242,7 @@ export class C64 {
     const seen = [];
     for (let i = 0; i < n; i++) {
       // the prompt pads short addresses: "(0,1) $ f4c:"
-      seen.push(/\(\d+,\d+\) \$ *([0-9a-f]{1,4}):/i.exec(await this.debug())?.[1]?.padStart(4, '0'));
+      seen.push(/\(\d+,\d+\) \$ *([0-9a-f]{1,4}):/i.exec(await this.debug(''))?.[1]?.padStart(4, '0'));
       await sleep(250);
     }
     return seen;

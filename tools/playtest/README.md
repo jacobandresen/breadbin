@@ -210,8 +210,9 @@ Last Ninja 2 plays this way.
 **Sides.** A release in several items that holds no EasySplit parts is a disk
 game's sides. The Disk button (also shown for multi-disk zips) puts the next
 one in: `bb_drive_swap` for breadbin's virtual drive, keeping its KERNAL hooks,
-or vc64web's own load message with a real drive. Creatures II's Illusion crack
-loads side 2 by name, so the virtual drive serves it.
+or vc64web's own load message with a real drive. (Creatures II's cracks all
+upload drive code for side 2, Illusion's included; the shelf has Nostalgia's,
+which runs on the free 1541 DOS.)
 
 **Only free ROMs and software.** No Commodore ROMs or commercially licensed
 tools, in the site or in tests: comparisons run against free ROMs, and games
