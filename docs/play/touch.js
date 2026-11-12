@@ -1,11 +1,11 @@
 // touch - an on-screen joystick for phones and tablets, drawn in breadbin's own
-// page around the emulator rather than over the C64 screen: the control deck of
-// blip (github.com/jacobandresen/blip, MIT), a ball-top arcade stick that leans
-// with the thumb and a red arcade FIRE button. The stick floats (it centres
-// wherever your thumb lands in its half), and a row of keys covers what joystick games ask for at the
-// title screen (SPACE, RETURN, F1-F7, RUN/STOP) and the Y/N and number
-// questions of crack trainer menus. Input reaches vc64web through
-// the listener installed by PAD_LISTENER.
+// page around the emulator rather than over the C64 screen: the <blip-deck> control deck
+// (github.com/jacobandresen/blip-deck, MIT; loaded from jsDelivr by index.html), a
+// ball-top arcade stick with an 8-way gate that leans with the thumb, and red
+// FIRE caps. A row of keys covers what joystick games ask for at the title
+// screen (SPACE, RETURN, F1-F7, RUN/STOP) and the Y/N and number questions of
+// crack trainer menus. Input reaches vc64web through the listener installed by
+// PAD_LISTENER.
 
 /** Script for vc64web's {cmd: "script"}: route breadbin's pad messages to the
  *  emulator's own joystick and keyboard handlers. */
@@ -44,25 +44,15 @@ const KEYS = [
   ['1', [7, 0]],
 ];
 
-const DEAD_ZONE = 14; // px before a direction registers
-const REACH = 46; // px the knob can travel
-
 /**
- * Build the pad inside `root`. `send(message)` posts to the emulator frame.
- * Returns { el, setPort(n), destroy() }.
+ * Build the pad inside `root`: the keys, and a <blip-deck> (from jsDelivr, see index.html) for the stick and FIRE.
+ * `send(message)` posts to the emulator frame. Returns { el, setPort(n), destroy() }.
  */
 export function createPad(root, send, { port = 2 } = {}) {
+  const { BlipDeck, BlipController } = window;
   const el = document.createElement('div');
   el.className = 'pad';
-  el.innerHTML = `
-    <div class="pad-keys"></div>
-    <div class="pad-stick" aria-label="Joystick">
-      <div class="deck-stick">
-        <div class="deck-boot"></div>
-        <div class="deck-handle"><div class="deck-shaft"></div><div class="deck-ball"></div></div>
-      </div>
-    </div>
-    <button class="pad-fire arcade-btn" aria-label="Fire"><span class="arcade-btn-cap"></span></button>`;
+  el.innerHTML = '<div class="pad-keys"></div><div id="topbar" class="kiosk-bar"><blip-deck seats="1" buttons=\'[{"label":"FIRE"}]\'></blip-deck></div>';
   root.append(el);
 
   const keys = el.querySelector('.pad-keys');
@@ -81,80 +71,38 @@ export function createPad(root, send, { port = 2 } = {}) {
     keys.append(b);
   }
 
-  // ── stick ──
-  const zone = el.querySelector('.pad-stick');
-  const stick = el.querySelector('.deck-stick');
-  // the stick leans toward the thumb: --dx / --dy run from -1 to 1
-  const lean = (dx = 0, dy = 0) => {
-    stick.style.setProperty('--dx', (dx / REACH).toFixed(2));
-    stick.style.setProperty('--dy', (dy / REACH).toFixed(2));
-  };
-  let stickId = null;
-  let origin = null;
+  // The deck reads its layout from the page: upright, or sideways on a phone.
+  const html = document.documentElement;
+  const layout = () => html.setAttribute('data-layout', innerHeight <= 520 && innerWidth > innerHeight * 1.25 ? 'landscape' : 'upright');
+  layout();
+  addEventListener('resize', layout);
+  html.setAttribute('data-controls', 'stick');
+  html.toggleAttribute('data-has-touch', 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+  const stick = el.querySelector('#stick-base'), fire = el.querySelector('#fire-buttons');
+
+  // The deck's logical inputs become the C64 joystick's: both caps fire.
+  const held = {};
   let state = { x: 'RELEASE_X', y: 'RELEASE_Y' };
-
-  const setDir = (x, y) => {
-    const cmds = [];
-    if (x !== state.x) cmds.push(port + x);
-    if (y !== state.y) cmds.push(port + y);
-    if (!cmds.length) return;
-    state = { x, y };
-    send({ bbjoy: cmds });
-    if (x !== 'RELEASE_X' || y !== 'RELEASE_Y') buzz(4);
-  };
-
-  zone.addEventListener('pointerdown', (e) => {
-    if (stickId !== null) return;
-    e.preventDefault();
-    stickId = e.pointerId;
-    zone.setPointerCapture(e.pointerId);
-    origin = { x: e.clientX, y: e.clientY };
-    zone.classList.add('active');
-    move(e);
+  BlipController.init({
+    onInput(name, down) {
+      held[name] = down;
+      if (name === 'button1' || name === 'button2') {
+        send({ bbjoy: [port + (down ? 'PRESS_FIRE' : 'RELEASE_FIRE')] });
+        if (down) buzz(10);
+        return;
+      }
+      BlipDeck.lean(stick, (held.right ? 1 : 0) - (held.left ? 1 : 0), (held.down ? 1 : 0) - (held.up ? 1 : 0));
+      const x = held.right ? 'PULL_RIGHT' : held.left ? 'PULL_LEFT' : 'RELEASE_X';
+      const y = held.down ? 'PULL_DOWN' : held.up ? 'PULL_UP' : 'RELEASE_Y';
+      const cmds = [];
+      if (x !== state.x) cmds.push(port + x);
+      if (y !== state.y) cmds.push(port + y);
+      state = { x, y };
+      if (cmds.length) { send({ bbjoy: cmds }); if (x !== 'RELEASE_X' || y !== 'RELEASE_Y') buzz(4); }
+    },
   });
-  const move = (e) => {
-    if (e.pointerId !== stickId) return;
-    let dx = e.clientX - origin.x;
-    let dy = e.clientY - origin.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > REACH) {
-      // the centre follows a wandering thumb, so turning back acts at once
-      const pull = dist - REACH;
-      origin.x += (dx / dist) * pull;
-      origin.y += (dy / dist) * pull;
-      dx = e.clientX - origin.x;
-      dy = e.clientY - origin.y;
-    }
-    lean(dx, dy);
-    if (Math.hypot(dx, dy) < DEAD_ZONE) return setDir('RELEASE_X', 'RELEASE_Y');
-    // eight 45° sectors, like a real microswitch stick
-    const sector = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
-    const x = [0, 1, -1].includes(sector) ? 'PULL_RIGHT' : [3, 4, -4, -3].includes(sector) ? 'PULL_LEFT' : 'RELEASE_X';
-    const y = [1, 2, 3].includes(sector) ? 'PULL_DOWN' : [-1, -2, -3].includes(sector) ? 'PULL_UP' : 'RELEASE_Y';
-    setDir(x, y);
-  };
-  zone.addEventListener('pointermove', move);
-  const release = (e) => {
-    if (e.pointerId !== stickId) return;
-    stickId = null;
-    zone.classList.remove('active');
-    lean();
-    setDir('RELEASE_X', 'RELEASE_Y');
-  };
-  zone.addEventListener('pointerup', release);
-  zone.addEventListener('pointercancel', release);
-
-  // ── fire ──
-  const fire = el.querySelector('.pad-fire');
-  const fireDown = (down) => (e) => {
-    e.preventDefault();
-    if (fire.classList.contains('on') === down) return;
-    fire.classList.toggle('on', down);
-    send({ bbjoy: [port + (down ? 'PRESS_FIRE' : 'RELEASE_FIRE')] });
-    if (down) buzz(10);
-  };
-  fire.addEventListener('pointerdown', fireDown(true));
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) fire.addEventListener(ev, fireDown(false));
+  BlipController.bindButtons(fire);
+  const unbind = BlipDeck.bindStick({ stick, fire, dirs: { up: 'up', down: 'down', left: 'left', right: 'right' } });
 
   // the pad never scrolls, zooms or opens a context menu
   el.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -168,7 +116,13 @@ export function createPad(root, send, { port = 2 } = {}) {
   return {
     el,
     setPort,
-    destroy: () => el.remove(),
+    destroy: () => {
+      unbind();
+      BlipController.releaseAll();
+      removeEventListener('resize', layout);
+      for (const a of ['data-layout', 'data-controls', 'data-has-touch']) html.removeAttribute(a);
+      el.remove();
+    },
   };
 }
 
