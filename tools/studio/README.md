@@ -99,6 +99,27 @@ game), a few minutes in each mode:
 (`tools/studio/test/build/tutorial.test.mjs` does these steps to the Empty
 game's files and builds the result, so the tutorial keeps working.)
 
+## Debugging
+
+Click the margin left of a line number (or press F9) to set a breakpoint, then
+▶ Run. The game stops at that line, which is shown in yellow, with the CPU's
+registers in the bar under the C64. The Variables panel shows the globals as
+they are at that moment.
+
+| Key | Does |
+| --- | --- |
+| F6 | pause at the next line of your code, or run on (F5 also runs on while stopped) |
+| F10 | step over: the next line in this function |
+| F11 | step into: into the call on this line, the runtime's C (gen/bb.c) too |
+| Shift+F11 | step out: back to the line that called this function |
+
+Breakpoints move with their lines as you edit, and each project keeps its own.
+How it works: the C64 is VirtualC64, which has its own debugger (RetroShell).
+ld65's debug file maps every C line to its addresses (`debuginfo.js`). Each
+step sets breakpoints at the lines it could stop at and runs until one is hit
+(`debugger.js`). After a one-instruction step, A, X and Y show as `··`, because
+only a breakpoint stop reports them.
+
 ## Saving to your disk
 
 A project lives in one of three places:

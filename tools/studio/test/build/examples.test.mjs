@@ -54,3 +54,25 @@ test('the Makefile builds the same program with a native cc65', { skip: !native 
   assert.ok(Buffer.from(r.prg).equals(prg), 'byte for byte the same program');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("Bubbler's debug info: its lines, its functions, the runtime's C", async () => {
+  const { DebugInfo } = await import('../../../../docs/play/studio/debuginfo.js');
+  const { files, gen, r } = await buildExample('bubbler');
+  const dbg = new DebugInfo(r.debug, { work: '/p' });
+  for (const f of ['src/main.c', 'src/player.c', 'gen/bb.c']) assert.ok(dbg.codeLines(f).length > 10, f);
+  // title()'s loop: the line after "bb_frame();" is a breakpoint that stops in title()
+  const main = files['src/main.c'].split('\n');
+  const line = main.findIndex((l, i) => /^\s+bb_frame\(\);/.test(l) && /for \(i = 0;; \+\+i\)/.test(main[i - 1])) + 2;
+  const [at] = dbg.addrs('src/main.c', line);
+  assert.ok(at, `line ${line} made code`);
+  assert.equal(dbg.funcAt(at).name, 'title');
+  assert.deepEqual(dbg.lineAt(at), { file: 'src/main.c', line });
+  // bb_frame() starts on the line after its name, in gen/bb.c
+  const bb = gen['gen/bb.c'].split('\n');
+  const first = bb.findIndex((l) => /^void bb_frame\(void\)/.test(l)) + 2;
+  assert.deepEqual(dbg.lineAt(r.labels._bb_frame), { file: 'gen/bb.c', line: first });
+  assert.equal(dbg.funcAt(r.labels._bb_frame).name, 'bb_frame');
+  // a step stops at C lines, not at each of the runtime's instructions
+  const n = dbg.lineStarts().length;
+  assert.ok(n > 200 && n < 800, `${n} line starts`);
+});

@@ -125,6 +125,79 @@ test('while the C64 has the keyboard, Ctrl+Enter still runs and Escape goes back
   await page.waitForFunction(() => document.activeElement?.classList.contains('cm-content'), { timeout: 5000 });
 });
 
+test('the control deck under the C64 plays: its FIRE starts Bubbler', { skip, timeout: 120000 }, async () => {
+  const page = await openStudio(browser, server.url);
+  assert.match(await run(page), /^Built in/);
+  const c = await c64(page);
+  await c.until(async () => /PRESS {2}FIRE/.test(await c.row(21)), 30000);
+  await page.click('.studio-padbtn');
+  await page.waitForSelector('.studio-deck:not([hidden]) #fire-buttons .arcade-btn');
+  const fire = await page.$eval('.studio-deck #fire-buttons .arcade-btn', (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(fire.x, fire.y);
+  await page.mouse.down();
+  await sleep(300);
+  await page.mouse.up();
+  await c.until(async () => /ROUND 01/.test(await c.row(0)), 10000);
+});
+
+test('the debugger: a breakpoint stops Bubbler on its line; step over, into, out; run on; pause', { skip, timeout: 180000 }, async () => {
+  const page = await openStudio(browser, server.url);
+  const st = (f, a) => page.evaluate(f, a);
+  // title()'s loop: bb_frame(); then the line that blinks PRESS FIRE
+  const loop = await st(() => {
+    const t = window.breadbinStudio.files['src/main.c'].split('\n');
+    return t.findIndex((l, i) => /^\s+bb_frame\(\);/.test(l) && /for \(i = 0;; \+\+i\)/.test(t[i - 1])) + 1;
+  });
+  await st((l) => window.breadbinStudio.toggleBreakpoint('src/main.c', l + 1), loop);
+  assert.match(await run(page), /^Built in/);
+  // where the CPU stopped: "title() src/main.c:82", and the yellow line in the editor
+  const stop = async (step) => {
+    if (step) await st((s) => window.breadbinStudio.dbg[s](), step);
+    await page.waitForFunction(() => document.querySelector('.studio-debug.stopped') && !/…/.test(document.querySelector('.studio-dbg-where').textContent), { timeout: 60000 });
+    const where = await page.$eval('.studio-dbg-where', (e) => e.textContent);
+    return { where, exec: await st(() => window.breadbinStudio.code.exec), file: await st(() => window.breadbinStudio.path) };
+  };
+  let s = await stop();
+  assert.equal(s.where, `title() src/main.c:${loop + 1}`);
+  assert.equal(s.exec, loop + 1);
+  assert.match(await page.$eval('.studio-dbg-regs', (e) => e.textContent), /^PC [0-9A-F]{4} {2}A [0-9A-F]{2} {2}X [0-9A-F]{2} {2}Y [0-9A-F]{2} {2}SP [0-9A-F]{2}$/);
+  assert.equal(await page.$$eval('.cm-exec-line', (e) => e.length), 1);
+  s = await stop('over');
+  assert.equal(s.where, `title() src/main.c:${loop + 2}`);
+  // round the loop to bb_frame(); and into it: the runtime's C, in gen/bb.c
+  for (let i = 0; i < 6 && !s.where.endsWith(`:${loop}`); i++) s = await stop('over');
+  assert.equal(s.where, `title() src/main.c:${loop}`);
+  s = await stop('into');
+  assert.match(s.where, /^bb_frame\(\) gen\/bb\.c:\d+$/);
+  assert.equal(s.file, 'gen/bb.c');
+  // out: back in title(), on the line after the call
+  s = await stop('out');
+  assert.equal(s.where, `title() src/main.c:${loop + 1}`);
+  // run on: the breakpoint again, a frame later
+  const frames = await st(() => window.breadbinStudio.session.peek([[window.breadbinStudio.lastBuild.labels._bb_frames, 1]]));
+  s = await stop('cont');
+  assert.equal(s.where, `title() src/main.c:${loop + 1}`);
+  const later = await st(() => window.breadbinStudio.session.peek([[window.breadbinStudio.lastBuild.labels._bb_frames, 1]]));
+  assert.notDeepEqual(later, frames, 'a frame went by');
+  // no breakpoints, run on: the game runs (the title blinks); pause stops it in src/
+  await st(() => window.breadbinStudio.clearBreakpoints());
+  await st(() => window.breadbinStudio.dbg.cont());
+  const c = await c64(page);
+  await c.until(async () => /PRESS {2}FIRE/.test(await c.row(21)), 10000);
+  await c.until(async () => !/PRESS/.test(await c.row(21)), 10000);
+  await st(() => window.breadbinStudio.debugToggle());
+  s = await stop();
+  assert.match(s.where, / src\/\w+\.c:\d+$/);
+  const a = await st(() => window.breadbinStudio.session.peek([[window.breadbinStudio.lastBuild.labels._bb_frames, 1]]));
+  await sleep(500);
+  assert.deepEqual(await st(() => window.breadbinStudio.session.peek([[window.breadbinStudio.lastBuild.labels._bb_frames, 1]])), a, 'stopped: no frames go by');
+  // Run starts the program afresh, running
+  assert.match(await run(page), /^Built in/);
+  await c.until(async () => /PRESS {2}FIRE/.test(await c.row(21)), 30000);
+  assert.ok(!(await page.$('.studio-debug.stopped')));
+  assert.deepEqual(page.errors, []);
+});
+
 test('Run again after an edit starts the new program in the running C64', { skip, timeout: 120000 }, async () => {
   const page = await openStudio(browser, server.url);
   await page.evaluate(() => window.breadbinStudio.openExample('blank'));

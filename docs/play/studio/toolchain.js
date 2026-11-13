@@ -99,9 +99,9 @@ export class Toolchain {
    * local variables live at fixed addresses, much faster on a 6502, but a
    * function can't call itself; default on), `defines` ({ NAME: value }),
    * `himem` (top of the program's RAM, default $C000).
-   * Returns { ok, prg, diagnostics, log, memory, labels, sizes, ms }: `labels`
+   * Returns { ok, prg, diagnostics, log, memory, labels, sizes, debug, ms }: `labels`
  * are the program's symbols ({ name: address }), `sizes` its C variables'
- * sizes (dataSizes()).
+ * sizes (dataSizes()), `debug` ld65's debug file (lines to addresses: debuginfo.js).
    */
   async build(files, { optimize = true, staticLocals = true, defines = {}, himem = 0xc000 } = {}) {
     const t0 = Date.now();
@@ -142,7 +142,7 @@ export class Toolchain {
 
     for (const [path, data] of Object.entries(asm)) {
       const obj = `.build/${path.replace(/^\.build\//, '').replace(/\.s$/i, '.o')}`;
-      const r = await this.run('ca65', ['--color', 'off', '-t', 'c64', '-I', `${SYS}/asminc`, ...incs, path, '-o', obj],
+      const r = await this.run('ca65', ['--color', 'off', '-t', 'c64', '-g', '-I', `${SYS}/asminc`, ...incs, path, '-o', obj],
         { ...this.sys('asminc'), ...project, [`${WORK}/${path}`]: data });
       logs.push(r.log);
       diagnostics.push(...parseDiagnostics(r.log, { tool: 'ca65', sources, generated }));
@@ -151,7 +151,7 @@ export class Toolchain {
     if (diagnostics.some((d) => d.severity === 'error')) return fail();
 
     const r = await this.run('ld65', ['--color', 'off', '-C', `${SYS}/cfg/c64.cfg`, '-D', `__HIMEM__=$${himem.toString(16)}`,
-      '-m', 'game.map', '-Ln', 'game.lbl', '-o', 'game.prg', ...Object.keys(objects), `${SYS}/lib/c64.lib`],
+      '-m', 'game.map', '-Ln', 'game.lbl', '--dbgfile', 'game.dbg', '-o', 'game.prg', ...Object.keys(objects), `${SYS}/lib/c64.lib`],
     { ...this.sys('cfg'), ...this.sys('lib'), ...objects });
     logs.push(r.log);
     diagnostics.push(...parseDiagnostics(r.log, { tool: 'ld65', sources, generated }));
@@ -162,7 +162,9 @@ export class Toolchain {
     }
     const map = new TextDecoder().decode(r.read(`${WORK}/game.map`) || new Uint8Array());
     const labels = parseLabels(new TextDecoder().decode(r.read(`${WORK}/game.lbl`) || new Uint8Array()));
-    return { ok: true, prg, diagnostics, log: logs.filter(Boolean).join('\n'), memory: memoryUse(map, prg, himem), labels, sizes, hidden, ms: Date.now() - t0 };
+    // the debugger's map of lines and addresses (debuginfo.js reads it)
+    const debug = new TextDecoder().decode(r.read(`${WORK}/game.dbg`) || new Uint8Array());
+    return { ok: true, prg, diagnostics, log: logs.filter(Boolean).join('\n'), memory: memoryUse(map, prg, himem), labels, sizes, hidden, debug, ms: Date.now() - t0 };
   }
 }
 
