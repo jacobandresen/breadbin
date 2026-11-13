@@ -1,0 +1,6 @@
+{
+  "name": "Pixels",
+  "lang": "c",
+  "entry": "src/main.c",
+  "about": "A tour of the bitmap mode: lines, circles, fills, blits racing plots, bouncing balls, and peek and poke."
+}

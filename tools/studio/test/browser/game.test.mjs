@@ -173,6 +173,54 @@ test('Bubbler: a monster on the last life is game over; fire is the title again'
   await c.until(async () => /PRESS {2}FIRE/.test(await c.row(21)), 10000);
 });
 
+test('Pixels: shapes in the bitmap, blits beat plots, balls move, peek and poke', { skip, timeout: 150000 }, async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => window.breadbinStudio.openExample('pixels'));
+  assert.match(await run(page), /^Built in/);
+  const L = await page.evaluate(() => window.breadbinStudio.lastBuild.labels);
+  const c = await c64(page);
+  const word = async (addr) => { const [lo, hi] = await c.peek(addr, 2); return lo | (hi << 8); };
+  /** Is pixel x, y of the bitmap ($E000, the VIC's layout) set? */
+  const pixel = async (x, y) => ((await c.ram(0xe000 + (y >> 3) * 320 + (x & ~7) + (y & 7)))[0] >> (7 - (x & 7))) & 1;
+  // 1: shapes, in bitmap mode
+  await c.until(async () => (await c.peek(0xd011))[0] & 0x20, 30000);
+  // the last things drawn: the disc, then a slot erased from it
+  await c.until(async () => (await pixel(272 - 30, 144)) && !(await pixel(272, 144)), 10000);
+  assert.equal(await pixel(80, 100), 1, 'the fan of lines meets at 80, 100');
+  assert.equal(await pixel(272 - 30, 144), 1, 'the disc\'s left edge');
+  assert.equal(await pixel(272, 144), 0, 'the slot erased from the disc');
+  assert.equal(await pixel(200 + 35, 144), 1, 'the biggest circle');
+  assert.equal(await pixel(200, 144), 0, 'the circles\' empty middle');
+  // 2: plot against blit
+  await c.until(async () => {
+    if ((await c.peek(L._plot_frames, 2)).some(Boolean)) return true;
+    await c.press('FIRE', 150);
+    return false;
+  }, 30000);
+  await c.until(async () => (await word(L._blit_frames)) > 0, 30000);
+  const plot = await word(L._plot_frames);
+  const blit = await word(L._blit_frames);
+  assert.ok(blit * 10 < plot, `blits ${blit} frames, plots ${plot}: at least ten times faster`);
+  // 3: bouncing balls, and the UFO sprite over the bitmap (fire pressed until
+  // it counts: a press while the race still prints its result is missed)
+  await c.until(async () => {
+    if (await c.sprite(0)) return true;
+    await c.press('FIRE', 150);
+    return false;
+  }, 15000);
+  const x0 = await word(L._bx);
+  await sleep(500);
+  assert.notEqual(await word(L._bx), x0, 'the balls move');
+  // 4: peek and poke, in text mode
+  await c.until(async () => {
+    if (/PEEK AND POKE/.test(await c.row(1))) return true;
+    await c.press('FIRE', 150);
+    return false;
+  }, 15000);
+  assert.equal((await c.peek(0xd011))[0] & 0x20, 0, 'back in text mode');
+  assert.match(await c.row(4), /BB_PEEK\(0XD012\)/);
+});
+
 test('Bouncer\'s rules: the W pickup widens the bat; no bricks left is the next level', { skip, timeout: 120000 }, async () => {
   const page = await openStudio(browser, server.url);
   await page.evaluate(() => window.breadbinStudio.openExample('bouncer'));

@@ -91,7 +91,7 @@ test('generated assets name everything the code uses', () => {
   assert.ok(!/#define TILE_FONT/.test(h), 'the font tiles get no names');
   assert.match(g['gen/assets.c'], /bb_sprite_data\[128\]/);
   assert.match(g['gen/assets.c'], /room0\[\] = \{\n {2}0xff, 0x28, 0x40,/);
-  assert.throws(() => generateAssets({ sprites: { sprites: Array(129).fill({ rows: [] }) }, tiles, map: { legend: {}, rooms: [] }, music: newMusic() }), /128/);
+  assert.throws(() => generateAssets({ sprites: { sprites: Array(65).fill({ rows: [] }) }, tiles, map: { legend: {}, rooms: [] }, music: newMusic() }), /64/);
 });
 
 test('a plain cc65 project: no project.json, main.c anywhere, no assets', async () => {
@@ -103,4 +103,14 @@ test('a plain cc65 project: no project.json, main.c anywhere, no assets', async 
   assert.equal(hasAssets({ 'assets/map.json': '{}' }), true);
   assert.equal(hasSources(files), true);
   assert.equal(hasSources({ 'notes.txt': '' }), false);
+});
+
+test('the pixel code comes only with projects that draw pixels', async () => {
+  const { drawsPixels, PIXELS } = await import('../../../../docs/play/studio/codegen.js');
+  assert.deepEqual(PIXELS, ['bbpixel.c', 'bbdraw.s']);
+  assert.equal(drawsPixels({ 'src/main.c': 'bb_spr(0, 1, 2, 3);' }), false);
+  assert.equal(drawsPixels({ 'src/main.c': 'bb_bitmap(1, 0); bb_line(0, 0, 9, 9);' }), true);
+  assert.equal(drawsPixels({ 'src/draw.h': '#define X bb_blit' }), true);
+  assert.equal(drawsPixels({ 'gen/bb.h': 'void bb_plot(int x, int y);', 'src/a.c': '' }), false, 'gen/ (bb.h itself) does not count');
+  assert.equal(drawsPixels({ 'src/a.c': 'int bb_platform;' }), false, 'whole names only');
 });

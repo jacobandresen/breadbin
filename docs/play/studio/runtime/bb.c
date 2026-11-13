@@ -11,7 +11,7 @@
 
 #define SCREEN ((unsigned char *)0xc000)
 #define CHARSET ((unsigned char *)0xc800)
-#define SPRITES ((unsigned char *)0xe000)
+#define SPRITES ((unsigned char *)0xd000)
 #define COLOR ((unsigned char *)0xd800)
 #define VIC ((volatile unsigned char *)0xd000)
 
@@ -59,8 +59,18 @@ void bb_init(void) {
   POKE(0xdc00, 0xff);
 
   copy(CHARSET, bb_charset, 2048);
-  /* the RAM under the KERNAL ROM takes writes; the VIC reads it */
-  copy(SPRITES, bb_sprite_data, (unsigned int)bb_sprite_count * 64);
+  /* The sprite images go to $D000, in the RAM under the I/O chips (the VIC
+   * reads that RAM; the bitmap has $E000). The CPU only reaches it with the
+   * I/O switched out ($01 = $34): interrupts off meanwhile, as the KERNAL is
+   * out then too. */
+  {
+    unsigned char port = PEEK(1);
+    __asm__("sei");
+    POKE(1, (port & 0xf8) | 0x04);
+    copy(SPRITES, bb_sprite_data, (unsigned int)bb_sprite_count * 64);
+    POKE(1, port);
+    __asm__("cli");
+  }
 
   VIC[0x15] = 0;                       /* all sprites off */
   VIC[0x17] = 0;                       /* no double height */
@@ -123,6 +133,7 @@ void __fastcall__ bb_room(unsigned char n) {
  * string literals in PETSCII: "a" is $41 and "A" is $C1, both the letter A,
  * screen code 1. @A-Z[\]^_ are screen codes 0..31, space to ? are 32..63. */
 static unsigned char code(unsigned char ch) {
+  if (ch == 0xa4) return 31;           /* "_": cc65 writes it as PETSCII $A4 */
   if (ch >= 0xc0) return ch - 0xc0;    /* PETSCII capitals ("A" in C) */
   if (ch >= 0x60) return ch & 0x1f;    /* the graphics range: as letters */
   if (ch >= 0x40) return ch - 0x40;    /* PETSCII letters ("a" in C), @ [ ] */

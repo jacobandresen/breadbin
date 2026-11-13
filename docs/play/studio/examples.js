@@ -19,6 +19,10 @@ export const EXAMPLES = [
     about: 'Bricks, a bat and a ball: catch the falling pickups.',
   },
   {
+    id: 'pixels', title: 'Pixels', lang: 'c', icon: '◐', color: 'linear-gradient(135deg, #d3869b, #6f3d86)', template: true,
+    about: 'The bitmap mode: lines, circles, blits racing plots, bouncing balls, peek and poke.',
+  },
+  {
     id: 'blank', title: 'Empty game', lang: 'c', icon: '✦', color: 'linear-gradient(135deg, #7ab8ff, #4a4fb0)', template: true,
     about: 'A sprite you can steer and a room to walk in: the smallest start.',
   },

@@ -263,9 +263,9 @@ export class SpriteEditor {
     this.history.push(this.sheet);
     const multi = this.sprite?.multi ?? true;
     this.sheet.sprites.splice(this.index + 1, 0, { ...blankSprite(`sprite ${this.sheet.sprites.length}`, multi), color: this.sprite?.color ?? 1 });
-    if (this.sheet.sprites.length > 128) {
+    if (imageCount(this.sheet) > MAX_IMAGES) {
       this.sheet.sprites.splice(this.index + 1, 1);
-      return toast('128 sprite images fill the C64\'s sprite memory.');
+      return toast(`${MAX_IMAGES} sprite images (mirrors count too) fill the runtime's sprite memory.`);
     }
     this.renderList();
     this.select(this.index + 1);
@@ -312,7 +312,7 @@ export class SpriteEditor {
       const img = await readImage(file);
       const found = cells(img.rgba, img.width, img.height, 24, 21);
       if (!found.length) return toast(`Nothing to import: ${file.name} needs to be at least 24x21, with something in it.`);
-      const room = 128 - this.sheet.sprites.length;
+      const room = Math.max(0, MAX_IMAGES - imageCount(this.sheet));
       const base = file.name.replace(/\.\w+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() || 'sprite';
       const added = found.slice(0, room).map((c, i) => spriteFromCell(c.rgba, { mc1: this.sheet.mc1 ?? 0, mc2: this.sheet.mc2 ?? 1 }, found.length > 1 ? `${base} ${i + 1}` : base));
       this.history.push(this.sheet);
@@ -320,7 +320,7 @@ export class SpriteEditor {
       this.renderList();
       this.select(this.index + 1);
       this.save();
-      toast(`${added.length} sprite${added.length > 1 ? 's' : ''} from ${file.name}${found.length > room ? ` (${found.length - room} more didn't fit: 128 is the most)` : ''}. Colours went to the nearest the C64 has.`);
+      toast(`${added.length} sprite${added.length > 1 ? 's' : ''} from ${file.name}${found.length > room ? ` (${found.length - room} more didn't fit: ${MAX_IMAGES} images is the most)` : ''}. Colours went to the nearest the C64 has.`);
     } catch (e) {
       toast(`Couldn't read ${file.name}: ${e.message}`);
     }
@@ -372,6 +372,11 @@ export class SpriteEditor {
     e.preventDefault();
   }
 }
+
+/** The most sprite images the runtime has room for: 64 x 64 bytes at $D000 (bb.h). */
+export const MAX_IMAGES = 64;
+/** The images a sheet makes: each sprite, and its mirror when "flip" is ticked. */
+export const imageCount = (sheet) => sheet.sprites.reduce((n, s) => n + (s.flip ? 2 : 1), 0);
 
 /** "walk 1" -> "walk 2", "hero" -> "hero 2", avoiding `taken`. */
 export function nextName(name, taken) {

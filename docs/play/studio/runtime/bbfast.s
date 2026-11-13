@@ -77,7 +77,7 @@ _bb_spr:
         lda (c_sp),y              ; img
         sta tmp4
         clc
-        adc #$80                ; images from $E000: pointer $80 + img
+        adc #$40                ; images from $D000: pointer ($D000 - $C000) / 64 + img
         sta PTRS,x
         ldy tmp4
         lda _bb_sprite_color,y

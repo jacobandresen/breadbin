@@ -46,9 +46,9 @@ test:
 # The Studio's tests in Node: the formats, cc65 in WebAssembly, the SID player
 # (needs `make web` for breadbin.wasm) and the examples.
 test-studio:
-	cd tools/studio && node --test test/unit/ test/build/
+	cd tools/studio && node --test 'test/unit/*.test.mjs' 'test/build/*.test.mjs'
 
 # ...and in headless Chromium (CHROME=/path/to/chrome): the editors, saving,
 # and the games played on vc64web (skipped offline).
 test-studio-browser:
-	cd tools/studio && node --test --test-concurrency=1 test/browser/
+	cd tools/studio && node --test --test-concurrency=1 'test/browser/*.test.mjs'

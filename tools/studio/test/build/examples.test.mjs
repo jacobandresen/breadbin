@@ -26,7 +26,7 @@ export async function buildExample(id) {
   return { files, gen, r };
 }
 
-for (const id of ['blank', 'bubbler', 'bouncer']) {
+for (const id of ['blank', 'bubbler', 'bouncer', 'pixels']) {
   test(`${id} builds without errors or warnings`, async () => {
     const { r } = await buildExample(id);
     assert.equal(r.ok, true, r.diagnostics.map((d) => `${d.file}:${d.line}: ${d.message}`).join('\n'));
