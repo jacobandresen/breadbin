@@ -6,6 +6,7 @@ Tools for finding out what runs in breadbin, and why something doesn't.
 |---|---|
 | `playtest.mjs` | Plays every title in headless Chromium and writes `docs/play/verified.json`, the shelves' list. |
 | `c64.mjs` | Library: drive the site's emulator (vc64web) from Node. Keys, joystick, memory, screen, debugger. |
+| `links.mjs` | Checks every shelf item's Share button (share sheet or clipboard) and that its link, opened by a first-time visitor, starts it. |
 | `probe.mjs` | One title, from the command line: a list of steps (wait, press, peek, shoot) built on `c64.mjs`. |
 | `vice.mjs` | Library: a VICE workbench with true drive emulation and its monitor, for KERNAL and drive work. |
 | `kernal.mjs` | Writes breadbin's patched Open ROMs KERNAL (`rom.rs`) to a file, for VICE. |
@@ -30,7 +31,10 @@ node playtest.mjs write     # results.json -> docs/play/verified.json
 ```
 
 Only what passes goes on a shelf:
-- **Demo:** loads, moves and makes sound.
+- **Demo:** loads, moves and makes sound. A still screen gets what a viewer
+  would give it: SPACE when it asks for it (after the Disk button if it asks
+  for the other side), else fire on port 2 and then 1 (a menu), but never on a
+  blank screen, where a trackmo may be loading.
 - **Tune:** loads from where the page gets it (`hvsc.js`) and makes sound in
   breadbin's SID player for 20 s.
 
@@ -66,6 +70,24 @@ tell, `[1541]` for a game that needs a real drive; `demos.txt` lines take `[1541
 too, for trackmos. Those run on vc64web's emulated 1541 with breadbin's free
 DOS (`tools/drive`), or with `ROM1541=<file>` in its place; a trackmo in several
 Archive items gets them all as sides, for the Disk button.
+
+## links.mjs: shared links
+
+```sh
+node links.mjs                       # every game, demo and tune in docs/play/verified.json
+node links.mjs games demos           # some shelves
+node links.mjs tunes --ids Hubbard   # titles whose id or name holds a substring
+```
+
+Each title gets a fresh browser context, like a friend opening the link from a
+chat. A game or demo passes when its card's Share button on a phone hands
+`#<tab>/<id>/play` to the share sheet, that link starts the emulator without a
+load error, and the player's Share button on a computer copies the same link. A tune passes when its link plays
+it, after the one tap the page asks for, and it is heard.
+
+Chromium runs with a phone's autoplay policy (no sound before a tap), and the
+page is watched through CDP with `userGesture: false`: Puppeteer's `evaluate`
+and `waitForFunction` count as a tap and would unlock the sound by themselves.
 
 ## c64.mjs: the site's emulator from Node
 
@@ -159,6 +181,9 @@ addresses. With any other KERNAL the patches stay out.
 
 - Always:
   - `$E536` restored. Stock CINT's tail; games jump there.
+  - `$FEBC` returns from an interrupt (PLA / TAY / PLA / TAX / PLA / RTI), as
+    the stock NMI handler's tail does: raster routines end with `JMP $FEBC`
+    (Road of Excess).
   - CHKIN and CKOUT read the secondary address, not the logical file number.
   - CLOSE sends `ORA #$E0`, not `ORA $E0` (zero page).
   - JiffyDOS detection off: a plain 1541 looked like JiffyDOS.
@@ -170,8 +195,33 @@ addresses. With any other KERNAL the patches stay out.
 - With a real 1541 (breadbin's free DOS or the user's ROM, `iec.asm`):
   - CIOUT and its flush send the byte they buffered. Before, every `M-W` byte was stale.
   - CLOSE keeps `.Y`. Last Ninja II relies on that.
+  - When nothing answers a TALK or LISTEN, ST gets bit 7 ("device not
+    present"), as from the stock KERNAL. Krill's loader reads it to check that
+    its drive is alone on the bus.
+  - SECOND, called through the jump table, returns with N showing the DATA
+    line, as the stock one does. Bitfire counts its drives that way.
+  - CIOUT and UNLSN at their stock addresses too, `$EDDD` and `$EDFE`, which
+    loaders call directly (So-Phisticated III); the Open ROMs' cursor and
+    screen code there moves to the free space.
+  - `$F5AF` and `$F5D2` (the stock "SEARCHING FOR" and "LOADING" messages,
+    silent in a program) return: Crest's loader calls them. They fall in the
+    Open ROMs' CTRL key table, so CTRL+D and CTRL+= type `$60` instead.
+  - The keyboard scan leaves `$DC00` at `$7F`, the column with SPACE, as the
+    stock one does: programs read SPACE with `LDA $DC01 / CMP #$EF` alone.
+  - "A byte waits to be sent" is bit 7 of `$94`, as in the stock KERNAL, not
+    any value but 0: Bitfire's depacker leaves its own code in the zero page,
+    and the next LISTEN sent the drive a byte nobody wrote.
 
 These fixes are what let fast loaders upload their code to the drive.
+
+**The Open ROMs BASIC, patched** (`rom.rs`, `patch_basic`). `$A659` is a stub
+(RTS) in the Open ROMs; the stock routine resets the text pointer and clears the
+variables. Exomizer's self-extractors end with `JSR $A659 / JSR $A533 / JMP $A7AE`
+to RUN the BASIC program they unpacked, and stopped with ?UNDEF'D STATEMENT
+ERROR (We Are New). The fix calls the Open ROMs' own RUNC and CLR from free
+space at `$A00C`; the WAIT command, whose first bytes the jump takes, gets its
+first instruction moved there too. The page swaps it in like the KERNAL, and
+`node kernal.mjs basic_generic.rom out.rom basic` writes it for VICE.
 
 **A free 1541 DOS** (`tools/drive`): Pascual DOS plus breadbin's patch, so the
 drive code of trackmos (Edge of Disgrace...) finds the job queue, the entry

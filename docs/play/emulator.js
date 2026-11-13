@@ -5,13 +5,13 @@
 import * as ia from './ia.js';
 import * as emu from './emu.js';
 import * as store from './store.js';
-import { pick, prepare, patchedKernal, joinSplit } from './engine.js';
+import { pick, prepare, patchedKernal, patchedBasic, joinSplit } from './engine.js';
 import { createPad } from './touch.js';
 import { swapScript } from './drive.js';
 import { scroller } from './scroller.js';
 import { pollGamepads } from './gamepad.js';
 import { settings, save, loadRoms } from './settings.js';
-import { $, h, pixel, toast } from './ui.js';
+import { $, h, pixel, toast, share } from './ui.js';
 
 let session = null;
 let pad = null;
@@ -19,13 +19,21 @@ let port = 2; // the joystick port the keys, gamepad and pad drive
 let stopGamepads = null;
 let swapDisk = null; // puts the next side of a multi-disk release in the drive
 let intro = null; // the scroller for a game whose loader breadbin patched
+let playing = null; // what runs, as { tab, item }, for the Share button
 
 /** The file to boot from an Internet Archive item. */
 async function archiveFile(id, progress) {
   const meta = await ia.metadata(id);
-  const name = await pick((meta.files || []).map((f) => f.name), meta.metadata?.emulator_start);
+  const names = (meta.files || []).map((f) => f.name);
+  const name = await pick(names, meta.metadata?.emulator_start);
   if (!name) throw new Error('this item has no C64 disk, tape or program file');
-  return { name, bytes: await ia.download(id, name, progress) };
+  const bytes = await ia.download(id, name, progress);
+  // the item's other disks are the release's other sides, in name order (Tower
+  // Power's ..._Side_A.d64 and ..._Side_B.d64): the Disk button puts them in
+  const disks = names.filter((n) => /\.(d64|g64)$/i.test(n)).sort();
+  if (!/\.(d64|g64)$/i.test(name) || disks.length < 2) return { name, bytes };
+  const sides = await Promise.all(disks.map(async (n) => ({ name: n, bytes: n === name ? bytes : await ia.download(id, n) })));
+  return { name, bytes, sides };
 }
 
 /**
@@ -70,6 +78,7 @@ export async function launch(kind, item) {
   dispatchEvent(new Event('breadbin:launch'));
   const [stage, status, note] = [$('#emu-stage'), $('#emu-status'), $('#emu-note')];
   $('#emu-title').textContent = pixel(item.title);
+  playing = { tab: kind === 'game' ? 'games' : 'demos', item };
   const online = $('#emu-online');
   online.hidden = kind !== 'game' || !ia.onlineAt(item);
   if (!online.hidden) online.href = ia.onlineAt(item);
@@ -94,6 +103,7 @@ export async function launch(kind, item) {
     // a trackmo or a game whose loader runs on the drive gets a real 1541
     if (item.rom1541 && !roms.floppy) roms.floppy = await freeDrive();
     const kernal = roms.kernal ? null : await patchedKernal(store.cachedBytes, !!roms.floppy);
+    const basic = kernal && (await patchedBasic(store.cachedBytes));
     const file = { ...(await prepare(name, bytes, { canMount: !!roms.floppy, prefer: item.run || '' })), boot: item.boot, patches: item.patches };
     port = item.port || 2;
     const all = sides || (file.disks.length > 1 && file.disks.map((d) => ({ name: d, zip: [name, bytes] }))) || [];
@@ -109,6 +119,7 @@ export async function launch(kind, item) {
     session = emu.run(stage, file, {
       roms,
       kernal,
+      basic,
       port,
       onState: (s) => (status.textContent = s.running ? (s.warping ? 'warp' : 'running') : 'paused'),
       onDrive: (d) => {
@@ -187,6 +198,7 @@ $('#emu-disk').addEventListener('click', () => {
   swapDisk?.();
   session?.frame.focus();
 });
+$('#emu-share').addEventListener('click', () => playing && share(playing.tab, playing.item.id, playing.item.title));
 $('#emu-pad').addEventListener('click', () => {
   const on = !$('#emu').classList.contains('touch');
   save({ pad: on });

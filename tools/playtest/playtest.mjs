@@ -633,13 +633,55 @@ async function playtest(browser, kind, item) {
       r.port = await controlledPort({ inFrame, joy, key, screenText, proof: () => shot('control'), settle, picture: look, swap, title: item.title, ports: item.portPin ? [item.portPin] : [2, 1] });
       await sleep(1500);
     } else {
-      // a still screen asking for SPACE (Lunatico's "designed for the new SID
-      // chip... SPACE to run anyway") gets it, as a viewer would press it
-      if (change(shots.boot, shots.idle) < 0.001 && /SPACE/.test(await screenText())) await key(7, 4), await settle(), await shot('idle');
+      // A screen that stands still gets what a viewer would give it, in turn,
+      // up to four times (a demo can ask twice), watching for up to twelve looks:
+      // - SPACE when it asks for it (Lunatico's "designed for the new SID chip...
+      //   SPACE to run anyway"), after the Disk button if it asks for the other
+      //   side ("insert diskside 2 and press space", Tower Power by Camelot);
+      // - else fire on port 2 (Ice Cream Castle's flavour menu), then 1 (Cycle by
+      //   Booze Design: "1. Live forever"), then SPACE (The Megademo by HIC, whose
+      //   first picture waits for it without saying so).
+      // Never on a blank screen, where a trackmo is loading and a press could
+      // break into it.
+      for (let look = 0, acts = 0, tried = 0, still = 0; look < 12 && acts < 4; look++) {
+        await sleep(2500);
+        await shot('still');
+        // moving: watch a while longer (an intro before "insert side 2")
+        if (change(shots.idle, shots.still) >= 0.001) {
+          shots.idle = shots.still;
+          still = 0;
+          continue;
+        }
+        still++;
+        const text = await screenText();
+        // SPACE when the text asks, at once, even on a dark screen (Tower Power's
+        // prompt is a few lines on black)
+        if (/SPACE/.test(text)) {
+          if (/INSERT|TURN|FLIP|SIDE/.test(text)) await page.click('#emu-disk').catch(() => {}), await sleep(1500);
+          await key(7, 4);
+        } else {
+          // blind presses only after ~7 s of a still picture: a pause in an intro
+          // (Krestology's verse, Krestage's) is not a menu, and fire quits some;
+          // never on a blank screen (a trackmo loading) or at BASIC's READY
+          const blank = share(shots.still, [0, 0, 0], 12) >= 0.985;
+          if (still < 3 || blank || /READY\./.test(text)) continue;
+          if (tried === 0) tried++, await joy('2PRESS_FIRE'), await sleep(250), await joy('2RELEASE_FIRE');
+          else if (tried === 1) tried++, await key(...KEYS[1]);
+          else await key(7, 4);
+        }
+        acts++;
+        still = 0;
+        await sleep(2000);
+        await settle();
+        await shot('idle');
+      }
       await sleep(8000);
       await shot('fire');
       // a demo must be heard: the RMS of what reaches the speakers, ~3 s
-      const levels = await frame.evaluate(loudness, 20, 150);
+      let levels = await frame.evaluate(loudness, 20, 150);
+      // some keep quiet for a minute while their intro plays (Parapsykolog by
+      // Panoramic Designs starts its music some 55 s in): listen again, twice
+      for (let i = 0; i < 2 && levels.filter((v) => v > 0.004).length < 5; i++) await sleep(20000), (levels = await frame.evaluate(loudness, 20, 150));
       r.sound = Number(Math.max(...levels).toFixed(3));
       r.loud = levels.filter((v) => v > 0.004).length;
       await sleep(1000);

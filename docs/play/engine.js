@@ -83,6 +83,23 @@ export async function patchedKernal(fetchBytes, drive = false) {
 }
 export const OPEN_KERNAL = 'https://mega65.github.io/open-roms/bin/kernal_generic.rom';
 
+/** The MEGA65 Open ROMs BASIC with breadbin's patch (rom.rs: a working $A659,
+ *  which Exomizer's self-extractors call to RUN what they unpacked), or null if
+ *  it can't be fetched or isn't the build the patch is for. */
+export async function patchedBasic(fetchBytes) {
+  try {
+    const w = await engine();
+    const [p, n, free] = put(w, await fetchBytes(OPEN_BASIC));
+    const ok = w.bb_patch_basic(p, n);
+    const rom = new Uint8Array(w.memory.buffer, p, n).slice();
+    free();
+    return ok ? rom : null;
+  } catch {
+    return null;
+  }
+}
+export const OPEN_BASIC = 'https://mega65.github.io/open-roms/bin/basic_generic.rom';
+
 /** The file to boot among `names` (`start` is the archive's own choice). */
 export async function pick(names, start = '') {
   const w = await engine();

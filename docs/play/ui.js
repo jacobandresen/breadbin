@@ -33,6 +33,37 @@ export function toast(msg, ms = 3500) {
   toast.timer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
+/** The link that starts `id` from the `tab` shelf ('games', 'demos' or 'tunes') for whoever opens it. */
+export const shareUrl = (tab, id) => `${location.origin}${location.pathname}#${tab}/${encodeURIComponent(id)}/play`;
+
+/** Share the link to `id`: a phone's share sheet (Messages, WhatsApp...), or
+ *  elsewhere the clipboard, saying so. */
+export async function share(tab, id, title) {
+  const url = shareUrl(tab, id);
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try {
+      return await navigator.share({ title: `${title} on breadbin`, text: `Play ${title} on a C64 in your browser`, url });
+    } catch (e) {
+      if (e.name === 'AbortError') return; // the sheet was dismissed
+    } // no sheet after all: copy instead
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    // no async clipboard (an http page other than localhost, an old browser): the old way
+    const ta = h('textarea', { value: url, readOnly: true, style: { position: 'fixed', opacity: '0' } });
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand?.('copy');
+    ta.remove();
+    if (!ok) return prompt('Copy this link:', url);
+  }
+  toast(`🔗 Link to ${title} copied: paste it to a friend.`);
+}
+
+export const shareButton = (tab, item) =>
+  h('button.key.pill.share', { onclick: () => share(tab, item.id, item.title), title: 'Share a link that starts it' }, '🔗 Share');
+
 export const closeButton = (dlg) => h('button.key.icon.small.close', { onclick: () => dlg.close(), 'aria-label': 'Close' }, '✕');
 
 /** A definition list filled with add(label, value); empty values are skipped. */

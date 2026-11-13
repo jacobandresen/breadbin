@@ -29,6 +29,9 @@ classic demo (Comaland, Edge of Disgrace, Deus Ex Machina).
 
 ![Sanxion playing in the Tunes tab, with a filled-vector visualiser](docs/images/shots/tunes.png)
 
+**Share** sends a link that starts a game, demo or tune for whoever opens it:
+through the phone's share sheet, or copied on a computer.
+
 **Hack** puts an assembler in the page. Open a classic intro's source or write
 your own, press Run, and ACME builds it and starts it on the C64 beside the code.
 
@@ -52,6 +55,7 @@ make serve-web &               # build the engine, serve docs/ on :8064
 cd tools/playtest && npm install
 node playtest.mjs games        # also: demos, tunes; --ids <substring> to filter
 node playtest.mjs write        # results.json -> docs/play/verified.json
+node links.mjs                 # every Share link starts what it names
 ```
 
 `make serve-web` needs Rust's `wasm32-unknown-unknown` target and emscripten.

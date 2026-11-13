@@ -36,6 +36,42 @@ built from:
     doesn't have: there an RTS, so high scores are not written back;
   - a reset entry at `$EAA0`, where programs reset the drive (M-E) and where
     VirtualC64 starts the drive's CPU instead of reading the reset vector.
+  - for Krill's loader (We Are New and other Fairlight, Censor and Oxyron
+    trackmos): the GCR encode table at `$F77F`, from which its drive code builds
+    its decode table, and a drive that lets go of the bus when ATN brings a
+    LISTEN or TALK for another device, as a 1541 does. The loader LISTENs to
+    devices 8-14 to make sure its drive is alone on the bus, and stopped with
+    error `$FD` when every number answered.
+  - for Bitfire (The Star Wars Demo): `$C11B`, `ORA $1C00 / STA $1C00 / CLI /
+    RTS` as at the end of a 1541's LED routine, which Bitfire calls with
+    A = `$04` to start the motor. To make room for it, the serial routines that
+    followed the reset code moved up into CODE2.
+
+  - reading on tracks 25-30. The sector finder read each header's data block
+    before decoding the header, and the decode let the next header go by, so
+    it saw every second sector; on those tracks' 18 sectors the same half came
+    round for ever, and LOAD stopped with READ ERROR (Natural Wonders). It now
+    compares the header's raw GCR with the wanted sector's and reads only that
+    one's data block.
+  - for Natural Wonders' loader (Oxyron), which reads files with EXECUTE
+    jobs of its own: `$F8E0`, decode the data block the job read (256 GCR
+    bytes in its buffer, 69 at `$01BA`) in place, with the block's mark in `$38`
+    and its checksum in `$3A`; and `$F505`, end the job with OK.
+  - a drive that lets go of DATA when an ATN sequence leaves it idle, as a
+    1541 does: Bitfire's installer (The Star Wars Demo, Wonderland XIII) waits
+    for the bus to go free before its drive code takes the line.
+  - commands received at `$0200`, the 1541's command buffer (up to 64 bytes):
+    at `$0300`, buffer 0, every command overwrote drive code uploaded there
+    with M-W (Krestology, Krestage); and `$F4D1`, read the running job's sector
+    into the buffer whose page is in `$31` and end the job, which their drive
+    code jumps to.
+  - the `&` command: load a USR file of records (address, count, bytes,
+    checksum) into drive memory and run it, the command line copied to `$0200`.
+
+Dutch Breeze (Black Mail) runs its drive code with `&`, which now loads, but the
+code decrypts itself with bytes of Commodore's 1541 ROM, so it cannot run on a
+free DOS.
+
 
   All of it follows the drive's published interface (the job queue and entry
   points as *Inside Commodore DOS* and loader sources document them; the tables
@@ -45,10 +81,11 @@ built from:
 
 Build it with `make drive` (needs git, node and cc65's `ca65`/`ld65`).
 
-With it these trackmos pass breadbin's playtest in the browser, on free ROMs
-only: Edge of Disgrace, Lunatico, Wonderland XII and XIII, The Phoenix Code,
-La Linea, Ice Cream Castle, Mekanix, Red Storm and Radio Napalm, and the game
-Creatures II. Others are
-shelved as WIP; Krill's loader, for one, still stalls in its transfer. A demo marked
+With it these pass breadbin's playtest in the browser, on free ROMs only: Edge
+of Disgrace, Lunatico, Wonderland XII and XIII, The Star Wars Demo, The Phoenix
+Code, La Linea, Mekanix, Red Storm, Radio Napalm, We Are New, Desert Dream,
+Amplifire, Another Beginning, Natural Wonders 1 and 2, 1991, Krestology, The
+Megademo, Tower Power, So-Phisticated III, Cycle, Soiled Legacy, Road of Excess,
+and the game Creatures II. Others are shelved as WIP, with the reason. A demo marked
 `[1541]` in `tools/playtest/demos.txt` (or a game in `games.txt`) gets the
 emulated 1541 with this ROM; a visitor's own 1541 ROM (Settings) takes its place.

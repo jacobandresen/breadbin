@@ -5,7 +5,7 @@ import * as ia from './ia.js';
 import { boxartIndex, canon } from './covers.js';
 import { verified } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton, wipNote, footer } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote, footer, shareButton } from './ui.js';
 
 let covers = new Map();
 export const coversReady = boxartIndex().then((m) => (covers = m));
@@ -60,7 +60,7 @@ export async function showGame(g) {
       h('h2', {}, g.title),
       h('p.by', {}, [g.publisher, g.year || ''].filter(Boolean).join(' · ')),
       info,
-      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('game', g) }, '▶ Play')),
+      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('game', g) }, '▶ Play'), shareButton('games', g)),
       wipNote(g),
       g.rom1541 && h('p.needs', {}, h('b', {}, '💾 Real 1541. '),
         'Its loader runs its own code on the disk drive, so it gets an emulated 1541 with breadbin\'s free DOS (or your own drive ROM from Settings). Loading takes real-drive time.'),

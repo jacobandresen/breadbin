@@ -138,6 +138,15 @@ pub unsafe extern "C" fn bb_patch_kernal(ptr: *mut u8, len: usize, drive: u32) -
     rom::patch_kernal(std::slice::from_raw_parts_mut(ptr, len), drive == 1) as u32
 }
 
+/// Patch the Open ROMs BASIC at `ptr` in place (see `rom::patch_basic`). Returns 1 if patched.
+#[no_mangle]
+pub unsafe extern "C" fn bb_patch_basic(ptr: *mut u8, len: usize) -> u32 {
+    if len == 0 {
+        return 0;
+    }
+    rom::patch_basic(std::slice::from_raw_parts_mut(ptr, len)) as u32
+}
+
 // ── virtual drive (runs inside the emulator frame) ──────────────────────────
 
 #[cfg(target_arch = "wasm32")]
