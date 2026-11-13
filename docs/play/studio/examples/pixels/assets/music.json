@@ -1,0 +1,20 @@
+{
+  "instruments": [
+    { "name": "ping", "wave": "tri", "a": 0, "d": 6, "s": 0, "r": 5, "pw": 8, "pwm": 0, "vib": 0, "arp": [0,0], "slide": 0, "drum": false }
+  ],
+  "patterns": [
+    {
+      "name": "ping",
+      "speed": 1,
+      "steps": [
+        "C-6 0 ...",
+        "--- . ...",
+        "--- . ...",
+        "=== . ...",
+        "--- . ...",
+        "--- . ..."
+      ]
+    }
+  ],
+  "songs": []
+}

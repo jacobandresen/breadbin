@@ -6,10 +6,10 @@
   "scripts": {
     "bundle": "node bundle.mjs",
     "examples": "node make-examples.mjs",
-    "test": "node --test test/unit/ test/build/",
-    "test:unit": "node --test test/unit/",
-    "test:browser": "node --test --test-concurrency=1 test/browser/",
-    "test:all": "node --test --test-concurrency=1 test/unit/ test/build/ test/browser/"
+    "test": "node --test 'test/unit/*.test.mjs' 'test/build/*.test.mjs'",
+    "test:unit": "node --test 'test/unit/*.test.mjs'",
+    "test:browser": "node --test --test-concurrency=1 'test/browser/*.test.mjs'",
+    "test:all": "node --test --test-concurrency=1 'test/**/*.test.mjs'"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "6.20.4",

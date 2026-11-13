@@ -18,8 +18,10 @@
  *   }
  *
  * Memory: the program has $0801-$BFFF. The runtime keeps VIC bank 3 for
- * itself: the screen at $C000, the tiles (a 256-character set) at $C800 and
- * up to 128 sprite images from $E000, in the RAM under the KERNAL ROM.
+ * itself: the screen at $C000 (the bitmap's colours in bitmap mode), the
+ * tiles (a 256-character set) at $C800, up to 64 sprite images from $D000
+ * (in the RAM under the I/O chips) and the 320x200 bitmap at $E000 (in the
+ * RAM under the KERNAL ROM).
  *
  * Coordinates are screen pixels: x 0..319, y 0..199, for sprites too
  * (a sprite at 0,0 has its top-left corner at the screen's). Cells are the
@@ -108,6 +110,67 @@ void __fastcall__ bb_sfx(unsigned char n);
 
 /* bb_music(BB_STOP) stops the music. */
 #define BB_STOP 0xff
+
+/* ── pixels: the bitmap mode ──────────────────────────────────────────── */
+
+/* Switch to the 320x200 bitmap, cleared, every cell in `ink` on `paper`.
+ * Sprites still show over it; tiles and bb_text don't (bb_btext does). */
+void __fastcall__ bb_bitmap(unsigned char ink, unsigned char paper);
+/* Back to tiles and text (the screen is cleared). */
+void bb_textmode(void);
+
+/* How pixels are drawn (bb_pen): set them, clear them, flip them (drawing
+ * twice in BB_FLIP leaves the picture as it was: moving things without
+ * saving what was under them), or, for bb_blit, copy over what is there. */
+#define BB_DRAW  0
+#define BB_ERASE 1
+#define BB_FLIP  2
+#define BB_COPY  3
+/* The pen for the drawing calls below: BB_DRAW, BB_ERASE, BB_FLIP or BB_COPY. */
+#define bb_pen(mode) (bb_pen_mode = (mode))
+extern unsigned char bb_pen_mode;
+
+/* One pixel at x, y (off the screen: nothing). */
+void __fastcall__ bb_plot(int x, int y);
+/* Is the pixel at x, y set? (0 off the screen) */
+unsigned char __fastcall__ bb_pget(int x, int y);
+/* A line from x0, y0 to x1, y1. */
+void __fastcall__ bb_line(int x0, int y0, int x1, int y1);
+/* A rectangle's outline, w x h pixels from x, y. */
+void __fastcall__ bb_rect(int x, int y, int w, int h);
+/* A filled rectangle, w x h pixels from x, y: a byte at a time, quick. */
+void __fastcall__ bb_fill(int x, int y, int w, int h);
+/* A circle's outline around cx, cy. */
+void __fastcall__ bb_circle(int cx, int cy, unsigned char r);
+/* A filled circle (a disc) around cx, cy. */
+void __fastcall__ bb_disc(int cx, int cy, unsigned char r);
+/* The colours of the cells cx, cy (w x h cells): `ink` for set pixels, `paper` for the rest. */
+void __fastcall__ bb_ink(unsigned char cx, unsigned char cy, unsigned char w, unsigned char h,
+                         unsigned char ink, unsigned char paper);
+/* Text in the bitmap, with the font tiles, at cell cx, cy (in the cells' colours). */
+void __fastcall__ bb_btext(unsigned char cx, unsigned char cy, const char *s);
+
+/* Blit: copy a picture `src` onto the bitmap at x, y with the pen, fast (a
+ * byte, 8 pixels, at a time). It is `wb` bytes (8 x wb pixels) wide and h
+ * rows tall, row after row; x is rounded down to a multiple of 8. A tile
+ * from the TILES mode is a picture of 1 x 8: bb_tile_picture(t). */
+void __fastcall__ bb_blit(int x, int y, const unsigned char *src, unsigned char wb, unsigned char h);
+/* The opposite: copy the bitmap at x, y into `dst` (wb x h bytes, as for
+ * bb_blit), to put back later what something drawn over it hid. */
+void __fastcall__ bb_grab(int x, int y, unsigned char *dst, unsigned char wb, unsigned char h);
+/* The 8 bytes of tile `t`'s picture, for bb_blit. */
+#define bb_tile_picture(t) ((const unsigned char *)(0xc800 + (unsigned int)(unsigned char)(t) * 8))
+
+/* ── memory ───────────────────────────────────────────────────────────── */
+
+/* The byte at `addr` in the C64's memory or its chips (bb_peek(0xd012): the raster line). */
+#define bb_peek(addr) (*(volatile unsigned char *)(addr))
+/* Write `v` to `addr` (bb_poke(0xd020, BB_RED): a red border). */
+#define bb_poke(addr, v) (*(volatile unsigned char *)(addr) = (v))
+/* The 16-bit word at `addr` (low byte first). */
+#define bb_peekw(addr) (*(volatile unsigned int *)(addr))
+/* Write the 16-bit word `v` to `addr`. */
+#define bb_pokew(addr, v) (*(volatile unsigned int *)(addr) = (v))
 
 /* ── odds and ends ────────────────────────────────────────────────────── */
 

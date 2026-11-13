@@ -10,6 +10,9 @@ const GROUPS = [
   ['Tiles and rooms', /^bb_(room|tile|set_tile|fget|flags_at|tile_flags)$/],
   ['Text', /^bb_(text|num|cls)$/],
   ['Sound', /^bb_(music|sfx)$|^BB_STOP$/],
+  ['Pixels: the bitmap', /^bb_(bitmap|textmode|pen|pen_mode|plot|pget|line|rect|fill|circle|disc|ink|btext)$|^BB_(DRAW|ERASE|FLIP|COPY)$/],
+  ['Blits', /^bb_(blit|grab|tile_picture)$/],
+  ['Memory', /^bb_(peek|poke|peekw|pokew)$/],
   ['Odds and ends', /^bb_(rnd|seed)$/],
   ['Colours', /^BB_(BLACK|WHITE|RED|CYAN|PURPLE|GREEN|BLUE|YELLOW|ORANGE|BROWN|PINK|DARKGREY|GREY|LIGHTGREEN|LIGHTBLUE|LIGHTGREY)$/],
 ];

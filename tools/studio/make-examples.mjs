@@ -423,6 +423,32 @@ function bouncerAssets() {
   };
 }
 
+// ── Pixels ──────────────────────────────────────────────────────────────────
+
+function pixelsAssets() {
+  const ufo = paint((x, y) => {
+    const dome = Math.hypot(x - 12, (y - 8) * 1.3);
+    if (dome < 5 && y < 9) return Math.hypot(x - 10, y - 5) < 1.6 ? '3' : '2';
+    const body = Math.hypot((x - 12) / 11, (y - 11) / 3.2);
+    if (body < 1) return y < 10 ? '1' : Math.floor(x / 4) % 2 ? '3' : '1';
+    if (body < 1.15) return '2';
+    return '.';
+  }, true);
+  const tiles = newTileset();
+  const map = { legend: { ' ': 32 }, rooms: [] };
+  map.rooms.push(blankRoom(map, 'start'));
+  return {
+    sprites: { mc1: 0, mc2: 1, sprites: [mc('ufo', 4, ufo)] },
+    tiles,
+    map,
+    music: {
+      instruments: [{ name: 'ping', wave: 'tri', a: 0, d: 6, s: 0, r: 5, pw: 8, pwm: 0, vib: 0, arp: [0, 0], slide: 0, drum: false }],
+      patterns: [{ name: 'ping', speed: 1, steps: ['C-6 0 ...', EMPTY, EMPTY, '=== . ...', EMPTY, EMPTY] }],
+      songs: [],
+    },
+  };
+}
+
 // ── writing the projects ───────────────────────────────────────────────────
 
 const MAKEFILE = (name) => `# Builds ${name} with a native cc65 (https://cc65.github.io), the same way
@@ -497,4 +523,6 @@ project('bubbler', 'Bubbler', 'A one-screen platformer: blow bubbles, trap the m
   '\n## Playing\n\nJoystick left and right to run, up to jump, fire to blow a bubble. A\nmonster caught in a bubble floats up: touch it to pop it into a cherry.\nClear the room to go on to the next round.\n');
 project('bouncer', 'Bouncer', 'Bricks, a bat and a ball: catch the falling pickups. After blip\'s Bouncer.', bouncerAssets(),
   '\n## Playing\n\nJoystick left and right move the bat, fire launches the ball. Pickups:\nW a wide bat, M three balls, S a slower ball, L a life.\n');
+project('pixels', 'Pixels', 'A tour of the bitmap mode: lines, circles, fills, blits racing plots, bouncing balls, and peek and poke.', pixelsAssets(),
+  '\n## The parts\n\nFire goes on to the next: shapes, plot against blit (timed), bouncing balls\n(blits with the flip pen, pre-shifted to move a pixel at a time, under a\nhardware sprite), and peek and poke.\n');
 project('blank', 'My game', 'A sprite you can steer and a room to walk in: the smallest start.', blankAssets());

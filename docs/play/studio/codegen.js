@@ -5,7 +5,8 @@
 //   gen/assets.c   the sprite images, the character set, tile colours and
 //                  flags, and the rooms, run-length coded
 //   gen/music.s    the instruments, patterns and songs for the player
-//   gen/bb.h ...   the runtime (bb.h, bb.c, bbfast.s, bbirq.s, bbsound.s)
+//   gen/bb.h ...   the runtime (bb.h, bb.c, bbfast.s, bbirq.s, bbsound.s, and the
+//                  pixels, bbpixel.c and bbdraw.s, for a project that draws them)
 //
 // gen/ is output, like a build folder: the editors are where assets change.
 // It is written to the project folder too, so `make` with a native cc65
@@ -18,6 +19,12 @@ import { musicSource } from './assets/music.js';
 import { resourceText } from './resource.js';
 
 export const RUNTIME = ['bb.h', 'bb.c', 'bbfast.s', 'bbirq.s', 'bbsound.s'];
+/** The pixel code: in gen/ for a project that draws pixels, else empty stand-ins (see generate). */
+export const PIXELS = ['bbpixel.c', 'bbdraw.s'];
+const PIXEL_CALLS = /\bbb_(bitmap|textmode|plot|pget|line|rect|fill|circle|disc|ink|btext|blit|grab|pen)\b/;
+
+/** Does the project's code (not gen/) use the pixel functions? */
+export const drawsPixels = (files) => Object.entries(files).some(([p, t]) => /\.(c|h)$/.test(p) && !/^gen\//.test(p) && typeof t === 'string' && PIXEL_CALLS.test(t));
 export { ASSET_PATHS as ASSET_FILES } from './project.js';
 import { ASSET_PATHS as ASSET_FILES } from './project.js';
 
@@ -55,7 +62,7 @@ export function generateAssets({ sprites, tiles, map, music }) {
 
   // sprites
   const imgs = images(sprites);
-  if (imgs.length > 128) throw new Error(`${imgs.length} sprite images: the C64 has room for 128`);
+  if (imgs.length > 64) throw new Error(`${imgs.length} sprite images: the runtime has room for 64 (at $D000)`);
   h.push('/* sprite images, for bb_spr() */');
   imgs.forEach((s, i) => h.push(`#define ${constName('SPR', s.constName, taken)} ${i}`));
   h.push(`#define SPR_COUNT ${imgs.length}`, '');
@@ -108,9 +115,17 @@ export function generateAssets({ sprites, tiles, map, music }) {
 
 let runtime = null;
 /** The runtime library's files, as gen/<name>. */
-export async function runtimeFiles() {
-  runtime ??= Promise.all(RUNTIME.map(async (f) => [`gen/${f}`, await resourceText(`runtime/${f}`)])).then(Object.fromEntries);
-  return runtime;
+export async function runtimeFiles(pixels = true) {
+  runtime ??= Promise.all([...RUNTIME, ...PIXELS].map(async (f) => [`gen/${f}`, await resourceText(`runtime/${f}`)])).then(Object.fromEntries);
+  const all = await runtime;
+  if (pixels) return all;
+  // a project that draws no pixels gets the files without the code: 4 KB less
+  // program, and gen/ still holds the same files (a native make builds alike)
+  return {
+    ...Object.fromEntries(RUNTIME.map((f) => [`gen/${f}`, all[`gen/${f}`]])),
+    'gen/bbpixel.c': '/* gen/bbpixel.c - empty: this project calls none of the pixel functions\n * (bb_bitmap, bb_plot, bb_blit...), so the Studio leaves their code out. */\ntypedef int bb_no_pixels;\n',
+    'gen/bbdraw.s': '; gen/bbdraw.s - empty: this project calls none of the pixel functions, so the\n; Studio leaves their code out (see gen/bbpixel.c).\n',
+  };
 }
 
 /** Parse a project's asset files (path -> text); a missing or broken one is reported by name. */
@@ -131,7 +146,7 @@ export function readAssets(files) {
 /** Everything gen/ holds for the project `files`. */
 export async function generate(files) {
   const assets = generateAssets(readAssets(files));
-  const out = { ...(await runtimeFiles()), ...assets };
+  const out = { ...(await runtimeFiles(drawsPixels(files))), ...assets };
   Object.defineProperty(out, 'warnings', { value: assets.warnings, enumerable: false });
   return out;
 }

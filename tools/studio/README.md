@@ -31,8 +31,8 @@ plays on breadbin's own SID engine. Nothing is installed.
 
 Open the Hack tab. The Studio starts on **Bubbler**, a one-screen platformer
 (after blip's Bubbler); the projects menu (the cartridge, top left) has
-**Bouncer** (bricks and a bat, after blip's Bouncer), an **Empty game** to
-start from, and three classic intros in ACME assembly. Each example opens as
+**Bouncer** (bricks and a bat, after blip's Bouncer), **Pixels** (a tour of
+the bitmap mode, blits and peek/poke), an **Empty game** to start from, and three classic intros in ACME assembly. Each example opens as
 its own copy: change anything, and **↺ Reset example** brings it back.
 
 Press **▶ Run** (Ctrl+Enter). The Studio writes `gen/` from the assets,
@@ -186,6 +186,12 @@ int main(void) {
 | `bb_text(cx, cy, s, c)`, `bb_num(cx, cy, n, digits, c)`, `bb_cls(t, c)` | text and numbers in the font tiles |
 | `bb_music(n)`, `bb_sfx(n)` | start a song (`SONG_...`, `BB_STOP`), play a pattern as a sound effect (`SFX_...`) |
 | `bb_rnd()`, `bb_seed(s)` | random numbers |
+| `bb_bitmap(ink, paper)`, `bb_textmode()` | the 320x200 bitmap, and back to tiles and text |
+| `bb_pen(m)`, `bb_plot(x, y)`, `bb_pget(x, y)` | pixels, drawn with the pen: `BB_DRAW`, `BB_ERASE`, `BB_FLIP` (draw twice and it's gone), `BB_COPY` |
+| `bb_line`, `bb_rect`, `bb_fill`, `bb_circle`, `bb_disc` | shapes |
+| `bb_ink(cx, cy, w, h, ink, paper)`, `bb_btext(cx, cy, s)` | the cells' colours; text in the bitmap |
+| `bb_blit(x, y, src, wb, h)`, `bb_grab(...)` | copy a picture onto the bitmap a byte (8 pixels) at a time, with the pen; or the bitmap into memory |
+| `bb_peek(addr)`, `bb_poke(addr, v)`, `bb_peekw`, `bb_pokew` | read and write the C64's memory and chips |
 | `bb_colors(border, bg, mc1, mc2)` | the screen's colours |
 
 F1 in the Studio shows all of it with each call's description, read from
@@ -197,9 +203,20 @@ mirror a sprite, so the Studio stores the mirror); a tile named `brick` is
 `SONG_THEME`, a pattern `SFX_JUMP`.
 
 **Memory.** The program has $0801-$BFFF (46 KB). The runtime keeps VIC bank 3
-for the picture: the screen at $C000, the 256 tiles at $C800, up to 128
-sprite images from $E000 (in the RAM under the KERNAL ROM, which the VIC
-reads). A raster interrupt at line 250 counts frames and plays the music;
+for the picture: the screen at $C000 (in bitmap mode, the cells' colours),
+the 256 tiles at $C800, up to 64 sprite images at $D000 (in the RAM under the
+I/O chips) and the 320x200 bitmap at $E000 (under the KERNAL ROM); the VIC
+reads all of it. The pixel code (`gen/bbpixel.c`, `gen/bbdraw.s`) comes with
+a project only when its code calls a pixel function: a game of tiles and
+sprites stays 4 KB smaller.
+
+**Pixels and blits.** In bitmap mode a plot costs a few hundred cycles; a blit
+moves a byte, 8 pixels, for a few dozen. The **Pixels** example races them:
+40 balls plotted take 386 frames, blitted 13. A blit's x is a multiple of 8,
+so a thing that moves a pixel at a time keeps 8 copies of itself, each
+shifted a pixel further: Pixels makes them by drawing a disc and grabbing it
+(`bb_grab`), and moves its balls with the flip pen, which needs no saved
+background. A raster interrupt at line 250 counts frames and plays the music;
 the KERNAL's keyboard scan is off, so games read the joysticks.
 
 ## The asset files
@@ -282,7 +299,8 @@ monsters, first ran at 17 frames a second; these got it to 50:
   16ths.
 - `unsigned char` wherever a value fits in 0-255.
 
-Other limits: 8 hardware sprites on the screen at once, 128 sprite images,
+Other limits: 8 hardware sprites on the screen at once, 64 sprite images
+(mirrors count),
 256 tiles (64 of them the font), 3 SID voices (sound effects borrow the
 third), 46 KB for code and data.
 
@@ -310,7 +328,7 @@ docs/play/studio/
   codegen.js        gen/: the runtime and the assets as C and assembly
   psid.js           the music as a PSID for the editor's sound
   assets/           the formats: sprites.js tiles.js map.js music.js font.js palette.js, image.js (PNG import)
-  runtime/          bb.h bb.c bbfast.s bbirq.s bbsound.s: what every game links
+  runtime/          bb.h bb.c bbfast.s bbirq.s bbsound.s: what every game links; bbpixel.c bbdraw.s: the pixels
   examples/         the example projects (written by tools/studio/make-examples.mjs)
   cc65/             cc65.wasm, ca65.wasm, ld65.wasm and the sysroot (built by tools/studio/cc65.sh)
   vendor/           codemirror.js (built by tools/studio/bundle.mjs)

@@ -13,18 +13,19 @@ C64 as a midnight bakery: plum-ink night, warm toast, pixel type.
 ## Play
 
 **16 games**, Bruce Lee to Out Run. **46 demos**, 1980s intros to trackmos like
-Edge of Disgrace, running on a free 1541 DOS. Pick a card, press Play.
+Edge of Disgrace, running on a free 1541 DOS. Pick a card, press Play, or
+click a picture below to start it.
 
 | | |
 |:---:|:---:|
-| ![The Great Giana Sisters, mid-jump](docs/images/shots/game-giana-sisters.png) | ![Out Run on the start line](docs/images/shots/game-out-run.png) |
+| [![The Great Giana Sisters, mid-jump](docs/images/shots/game-giana-sisters.png)](https://jacobandresen.github.io/breadbin/play/#games/gb64%3Ag2%2FGIANA1_03275_02.zip/play) | [![Out Run on the start line](docs/images/shots/game-out-run.png)](https://jacobandresen.github.io/breadbin/play/#games/gb64%3Ao%2FOUTRUN-E_05482_01.zip/play) |
 | *The Great Giana Sisters* | *Out Run* |
-| ![Edge of Disgrace by Booze Design](docs/images/shots/demo-edge-of-disgrace.png) | ![Lunatico's title screen](docs/images/shots/demo-lunatico.png) |
+| [![Edge of Disgrace by Booze Design](docs/images/shots/demo-edge-of-disgrace.png)](https://jacobandresen.github.io/breadbin/play/#demos/Edge_of_Disgrace_2008_Booze_Design_Side_A/play) | [![Lunatico's title screen](docs/images/shots/demo-lunatico.png)](https://jacobandresen.github.io/breadbin/play/#demos/Lunatico_2016-10-29_Lft_Side_A/play) |
 | *Edge of Disgrace*, Booze Design | *Lunatico* |
 
 On a phone the player grows an arcade stick and a big red button.
 
-![Giana Sisters in landscape on a phone, between the stick and the fire button](docs/images/shots/phone.png)
+[![Giana Sisters in landscape on a phone, between the stick and the fire button](docs/images/shots/phone.png)](https://jacobandresen.github.io/breadbin/play/#games/gb64%3Ag2%2FGIANA1_03275_02.zip/play)
 
 ## Listen
 
@@ -32,7 +33,7 @@ On a phone the player grows an arcade stick and a big red button.
 and 3SID tunes, with visualisers that tip their hat to Comaland, Edge of
 Disgrace and Deus Ex Machina.
 
-![Sanxion playing in the Tunes tab, with a twister visualiser](docs/images/shots/tunes.png)
+[![Sanxion playing in the Tunes tab, with a twister visualiser](docs/images/shots/tunes.png)](https://jacobandresen.github.io/breadbin/play/#tunes/%2FMUSICIANS%2FH%2FHubbard_Rob%2FSanxion.sid/play)
 
 ## Make
 
@@ -40,13 +41,13 @@ The **Hack** tab is a game studio for the C64. Write C, paint sprites and
 tiles, lay out rooms, compose for the SID, and press **▶ Run**: the game
 starts on the C64 beside the code, built in a third of a second.
 
-![The Studio: Bubbler's C beside the game, with its variables live](docs/images/shots/studio.png)
+[![The Studio: Bubbler's C beside the game, with its variables live](docs/images/shots/studio.png)](https://jacobandresen.github.io/breadbin/play/#hack)
 
 | | |
 |:---:|:---:|
-| ![Painting a multicolour sprite](docs/images/shots/studio-sprites.png) | ![The tile set, with flags for the code](docs/images/shots/studio-tiles.png) |
+| [![Painting a multicolour sprite](docs/images/shots/studio-sprites.png)](https://jacobandresen.github.io/breadbin/play/#hack) | [![The tile set, with flags for the code](docs/images/shots/studio-tiles.png)](https://jacobandresen.github.io/breadbin/play/#hack) |
 | *Sprites* | *Tiles* |
-| ![A round of Bubbler in the map editor](docs/images/shots/studio-map.png) | ![The SID tracker](docs/images/shots/studio-music.png) |
+| [![A round of Bubbler in the map editor](docs/images/shots/studio-map.png)](https://jacobandresen.github.io/breadbin/play/#hack) | [![The SID tracker](docs/images/shots/studio-music.png)](https://jacobandresen.github.io/breadbin/play/#hack) |
 | *Rooms* | *Music* |
 
 - **Real tools**: the cc65 C compiler, compiled to WebAssembly, in an editor in
@@ -54,7 +55,9 @@ starts on the C64 beside the code, built in a third of a second.
 - **Your disk**: work in a folder, edit in your own editor, commit to git; a
   native `make` builds the same program, byte for byte.
 - **Two games to start from**, after blip's Bubbler and Bouncer, at a full 50
-  frames a second.
+  frames a second, and **Pixels**, a tour of lines, circles and blits.
+- **Peek, poke and pixels**: a 320x200 bitmap with blits thirty times faster
+  than plotting.
 - **Share** a link with the whole game inside it.
 
 The [Studio guide](tools/studio/README.md) has a first tutorial, the runtime

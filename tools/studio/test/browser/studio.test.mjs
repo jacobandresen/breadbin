@@ -392,7 +392,7 @@ test('the projects menu and the cheat sheet open', async () => {
   await page.click('.studio-project');
   await page.waitForSelector('.studio-picker[open]');
   const cards = await page.$$eval('.studio-picker .studio-card b', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(cards.slice(0, 3), ['Bubbler', 'Bouncer', 'Empty game']);
+  assert.deepEqual(cards.slice(0, 4), ['Bubbler', 'Bouncer', 'Pixels', 'Empty game']);
   await page.keyboard.press('Escape');
   await page.keyboard.press('F1');
   await page.waitForSelector('.studio-help[open]');

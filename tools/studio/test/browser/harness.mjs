@@ -101,6 +101,19 @@ export async function c64(page, where = '.studio-stage') {
   const api = {
     frame,
     peek: (a, n = 1) => frame.evaluate((a, n) => Array.from({ length: n }, (_, i) => wasm_peek(a + i)), a, n),
+    /**
+     * `n` bytes of RAM at `a`, also where ROM covers it (the bitmap at $E000,
+     * under the KERNAL): the CPU port switches the ROMs out for the read, in
+     * one call, so the C64 doesn't run meanwhile. (peek() sees what the CPU
+     * sees: the ROM there.)
+     */
+    ram: (a, n = 1) => frame.evaluate((a, n) => {
+      const port = wasm_peek(1);
+      wasm_poke(1, (port & 0xf8) | 4);
+      const out = Array.from({ length: n }, (_, i) => wasm_peek(a + i));
+      wasm_poke(1, port);
+      return out;
+    }, a, n),
     /** Row `y` of the Studio runtime's screen ($C000), as text. */
     row: async (y) => (await api.peek(0xc000 + y * 40, 40)).map((c) => String.fromCharCode(c < 32 ? c + 64 : c < 128 ? c : 46)).join(''),
     joy: (cmd) => frame.evaluate((c) => emit_joystick_cmd(c), `2${cmd}`),

@@ -1,0 +1,11 @@
+[
+ ".gitignore",
+ "Makefile",
+ "README.md",
+ "assets/map.json",
+ "assets/music.json",
+ "assets/sprites.json",
+ "assets/tiles.json",
+ "project.json",
+ "src/main.c"
+]
