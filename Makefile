@@ -1,4 +1,4 @@
-.PHONY: web acme drive serve-web test
+.PHONY: web acme drive studio examples serve-web test test-studio test-studio-browser
 
 # The engine (crates/breadbin) as WebAssembly, next to the page that loads it.
 web:
@@ -25,8 +25,30 @@ drive:
 	$(MAKE) -C target/pdos dos.bin
 	node tools/drive/sign.mjs target/pdos/dos.bin docs/play/dos1541.rom
 
-serve-web: web acme
+# The Studio (the Hack tab): cc65, ca65 and ld65 as WebAssembly with the C64
+# library and headers (needs a C compiler and emscripten's emcc), and the
+# CodeMirror bundle (needs Node). See tools/studio/README.md.
+studio:
+	tools/studio/cc65.sh
+	cd tools/studio && npm ci && node bundle.mjs
+
+# The Studio's example projects (docs/play/studio/examples), from
+# tools/studio/examples and tools/studio/make-examples.mjs.
+examples:
+	node tools/studio/make-examples.mjs
+
+serve-web: web acme studio
 	python3 -m http.server -d docs 8064
 
 test:
 	cargo test
+
+# The Studio's tests in Node: the formats, cc65 in WebAssembly, the SID player
+# (needs `make web` for breadbin.wasm) and the examples.
+test-studio:
+	cd tools/studio && node --test test/unit/ test/build/
+
+# ...and in headless Chromium (CHROME=/path/to/chrome): the editors, saving,
+# and the games played on vc64web (skipped offline).
+test-studio-browser:
+	cd tools/studio && node --test --test-concurrency=1 test/browser/

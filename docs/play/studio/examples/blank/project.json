@@ -1,0 +1,1 @@
+{ "name": "My game", "lang": "c", "entry": "src/main.c", "about": "A sprite you can steer and a room to walk in: the smallest start." }

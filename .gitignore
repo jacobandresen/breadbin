@@ -4,3 +4,8 @@
 docs/play/breadbin.wasm
 docs/play/acme.mjs
 docs/play/acme.wasm
+
+# built by `make studio` (tools/studio): cc65 in WebAssembly, the CodeMirror bundle
+docs/play/studio/cc65/
+docs/play/studio/vendor/
+tools/studio/node_modules/

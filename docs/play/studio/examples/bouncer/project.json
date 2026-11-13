@@ -1,0 +1,6 @@
+{
+  "name": "Bouncer",
+  "lang": "c",
+  "entry": "src/main.c",
+  "about": "Bricks, a bat and a ball: catch the falling pickups. After blip's Bouncer."
+}

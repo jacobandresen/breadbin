@@ -45,6 +45,17 @@ function kernalGuard(kernal, basic) {
       : load(name, data, len, ...rest);
   })();`;
 }
+// With onHotkey (the Studio): keys meant for the page, not the C64, while the
+// C64 has the keyboard: Ctrl+Enter (run), Ctrl+S (save), F1 (help), Escape
+// (back to the code). Caught before vc64web sees them.
+const HOTKEYS = `addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  const key = mod && e.key === 'Enter' ? 'run' : mod && (e.key === 's' || e.key === 'S') ? 'save' : e.key === 'F1' ? 'help' : e.key === 'Escape' ? 'escape' : null;
+  if (!key) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  parent.postMessage({ msg: 'breadbin_hotkey', key }, '*');
+}, true);`;
 const CLEAR_SCREEN = `for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);`;
 // script lines: wait (up to 10 s) until READY is on the screen; readies() counts them
 const WAIT_READY = `const readies = () => { let n = 0; for (let a = 0x400; a < 0x7e3; a++) if (wasm_peek(a) === 0x12 && wasm_peek(a + 1) === 5 && wasm_peek(a + 2) === 1 && wasm_peek(a + 3) === 4 && wasm_peek(a + 4) === 0x19) n++; return n; };
@@ -60,10 +71,13 @@ const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)'
  * (else the first), with live `patches` for the game's loader and the
  * release's `others` disks (drive.js). `roms`
  * optionally carries the user's own { kernal, basic, charset, floppy }; without them, `kernal` and `basic` are the patched Open ROMs. `port` is
- * the joystick port (1 or 2) the controls drive.
- * Returns { frame, send(), stop() }.
+ * the joystick port (1 or 2) the controls drive, `border` how much of the
+ * C64's border shows (0..1). With `onHotkey(key)`, Ctrl+Enter, Ctrl+S, F1 and
+ * Escape pressed while the C64 has the keyboard come to the page instead
+ * ('run', 'save', 'help', 'escape').
+ * Returns { frame, send(), stop(), reload() }.
  */
-export function run(host, file, { roms = {}, kernal = null, basic = null, port = 2, onState, onDrive, onAlert, onAudio } = {}) {
+export function run(host, file, { roms = {}, kernal = null, basic = null, port = 2, border = 0.3, onState, onDrive, onAlert, onAudio, onHotkey } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -73,7 +87,7 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
     navbar: false,
     [`port${port}`]: true, // the cursor keys + space
     wide: false,
-    border: 0.3,
+    border, // how much of the C64's border shows (0..1)
     dark: true,
   };
   const frame = document.createElement('iframe');
@@ -85,6 +99,8 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
 
   let sent = false;
   let poll = 0;
+  let peeks = 0;
+  const peekWaiting = new Map();
   // the frame may already be gone (the player closed while a timer was waiting)
   const script = (s) => frame.contentWindow?.postMessage({ cmd: 'script', script: s }, ORIGIN);
   const onMessage = (ev) => {
@@ -94,6 +110,11 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
       start();
     } else if (msg === 'breadbin_drive') {
       onDrive?.(ev.data);
+    } else if (msg === 'breadbin_peek') {
+      peekWaiting.get(ev.data.id)?.(ev.data.bytes);
+      peekWaiting.delete(ev.data.id);
+    } else if (msg === 'breadbin_hotkey') {
+      onHotkey?.(ev.data.key);
     } else if (msg === 'breadbin_alert') {
       onAlert?.(ev.data.text);
     } else if (msg === 'render_current_audio_state') {
@@ -108,6 +129,7 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
         script(NO_MENU);
         script(SID_QUALITY);
         script(AUDIO_SESSION);
+        if (onHotkey) script(HOTKEYS);
         // a patched Open ROMs KERNAL resets the C64; the program goes in once the
         // patch shows in the ROM and the C64 has booted again
         if (kernal && !roms.kernal) {
@@ -197,6 +219,48 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
   return {
     frame,
     send: (m) => frame.contentWindow?.postMessage(m, ORIGIN),
+    /** Has the first program gone in? (Until then reload() can't be used.) */
+    get started() {
+      return started;
+    },
+    /**
+     * Start another PRG in the running C64, without booting a new frame (the
+     * Studio's Run, ~1.5 s instead of ~7): reset, wait for BASIC's READY,
+     * copy the program into RAM at its load address, set BASIC's end-of-
+     * program pointers and type RUN. The ROMs stay as they are (breadbin's
+     * patched KERNAL included).
+     */
+    /**
+     * Read the C64's memory: `ranges` is [[address, length], ...]; resolves to
+     * one array of bytes per range (null if the emulator doesn't answer). The
+     * Studio's Variables panel shows a running game's globals with it.
+     */
+    peek(ranges) {
+      const id = ++peeks;
+      return new Promise((resolve) => {
+        peekWaiting.set(id, resolve);
+        script(`parent.postMessage({ msg: 'breadbin_peek', id: ${id}, bytes: ${JSON.stringify(ranges)}.map(([a, n]) => Array.from({ length: n }, (_, i) => wasm_peek(a + i))) }, '*');`);
+        setTimeout(() => peekWaiting.has(id) && (peekWaiting.delete(id), resolve(null)), 1000);
+      });
+    },
+    reload(bytes) {
+      let bin = '';
+      for (const b of bytes) bin += String.fromCharCode(b);
+      script(`(async () => {
+        const data = Uint8Array.from(atob('${btoa(bin)}'), (c) => c.charCodeAt(0));
+        // blank the old screen first: its READY would pass for the new boot's
+        for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);
+        wasm_reset();
+        ${WAIT_READY}
+        await new Promise((r) => setTimeout(r, 100));
+        const at = data[0] | (data[1] << 8);
+        for (let i = 2; i < data.length; i++) wasm_poke(at + i - 2, data[i]);
+        const end = at + data.length - 2;
+        for (const z of [0x2d, 0x2f, 0x31]) { wasm_poke(z, end & 255); wasm_poke(z + 1, end >> 8); } // VARTAB, ARYTAB, STREND
+        wasm_auto_type('run\\n');
+      })();`);
+      frame.focus();
+    },
     stop() {
       clearInterval(poll);
       removeEventListener('message', onMessage);

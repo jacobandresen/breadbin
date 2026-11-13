@@ -93,7 +93,10 @@ export async function launch(kind, item) {
     bar.style.width = total ? `${Math.round((got / total) * 100)}%` : `${Math.min(95, got / 2000)}%`;
   };
   try {
-    const { name, bytes, sides } = item.gb
+    // item.bytes: a program that came in the link itself (cart.js, the Studio's Share)
+    const { name, bytes, sides } = item.bytes
+      ? { name: item.name, bytes: item.bytes }
+      : item.gb
       ? { name: item.gb.split('/').pop(), bytes: await ia.gb64Game(item.gb, progress) }
       : item.parts
         ? await releaseParts(item, progress)
@@ -115,7 +118,7 @@ export async function launch(kind, item) {
     // the virtual drive also gets the other sides, and turns the disk over itself
     // when a game asks for a file that is on one of them
     if (file.vdrive) file.others = await Promise.all(all.filter((d) => d.name !== file.name).map(async (d) => d.bytes || (await prepare(...d.zip, { prefer: d.name })).bytes));
-    store.recordPlay({ kind, id: item.id, item });
+    if (!item.bytes) store.recordPlay({ kind, id: item.id, item }); // a shared program is in its link, not on a shelf
     session = emu.run(stage, file, {
       roms,
       kernal,
