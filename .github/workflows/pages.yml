@@ -59,6 +59,10 @@ jobs:
         continue-on-error: true
         run: CHROME=/usr/bin/google-chrome FIREFOX=none make test-studio-browser
 
+      # every module import gets ?v=<commit>: a browser never joins this deploy's files to the last one's
+      - name: Stamp the files with this deploy
+        run: node tools/stamp.mjs docs ${{ github.sha }}
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

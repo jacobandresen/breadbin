@@ -38,7 +38,7 @@ examples:
 	node tools/studio/make-examples.mjs
 
 serve-web: web acme studio
-	python3 -m http.server -d docs 8064
+	python3 tools/serve.py docs 8064
 
 test:
 	cargo test

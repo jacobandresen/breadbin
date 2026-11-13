@@ -10,7 +10,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 
-const DOCS = fileURLToPath(new URL('../../../../docs/', import.meta.url));
+// STUDIO_DOCS: another copy to serve, e.g. a deploy stamped by tools/stamp.mjs
+const DOCS = process.env.STUDIO_DOCS ? path.resolve(process.env.STUDIO_DOCS) + path.sep : fileURLToPath(new URL('../../../../docs/', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.gz': 'application/gzip' };
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
