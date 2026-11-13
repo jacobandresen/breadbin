@@ -1,8 +1,8 @@
 name: Pages
 
 # Publishes docs/ (the landing page and the browser version in docs/play) to
-# GitHub Pages, with the Rust engine and the ACME assembler built to
-# WebAssembly on the way.
+# GitHub Pages, with the Rust engine, the ACME assembler and the Studio's cc65
+# built to WebAssembly on the way, and the Studio's tests run.
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
       - "docs/**"
       - "crates/**"
       - "Makefile"
+      - "tools/studio/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -41,6 +42,22 @@ jobs:
 
       - name: Build the assembler for the browser
         run: make acme
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the Studio (cc65 in WebAssembly, the code editor)
+        run: make studio
+
+      - name: Test the Studio
+        run: make test-studio
+
+      # The Studio in Chrome, and its games on vc64web (on the internet): reported,
+      # but a hiccup out there doesn't hold up the deploy.
+      - name: Test the Studio in a browser
+        continue-on-error: true
+        run: CHROME=/usr/bin/google-chrome FIREFOX=none make test-studio-browser
 
       - uses: actions/configure-pages@v5
 

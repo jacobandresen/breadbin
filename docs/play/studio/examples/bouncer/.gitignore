@@ -1,0 +1,4 @@
+# what builds make (the Studio writes game.prg into a folder it saves to)
+game.prg
+game.map
+*.o

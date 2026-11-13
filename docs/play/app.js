@@ -11,6 +11,7 @@ import { initTunes, filterTunes, playTune } from './tunes.js';
 import { launch } from './emulator.js';
 import { initHack } from './hack.js';
 import { openSettings } from './settings.js';
+import { isCart, unpackCart } from './cart.js';
 import { $, h, toast, shelf } from './ui.js';
 
 const views = { games: initGames, demos: initDemos, tunes: initTunes, hack: initHack };
@@ -47,7 +48,8 @@ function route() {
 async function openItem(tab, id, play) {
   const item = await findItem(tab, id);
   if (!item) return;
-  if (!play) return tab === 'games' ? showGame(item) : showDemo(item);
+  // a shared Studio game has no card to show: it starts
+  if (!play && !item.bytes) return tab === 'games' ? showGame(item) : showDemo(item);
   // the shelf's address, so closing the player leaves the shelf, not a link that starts it again
   history.replaceState(null, '', `#${tab}`);
   launch(tab === 'games' ? 'game' : 'demo', item);
@@ -67,6 +69,11 @@ async function findItem(tab, id) {
     // the query overrides a listed game's file, parts and patches, so playtests can try others
     const known = listed && { ...listed, ...(boot && { boot }), ...extras };
     if (known) return known;
+    // a program shared from the Studio, inside the link itself (cart.js)
+    if (isCart(id)) {
+      const { title, prg } = await unpackCart(id);
+      return { id, title: title || 'A Studio game', bytes: prg, name: `${(title || 'game').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.prg` };
+    }
     if (id.startsWith('gb64:')) {
       await coversReady;
       const gb = id.slice(5);

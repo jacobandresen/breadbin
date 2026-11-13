@@ -1,0 +1,16 @@
+[
+ ".gitignore",
+ "Makefile",
+ "README.md",
+ "assets/map.json",
+ "assets/music.json",
+ "assets/sprites.json",
+ "assets/tiles.json",
+ "project.json",
+ "src/body.c",
+ "src/bubble.c",
+ "src/enemies.c",
+ "src/game.h",
+ "src/main.c",
+ "src/player.c"
+]

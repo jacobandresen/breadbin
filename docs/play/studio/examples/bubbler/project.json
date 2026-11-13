@@ -1,0 +1,6 @@
+{
+  "name": "Bubbler",
+  "lang": "c",
+  "entry": "src/main.c",
+  "about": "A one-screen platformer: blow bubbles, trap the monsters, pop them for points. After blip's Bubbler."
+}

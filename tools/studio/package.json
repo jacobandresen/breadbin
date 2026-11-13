@@ -1,0 +1,28 @@
+{
+  "name": "breadbin-studio-tools",
+  "private": true,
+  "type": "module",
+  "description": "Builds and tests the Studio (the Hack tab): the CodeMirror bundle, cc65 in WebAssembly, unit and browser tests.",
+  "scripts": {
+    "bundle": "node bundle.mjs",
+    "examples": "node make-examples.mjs",
+    "test": "node --test test/unit/ test/build/",
+    "test:unit": "node --test test/unit/",
+    "test:browser": "node --test --test-concurrency=1 test/browser/",
+    "test:all": "node --test --test-concurrency=1 test/unit/ test/build/ test/browser/"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "6.20.4",
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-cpp": "6.0.3",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/lint": "6.9.8",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/highlight": "1.2.5",
+    "codemirror": "6.0.2",
+    "esbuild": "0.28.2",
+    "puppeteer-core": "23.11.1"
+  }
+}
