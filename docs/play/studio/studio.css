@@ -82,13 +82,31 @@
 
 /* the side is wide enough to show the C64's 320 pixels (and a thin border) at least 1:1: any
    smaller and its letters lose pixel columns (vc64web draws 384 pixels across: 424 = 384 + the padding) */
-.studio-main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(424px, 33vw, 640px); min-height: 0; }
+.studio-main { display: grid; grid-template-columns: minmax(0, 1fr) 7px var(--studio-side, clamp(424px, 33vw, 640px)); min-height: 0; }
+
+/* the handles that resize: between the work and the C64, and between the files and the code */
+.studio-split {
+  position: relative; z-index: 2; cursor: col-resize; touch-action: none;
+  background: var(--night-lo);
+  transition: background 120ms;
+}
+.studio-split::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 36px; margin: -18px 0 0 -1.5px;
+  border-radius: 2px; background: rgb(255 255 255 / 0.14); transition: background 120ms, height 120ms;
+}
+.studio-split:hover, .studio-split.dragging { background: var(--plum); }
+.studio-split:hover::after, .studio-split.dragging::after { background: var(--butter); height: 56px; margin-top: -28px; }
+/* while dragging, the C64's frame mustn't swallow the pointer */
+.studio.dragging iframe { pointer-events: none; }
+.studio.dragging { cursor: col-resize; user-select: none; }
 .studio-work { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .studio-pane { position: absolute; inset: 0; display: flex; min-height: 0; }
 .studio-pane[hidden] { display: none; }
 
 /* CODE: files and the editor */
-.studio-pane-code { display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.studio-pane-code { display: grid; grid-template-columns: var(--studio-files, 220px) 7px minmax(0, 1fr); }
+.studio-pane-code.nofiles { grid-template-columns: 0 0 minmax(0, 1fr); }
+.studio-pane-code.nofiles > .studio-files { visibility: hidden; }
 .studio-pane-code[hidden] { display: none; }
 .studio-files, .studio-assetlist, .studio-sheetbox {
   display: flex; flex-direction: column; min-height: 0; background: var(--pane); border-right: 1px solid var(--line);
@@ -134,6 +152,7 @@
 /* the side: the C64 and the build */
 .studio-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 10px; border-left: 1px solid var(--line); background: linear-gradient(to bottom, var(--night-hi), var(--night)); overflow-y: auto; }
 .studio-screen {
+  position: relative;
   border-radius: 14px; padding: 8px; flex: none;
   background: linear-gradient(to bottom, #3a3150, var(--plum));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 2px 0 var(--edge), 0 18px 40px rgb(0 0 0 / 0.4);
@@ -406,8 +425,8 @@
   .studio-mode { padding: 7px 10px; }
 }
 @media (max-width: 1080px) {
-  .studio-main { grid-template-columns: minmax(0, 1fr) 380px; }
-  .studio-pane-code { grid-template-columns: 170px minmax(0, 1fr); }
+  .studio-main { grid-template-columns: minmax(0, 1fr) 7px var(--studio-side, 380px); }
+  .studio-pane-code { grid-template-columns: var(--studio-files, 170px) 7px minmax(0, 1fr); }
   .studio-hint { display: none; }
 }
 @media (max-width: 900px) {
@@ -417,8 +436,9 @@
   .studio-mode-label { display: inline; }
   .studio-mode { flex: 1; justify-content: center; padding: 7px 4px; }
   .studio-main { grid-template-columns: 1fr; }
+  .studio-split { display: none; }
   .studio-work { height: 70vh; height: 70dvh; }
-  .studio-pane-code { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .studio-pane-code, .studio-pane-code.nofiles { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .studio-files { max-height: 120px; border-right: 0; border-bottom: 1px solid var(--line); }
   .studio-editor, .studio-tiles { grid-template-columns: 1fr; grid-template-rows: auto minmax(260px, 1fr) auto; overflow-y: auto; }
   .studio-assetlist, .studio-sheetbox { max-height: 160px; }
@@ -440,3 +460,69 @@
 .studio-noassets b { font: 700 18px var(--display-font); color: var(--butter); }
 .studio-noassets p { margin: 0; color: var(--cream-dim); font-size: 13.5px; }
 .studio-sidout { margin-left: auto; }
+
+/* the C64 full screen: the picture as big as it goes, 4:3, on black */
+.studio-fullbtn {
+  position: absolute; top: 14px; right: 14px; z-index: 3; width: 34px; height: 30px; border: 0; border-radius: 8px; cursor: pointer;
+  background: rgb(18 15 28 / 0.75); color: var(--cream); font-size: 16px; line-height: 1;
+  opacity: 0; transition: opacity 150ms, background 120ms; backdrop-filter: blur(4px);
+}
+.studio-screen:hover .studio-fullbtn, .studio-fullbtn:focus-visible { opacity: 1; }
+.studio-fullbtn:hover { background: var(--plum-hi); color: var(--butter); }
+@media (pointer: coarse) { .studio-fullbtn { opacity: 1; } }
+.studio-screen:fullscreen { display: grid; place-items: center; padding: 0; border-radius: 0; background: #000; }
+.studio-screen:fullscreen .studio-stage { width: min(100vw, calc(100vh * 4 / 3)); border-radius: 0; box-shadow: none; }
+.studio-screen:fullscreen .studio-fullbtn { opacity: 0.6; }
+
+/* the code's own tools: font size, the file list */
+.studio-codetools { margin-left: auto; display: flex; gap: 4px; }
+.studio-codetools .studio-tool { padding: 2px 8px; font: 600 12px var(--code-font); background: transparent; color: var(--rb-gray); }
+.studio-codetools .studio-tool:hover { background: #3c3836; color: var(--rb-fg); }
+
+/* the control deck under the C64: the player's <blip-deck>, stood in the side panel */
+.studio-deck { flex: none; }
+.studio-deck .pad {
+  display: grid; gap: 10px; padding: 4px 0 6px;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.studio-deck .pad #topbar { position: relative; inset: auto; height: 132px; padding: 0 6px; }
+:root[data-seats="1"] .studio-deck .pad #topbar #deck-p2,
+.studio-deck .pad #deck-p1 .arcade-btn ~ .arcade-btn { display: none; }
+:root[data-seats="1"] .studio-deck .pad #topbar #deck-p1 {
+  display: flex; flex: 1 1 auto; flex-direction: row; justify-content: space-between; align-items: flex-end;
+}
+:root[data-seats="1"] .studio-deck .pad #topbar :is(#stick-base, #fire-buttons) { align-self: end; }
+.studio-padbtn { padding: 6px 11px; }
+
+/* the debugger's bar, under the C64: pause/run, the steps, where the CPU stopped and its registers */
+.studio-debug {
+  flex: none; display: grid; gap: 6px; padding: 8px; border-radius: 12px;
+  background: var(--night-lo); border: 1px solid var(--line);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.studio-debug[hidden] { display: none; }
+.studio-debug.stopped { border-color: #fabd2f88; box-shadow: 0 0 0 1px #fabd2f33, 0 0 18px #fabd2f1f; }
+.studio-dbg-bar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.studio-dbtn {
+  flex: none; width: 34px; height: 30px; border-radius: 8px; border: 0; cursor: pointer;
+  font: 700 16px/1 var(--code-font); color: var(--cream); background: var(--plum);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 2px 0 var(--edge);
+  transition: background 120ms, transform 80ms, opacity 120ms;
+}
+.studio-dbtn:hover:not(:disabled) { background: var(--plum-hi); color: var(--butter); }
+.studio-dbtn:active:not(:disabled) { transform: translateY(1px); }
+.studio-dbtn:disabled { opacity: 0.35; cursor: default; }
+.studio-dbtn.pause { background: #3c3836; }
+.studio-debug.stopped .studio-dbtn.pause { background: #b8bb26; color: #1c1c1c; }
+.studio-dbg-where {
+  flex: 1; min-width: 0; text-align: left; border: 0; background: none; cursor: pointer; padding: 0 4px;
+  font: 12px var(--code-font); color: var(--rb-gray, #a89984);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.studio-debug.stopped .studio-dbg-where { color: #fabd2f; }
+.studio-dbg-where b { color: #ebdbb2; font-weight: 700; }
+.studio-dbg-foot { display: flex; align-items: center; gap: 8px; min-height: 0; }
+.studio-dbg-foot:has(> :empty + :empty) { display: none; }
+.studio-dbg-regs { flex: 1; font: 12px var(--code-font); color: #83a598; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.studio-dbg-clear { flex: none; padding: 2px 8px; font-size: 11px; }
+.studio-dbg-clear:empty { display: none; }

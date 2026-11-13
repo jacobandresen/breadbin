@@ -13,12 +13,48 @@ import {
   bracketMatching, foldGutter, foldKeymap, indentUnit, defaultKeymap, history, historyKeymap, indentWithTab,
   autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap, snippetCompletion, lintGutter,
   setDiagnostics, lintKeymap, searchKeymap, highlightSelectionMatches, cpp, hoverTooltip, Prec,
+  StateField, StateEffect, Decoration, gutter, GutterMarker,
 } from './vendor/codemirror.js';
 import { retrobox } from './theme.js';
 import { asm6502 } from './asm-lang.js';
 import { C_KEYWORDS } from './api.js';
 
 const isC = (path) => /\.(c|h)$/i.test(path);
+
+// ── the debugger's marks: breakpoints in the margin, the line the CPU stopped on ──
+
+/** Redraw the breakpoint margin (the Studio changed the breakpoints, or where the CPU is). */
+const refreshMarks = StateEffect.define();
+/** The line the CPU stopped on (a number), or 0. */
+const setExec = StateEffect.define();
+const execLine = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (!e.is(setExec)) continue;
+      const n = e.value;
+      deco = n > 0 && n <= tr.state.doc.lines ? Decoration.set([Decoration.line({ class: 'cm-exec-line' }).range(tr.state.doc.line(n).from)]) : Decoration.none;
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+class Mark extends GutterMarker {
+  constructor(kind) {
+    super();
+    this.kind = kind;
+  }
+  eq(o) {
+    return o.kind === this.kind;
+  }
+  toDOM() {
+    const el = document.createElement('span');
+    el.className = `cm-bp cm-bp-${this.kind}`;
+    return el;
+  }
+}
+const MARKS = { bp: new Mark('bp'), exec: new Mark('exec'), both: new Mark('both'), none: new Mark('none') };
 const isAsm = (path) => /\.(s|asm|a|inc)$/i.test(path);
 
 /** Snippets for the shapes a game's code takes. */
@@ -30,7 +66,11 @@ const SNIPPETS = [
 ];
 
 export class CodeEditor {
-  constructor(parent, { onChange, onRun, onSave, onFocus, onDefinition } = {}) {
+  constructor(parent, { onChange, onRun, onSave, onFocus, onDefinition, onBreakpoint, onBreakpointsMoved } = {}) {
+    this.onBreakpointsMoved = onBreakpointsMoved;
+    this.breaks = new Set(); // the open file's breakpoint lines
+    this.exec = 0; // the line the CPU stopped on in the open file (0: none)
+    this.onBreakpoint = onBreakpoint;
     this.states = new Map(); // path -> EditorState, so each file keeps its undo history
     this.path = null;
     this.api = []; // bb.h entries (api.js)
@@ -45,6 +85,7 @@ export class CodeEditor {
       { key: 'Mod-r', run: () => (onRun?.(), true) },
       { key: 'Mod-s', run: () => (onSave?.(), true) },
       { key: 'F12', run: (view) => this.goToDefinition(view.state.selection.main.head) },
+      { key: 'F9', run: (view) => (this.onBreakpoint?.(view.state.doc.lineAt(view.state.selection.main.head).number), true) },
     ]));
     this.view = new EditorView({ parent, state: this.fresh('', '') });
     this.view.contentDOM.addEventListener('focus', () => onFocus?.());
@@ -79,6 +120,25 @@ export class CodeEditor {
     return EditorState.create({
       doc: text,
       extensions: [
+        // the breakpoint margin: click to set or clear one (F9 at the cursor)
+        gutter({
+          class: 'cm-bp-gutter',
+          lineMarker: (view, block) => {
+            const n = view.state.doc.lineAt(block.from).number;
+            const bp = this.breaks.has(n);
+            const ex = this.exec === n;
+            return bp && ex ? MARKS.both : bp ? MARKS.bp : ex ? MARKS.exec : null;
+          },
+          lineMarkerChange: (u) => u.docChanged || u.transactions.some((t) => t.effects.some((e) => e.is(refreshMarks) || e.is(setExec))),
+          initialSpacer: () => MARKS.none,
+          domEventHandlers: {
+            mousedown: (view, block) => {
+              this.onBreakpoint?.(view.state.doc.lineAt(block.from).number);
+              return true;
+            },
+          },
+        }),
+        execLine,
         lineNumbers(),
         foldGutter(),
         lintGutter(),
@@ -105,7 +165,16 @@ export class CodeEditor {
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap, ...lintKeymap, indentWithTab]),
         retrobox,
         EditorView.updateListener.of((u) => {
-          if (u.docChanged && this.path === path) this.onChange?.(path, u.state.doc.toString());
+          if (!u.docChanged || this.path !== path) return;
+          this.onChange?.(path, u.state.doc.toString());
+          // the breakpoints stay with their lines when lines come or go above them
+          if (!this.breaks.size) return;
+          const old = u.startState.doc;
+          const moved = new Set([...this.breaks].map((n) => (n <= old.lines ? u.state.doc.lineAt(u.changes.mapPos(old.line(n).from, 1)).number : n)));
+          if ([...moved].some((n) => !this.breaks.has(n)) || moved.size !== this.breaks.size) {
+            this.breaks = moved;
+            this.onBreakpointsMoved?.(path, [...moved]);
+          }
         }),
       ],
     });
@@ -132,6 +201,20 @@ export class CodeEditor {
     if (path === this.path) {
       if (this.view.state.doc.toString() !== text) this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: text } });
     } else this.states.delete(path);
+  }
+
+  /** The open file's breakpoints (line numbers). */
+  setBreakpoints(lines) {
+    this.breaks = new Set(lines);
+    this.view.dispatch({ effects: refreshMarks.of(null) });
+  }
+
+  /** The line the CPU stopped on in the open file (0: not in this file), scrolled to. */
+  setExecLine(line) {
+    this.exec = line;
+    const effects = [setExec.of(line)];
+    if (line > 0 && line <= this.view.state.doc.lines) effects.push(EditorView.scrollIntoView(this.view.state.doc.line(line).from, { y: 'center' }));
+    this.view.dispatch({ effects });
   }
 
   forget(path) {

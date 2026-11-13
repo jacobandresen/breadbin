@@ -51,6 +51,88 @@ test('the first visit says what to try; once is enough', async () => {
   assert.ok(await page.$eval('.studio-banner', (e) => e.hidden), 'not again');
 });
 
+test('the layout: drag the handles, sizes kept; code size; the file list hides; the C64 full screen', async () => {
+  const page = await openStudio(browser, server.url, { width: 1400, height: 860 });
+  const width = (sel) => page.$eval(sel, (e) => Math.round(e.getBoundingClientRect().width));
+  const drag = async (sel, dx) => {
+    const b = await page.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.move(b.x, b.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x + dx, b.y, { steps: 6 });
+    await page.mouse.up();
+  };
+  const side = await width('.studio-side');
+  await drag('.studio-main > .studio-split', -150);
+  assert.ok(Math.abs((await width('.studio-side')) - (side + 150)) <= 3, 'the C64 panel is 150 wider');
+  const files = await width('.studio-files');
+  await drag('.studio-pane-code > .studio-split', 60);
+  assert.ok(Math.abs((await width('.studio-files')) - (files + 60)) <= 3, 'the file list is 60 wider');
+  // bigger code, and no file list
+  const font = () => page.$eval('.cm-scroller', (e) => getComputedStyle(e).fontSize);
+  await page.keyboard.down('Control');
+  await page.keyboard.press('=');
+  await page.keyboard.press('=');
+  await page.keyboard.up('Control');
+  assert.equal(await font(), '15.5px');
+  await page.click('.studio-codetools button[title^="Hide or show"]');
+  assert.ok((await width('.studio-files')) <= 1, 'the file list is gone (its 1px border aside)');
+  // all of it the same after a reload
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.cm-content');
+  assert.ok(Math.abs((await width('.studio-side')) - (side + 150)) <= 3);
+  assert.equal(await font(), '15.5px');
+  assert.ok((await width('.studio-files')) <= 1, 'the file list is gone (its 1px border aside)');
+  // a double-click puts a handle back
+  await page.$eval('.studio-main > .studio-split', (e) => e.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  assert.ok(Math.abs((await width('.studio-side')) - side) <= 3);
+  // the C64's screen full screen, and back
+  await page.click('.studio-screen .studio-fullbtn');
+  await page.waitForFunction(() => document.fullscreenElement?.classList.contains('studio-screen'));
+  await page.evaluate(() => document.exitFullscreen());
+  assert.deepEqual(page.errors, []);
+});
+
+test('breakpoints: a click in the margin sets one (on the next line with code after a build), they move with the code and are kept', async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => window.breadbinStudio.openFile('src/main.c'));
+  const marks = () => page.$$eval('.cm-bp-gutter .cm-bp-bp', (els) => els.length);
+  const lines = () => page.evaluate(() => [...(window.breadbinStudio.breaks.get('src/main.c') || [])]);
+  // a click on line 3's margin
+  const y = await page.evaluate(() => {
+    const v = window.breadbinStudio.code.view;
+    const r = v.coordsAtPos(v.state.doc.line(3).from);
+    return (r.top + r.bottom) / 2;
+  });
+  const x = await page.$eval('.cm-bp-gutter', (e) => { const r = e.getBoundingClientRect(); return r.x + r.width / 2; });
+  await page.mouse.click(x, y);
+  assert.deepEqual(await lines(), [3]);
+  assert.equal(await marks(), 1);
+  // a line above it: the breakpoint goes down with its line
+  await page.evaluate(() => window.breadbinStudio.code.view.dispatch({ changes: { from: 0, insert: '\n' } }));
+  assert.deepEqual(await lines(), [4]);
+  await page.evaluate(() => window.breadbinStudio.code.view.dispatch({ changes: { from: 0, to: 1 } }));
+  assert.deepEqual(await lines(), [3]);
+  // after a build, a line without code (a blank one) gives the next line that has some
+  await page.evaluate(() => window.breadbinStudio.build());
+  await page.evaluate(() => window.breadbinStudio.toggleBreakpoint('src/main.c', 3));
+  const blank = await page.evaluate(() => {
+    const st = window.breadbinStudio;
+    const text = st.files['src/main.c'].split('\n');
+    return text.findIndex((l, i) => l === '' && i > 0 && !st.lineInfo.addrs('src/main.c', i + 1).length && st.lineInfo.addrs('src/main.c', i + 2).length) + 1;
+  });
+  assert.ok(blank > 0);
+  await page.evaluate((l) => window.breadbinStudio.toggleBreakpoint('src/main.c', l), blank);
+  assert.deepEqual(await lines(), [blank + 1], 'the next line with code');
+  // kept after a reload
+  await page.evaluate(() => window.breadbinStudio.saveNow());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.breadbinStudio?.files?.['project.json']);
+  await page.evaluate(() => window.breadbinStudio.openFile('src/main.c'));
+  assert.deepEqual(await lines(), [blank + 1]);
+  await page.waitForSelector('.cm-bp-gutter .cm-bp-bp');
+  assert.deepEqual(page.errors, []);
+});
+
 test('a compile error shows in the problems list and the editor; clicking it goes to the line', async () => {
   const page = await openStudio(browser, server.url);
   await page.evaluate(() => window.breadbinStudio.openFile('src/main.c'));

@@ -13,6 +13,7 @@ import * as store from '../store.js';
 import { prepare, patchedKernal, patchedBasic } from '../engine.js';
 import { h, toast, share } from '../ui.js';
 import { packCart } from '../cart.js';
+import { createPad } from '../touch.js';
 import { SidPlayer } from '../sid.js';
 import { CodeEditor } from './code-editor.js';
 import { build, warmUp, psid, headers } from './builder.js';
@@ -34,6 +35,8 @@ import { newTileset } from './assets/tiles.js';
 import { blankRoom } from './assets/map.js';
 import { newMusic } from './assets/music.js';
 import { findDefinition } from './definitions.js';
+import { DebugInfo } from './debuginfo.js';
+import { Debugger, formatRegs } from './debugger.js';
 
 const MODES = [
   { id: 'code', label: 'Code', key: '1', icon: '{ }' },
@@ -44,6 +47,8 @@ const MODES = [
 ];
 const ASSET_MODES = { sprites: 'assets/sprites.json', tiles: 'assets/tiles.json', map: 'assets/map.json', music: 'assets/music.json' };
 const SAVE_DELAY = 400;
+/** A phone or tablet: the control deck is on until switched off. */
+const TOUCH = matchMedia('(pointer: coarse)').matches;
 const POLL = 1500;
 
 const prefs = {
@@ -68,6 +73,14 @@ export class Studio {
     this.sid = new SidPlayer();
     this.assetCache = {};
     this.runOnSave = prefs.get('runOnSave', true);
+    this.breaks = new Map(); // file -> Set of lines: the breakpoints (kept per project)
+    this.debugInfo = null; // the last build's lines and addresses (debuginfo.js)
+    this.stopAt = null; // where the CPU stopped: { pc, regs, where, func }
+    this.dbg = new Debugger({
+      onStop: (s) => this.debugStopped(s),
+      onRun: () => this.debugRunning(),
+      onError: (m) => toast(`The debugger: ${m}`),
+    });
   }
 
   // ── layout ──────────────────────────────────────────────────────────────
@@ -98,14 +111,23 @@ export class Studio {
       h('button.studio-tool', { onclick: () => this.deleteFile(), title: 'Delete the open file' }, 'delete'));
     u.codeHost = h('div.studio-code');
     u.codeHead = h('div.studio-codehead');
+    u.splitFiles = h('div.studio-split', { title: 'Drag to widen the file list (double-click: as it was)', role: 'separator', 'aria-orientation': 'vertical' });
     const code = h('section.studio-pane.studio-pane-code', { 'data-mode': 'code' },
       h('aside.studio-files', {}, h('div.studio-files-head', {}, 'Files'), u.files, u.fileTools),
+      u.splitFiles,
       h('div.studio-codewrap', {}, u.codeHead, u.codeHost));
+    u.code = code;
     this.code = new CodeEditor(u.codeHost, {
       onChange: (path, text) => this.edited(path, text),
       onRun: () => this.run(),
       onSave: () => this.saveNow(true),
       onDefinition: (name) => this.goToDefinition(name),
+      onBreakpoint: (line) => this.toggleBreakpoint(this.path, line),
+      onBreakpointsMoved: (path, lines) => {
+        // kept for the next build; the running program is the old code, with the old lines
+        this.breaks.set(path, new Set(lines));
+        this.saveBreakpoints({ send: false });
+      },
     });
     this.code.view.dom.addEventListener('keyup', () => this.showCursor());
     this.code.view.dom.addEventListener('click', () => this.showCursor());
@@ -130,14 +152,35 @@ export class Studio {
     u.vars = h('div.studio-vars-list');
     u.varsBox = h('details.studio-vars', { open: prefs.get('vars', false), ontoggle: (e) => prefs.set('vars', e.target.open) },
       h('summary', {}, 'Variables', h('span.studio-small', {}, ' · the running game\'s globals, live')), u.vars);
+    // the control deck: an arcade stick, FIRE and the keys games ask for, as the player has
+    u.deck = h('div.studio-deck', { hidden: true });
+    u.padBtn = h('button.key.pill.studio-padbtn', { onclick: () => this.setPad(!prefs.get('pad', TOUCH)), title: 'A control deck under the C64: a stick, FIRE and keys (for a phone or tablet, or a mouse)', 'aria-pressed': 'false' }, '🕹 Pad');
+    // the debugger's bar: pause and the steps, where the CPU stopped, its registers
+    const dbtn = (cls, label, title, fn) => h(`button.studio-dbtn.${cls}`, { onclick: fn, title }, label);
+    u.dbgPause = dbtn('pause', '⏸', 'Pause at the next line of your code (F6)', () => this.debugToggle());
+    u.dbgOver = dbtn('over', '↷', 'Step over: the next line here (F10)', () => this.dbg.over());
+    u.dbgInto = dbtn('into', '↓', 'Step into: into the call on this line (F11)', () => this.dbg.into());
+    u.dbgOut = dbtn('out', '↑', 'Step out: back to the line that called this function (Shift+F11)', () => this.dbg.out());
+    u.dbgWhere = h('button.studio-dbg-where', { onclick: () => this.showStop(), title: 'Show this line' });
+    u.dbgRegs = h('div.studio-dbg-regs');
+    u.dbgClear = h('button.studio-tool.studio-dbg-clear', { onclick: () => this.clearBreakpoints(), title: 'Clear every breakpoint in the project' }, '');
+    u.debug = h('div.studio-debug', { hidden: true },
+      h('div.studio-dbg-bar', {}, u.dbgPause, u.dbgOver, u.dbgInto, u.dbgOut, u.dbgWhere),
+      h('div.studio-dbg-foot', {}, u.dbgRegs, u.dbgClear));
     u.side = h('aside.studio-side', {},
-      h('div.studio-screen', {}, u.stage),
-      h('div.studio-sidebar', {}, u.buildInfo, u.share, u.live),
+      (u.screen = h('div.studio-screen', {}, u.stage,
+        h('button.studio-fullbtn', { onclick: () => this.fullscreen(), title: 'The C64 full screen (Alt+Enter; Esc to come back)', 'aria-label': 'Full screen' }, '⛶'))),
+      u.debug,
+      u.deck,
+      h('div.studio-sidebar', {}, u.buildInfo, u.share, u.padBtn, u.live),
       u.meter, u.problems, u.varsBox);
 
-    u.status = h('footer.studio-status', {}, h('span.studio-pos'), h('span.studio-lang'), h('span.studio-hint', {}, 'Ctrl+Enter run · Ctrl+S save · Alt+1…5 modes · F1 help'));
+    u.status = h('footer.studio-status', {}, h('span.studio-pos'), h('span.studio-lang'), h('span.studio-hint', {}, 'Ctrl+Enter run · Ctrl+S save · F9 breakpoint · F10/F11 step · F1 help'));
     u.banner = h('div.studio-banner', { hidden: true });
-    r.append(bar, u.banner, h('div.studio-main', {}, h('div.studio-work', {}, code, ...panes), u.side), u.status);
+    u.splitSide = h('div.studio-split', { title: 'Drag to give the code or the C64 more room (double-click: as it was)', role: 'separator', 'aria-orientation': 'vertical' });
+    u.main = h('div.studio-main', {}, h('div.studio-work', {}, code, ...panes), u.splitSide, u.side);
+    r.append(bar, u.banner, u.main, u.status);
+    this.layout();
 
     this.bindKeys();
     this.loadApi();
@@ -153,6 +196,105 @@ export class Studio {
     addEventListener('breadbin:launch', () => this.stop());
     await this.restore();
     if (this.ui.banner.hidden) this.welcome();
+  }
+
+  // ── the layout: sizes you drag, the C64 full screen, the code's size ──────
+
+  /** Put back the sizes of the last visit and make the handles drag. */
+  layout() {
+    const u = this.ui;
+    const set = () => {
+      const side = prefs.get('sideWidth', 0);
+      const files = prefs.get('filesWidth', 0);
+      this.root.style.setProperty('--studio-side', side ? `${side}px` : '');
+      this.root.style.setProperty('--studio-files', files ? `${files}px` : '');
+      this.root.style.setProperty('--studio-code-size', `${prefs.get('codeSize', 13.5)}px`);
+      u.code.classList.toggle('nofiles', prefs.get('hideFiles', false));
+      this.code.view.requestMeasure();
+    };
+    set();
+    u.padBtn.setAttribute('aria-pressed', String(prefs.get('pad', TOUCH)));
+    // the C64's panel: its left edge follows the pointer
+    // (x is where the handle's left edge goes: the panel starts past its 7 pixels)
+    this.dragHandle(u.splitSide, (x) => {
+      const r = u.main.getBoundingClientRect();
+      prefs.set('sideWidth', Math.round(Math.max(300, Math.min(r.width - 360, r.right - x - 7))));
+    }, () => prefs.set('sideWidth', 0), set);
+    // the file list: its right edge follows the pointer
+    this.dragHandle(u.splitFiles, (x) => {
+      const r = u.code.getBoundingClientRect();
+      prefs.set('filesWidth', Math.round(Math.max(120, Math.min(480, x - r.left))));
+    }, () => prefs.set('filesWidth', 0), set);
+  }
+
+  /**
+   * Make `el` a handle: `move(x)` as it is dragged (x: where its left edge
+   * goes, so it moves with the pointer from wherever it was grabbed),
+   * `reset()` on a double-click, `apply()` after either.
+   */
+  dragHandle(el, move, reset, apply) {
+    let grab = 0;
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      grab = e.clientX - el.getBoundingClientRect().left;
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      this.root.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!el.classList.contains('dragging')) return;
+      move(e.clientX - grab);
+      apply();
+    });
+    const stop = () => {
+      el.classList.remove('dragging');
+      this.root.classList.remove('dragging');
+    };
+    el.addEventListener('pointerup', stop);
+    el.addEventListener('pointercancel', stop);
+    el.addEventListener('dblclick', () => (reset(), apply()));
+  }
+
+  /** The control deck under the C64 on (`on`) or off; it drives the running C64's joystick 2. */
+  setPad(on) {
+    prefs.set('pad', on);
+    this.ui.padBtn.setAttribute('aria-pressed', String(on));
+    const show = on && !!this.session;
+    this.ui.deck.hidden = !show;
+    if (show && !this.pad && window.BlipDeck) {
+      this.pad = createPad(this.ui.deck, (m) => this.session?.send(m), { port: 2 });
+    } else if (!show && this.pad) {
+      this.pad.destroy();
+      this.pad = null;
+    }
+  }
+
+  /** The C64 full screen (Esc, or the button again, comes back). */
+  async fullscreen() {
+    const s = this.ui.screen;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await s.requestFullscreen();
+    } catch (e) {
+      toast(`No full screen here: ${e.message}`);
+    }
+    this.session?.frame?.focus();
+  }
+
+  /** The code a step bigger (+1) or smaller (-1). */
+  codeSize(d) {
+    const size = Math.max(10, Math.min(24, prefs.get('codeSize', 13.5) + d));
+    prefs.set('codeSize', size);
+    this.root.style.setProperty('--studio-code-size', `${size}px`);
+    this.code.view.requestMeasure();
+  }
+
+  toggleFiles() {
+    const hide = !prefs.get('hideFiles', false);
+    prefs.set('hideFiles', hide);
+    this.ui.code.classList.toggle('nofiles', hide);
+    this.code.view.requestMeasure();
   }
 
   bindKeys() {
@@ -171,6 +313,25 @@ export class Studio {
       } else if (e.key === 'F1') {
         e.preventDefault();
         this.openHelp();
+      } else if (e.altKey && e.key === 'Enter') {
+        e.preventDefault();
+        this.fullscreen();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        this.codeSize(+1);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        this.codeSize(-1);
+      } else if (e.key === 'F6' || (e.key === 'F5' && this.dbg.stopped)) {
+        // F6 pauses or runs on; F5 runs on (only while stopped: elsewhere it is the browser's reload)
+        e.preventDefault();
+        this.debugToggle();
+      } else if (e.key === 'F10' || e.key === 'F11') {
+        e.preventDefault();
+        this.debugKey(e.key === 'F10' ? 'over' : e.shiftKey ? 'out' : 'into');
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'b' && this.mode === 'code') {
+        e.preventDefault();
+        this.toggleFiles();
       }
     });
   }
@@ -278,6 +439,10 @@ export class Studio {
     this.assetCache = {};
     this.meta = meta(files, { name: this.store?.kind === 'folder' ? this.store.handle.name : 'untitled' });
     this.diagnostics = [];
+    this.breaks = new Map(Object.entries(prefs.get(`breaks.${this.key}`, {})).map(([f, l]) => [f, new Set(l)]));
+    this.debugInfo = null;
+    this.lineInfo = null;
+    this.showBreakCount();
     // the last build and its variables were the old project's
     this.lastBuild = null;
     this.ui.share.disabled = true;
@@ -420,9 +585,15 @@ export class Studio {
     this.path = path;
     prefs.set(`open.${this.key}`, path);
     this.code.open(path, this.files[path] ?? '', { readOnly: isGenerated(path) });
+    this.code.setBreakpoints(this.breaks.get(path) || []);
+    this.code.setExecLine(this.stopAt?.where?.file === path ? this.stopAt.where.line : 0);
     this.ui.codeHead.replaceChildren(...[h('span.studio-crumb', {}, path),
       isGenerated(path) ? h('span.studio-note', {}, 'written by the build: change the assets or the source instead') : null,
-      ...Object.entries(ASSET_MODES).filter(([, f]) => f === path).map(([m]) => h('button.studio-tool', { onclick: () => this.setMode(m) }, `open in the ${m} editor →`))].filter(Boolean));
+      ...Object.entries(ASSET_MODES).filter(([, f]) => f === path).map(([m]) => h('button.studio-tool', { onclick: () => this.setMode(m) }, `open in the ${m} editor →`)),
+      h('span.studio-codetools', {},
+        h('button.studio-tool', { onclick: () => this.codeSize(-1), title: 'Smaller code (Ctrl+-)' }, 'A−'),
+        h('button.studio-tool', { onclick: () => this.codeSize(+1), title: 'Bigger code (Ctrl+=)' }, 'A+'),
+        h('button.studio-tool', { onclick: () => this.toggleFiles(), title: 'Hide or show the file list (Ctrl+B)' }, '◧ files'))].filter(Boolean));
     if (mode && this.mode !== 'code') this.setMode('code');
     this.renderFiles();
     this.showDiagnostics();
@@ -616,6 +787,8 @@ export class Studio {
     try {
       const r = await build(this.files);
       this.lastBuild = r;
+      // which lines made code: where a breakpoint can go (the running program keeps its own, debugInfo)
+      if (r.ok) this.lineInfo = new DebugInfo(r.debug, { work: '/p' });
       this.diagnostics = r.diagnostics;
       if (r.ok) {
         this.vars = globals(r.labels, r.memory, r.sizes, { hidden: r.hidden, types: cTypes(this.files) });
@@ -655,8 +828,13 @@ export class Studio {
       return;
     }
     this.sid.stop();
+    this.debugInfo = new DebugInfo(r.debug, { work: '/p' });
+    this.stopAt = null;
+    this.code.setExecLine(0);
     if (this.session?.started) {
       this.session.reload(r.prg);
+      this.dbg.attach(this.session, this.debugInfo);
+      this.dbg.setBreakpoints(this.breakAddrs());
     } else {
       this.session?.stop();
       const prg = await prepare('game.prg', r.prg, { canMount: false });
@@ -669,12 +847,139 @@ export class Studio {
           if (key === 'run') this.run();
           else if (key === 'save') this.saveNow(true);
           else if (key === 'help') this.openHelp();
+          else if (key === 'fullscreen') this.fullscreen();
+          else if (key === 'pause') this.debugToggle();
+          else if (key === 'over' || key === 'into' || key === 'out') this.debugKey(key);
           else if (key === 'escape') this.mode === 'code' ? this.code.focus() : this.editors[this.mode].el.focus();
         },
       });
     }
     this.ui.stop.disabled = false;
+    this.setPad(prefs.get('pad', TOUCH));
+    this.ui.debug.hidden = false;
+    if (!this.dbg.session || this.dbg.session !== this.session) this.debugFresh(this.session, r.prg);
     if (matchMedia('(max-width: 900px)').matches) this.ui.stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ── the debugger: breakpoints, pause, steps (debugger.js does the work) ───
+
+  /**
+   * A new C64 (the first Run): once its program is in, and if there are
+   * breakpoints, start the program again with them set, so that they catch
+   * its start-up code too.
+   */
+  async debugFresh(session, prg) {
+    for (let i = 0; i < 300 && !session.started; i++) await new Promise((r) => setTimeout(r, 100));
+    if (this.session !== session || !session.started) return;
+    this.dbg.attach(session, this.debugInfo);
+    if (this.breakAddrs().length) {
+      session.reload(prg);
+      this.dbg.setBreakpoints(this.breakAddrs());
+    }
+    this.debugRunning();
+  }
+
+  /** The breakpoints' addresses in the last build (a line without code: the next line that has some). */
+  breakAddrs() {
+    const info = this.debugInfo;
+    if (!info) return [];
+    const out = [];
+    for (const [file, lines] of this.breaks) {
+      for (const l of lines) {
+        const at = info.snap(file, l);
+        if (at) out.push(...info.addrs(file, at));
+      }
+    }
+    return out;
+  }
+
+  /** A breakpoint on (or off) `line` of `path`: on the line itself, or the next one with code. */
+  toggleBreakpoint(path, line) {
+    if (!path || !/\.(c|h|s|asm)$/i.test(path)) return;
+    const set = this.breaks.get(path) || new Set();
+    if (set.has(line)) set.delete(line);
+    else {
+      const info = this.lineInfo || this.debugInfo;
+      const at = info?.files.has(path) ? info.snap(path, line) : line;
+      if (at == null) return toast(`Line ${line} made no code: a breakpoint needs a line that does something.`);
+      if (set.has(at)) set.delete(at);
+      else set.add(at);
+    }
+    if (set.size) this.breaks.set(path, set);
+    else this.breaks.delete(path);
+    this.saveBreakpoints();
+  }
+
+  clearBreakpoints() {
+    this.breaks.clear();
+    this.saveBreakpoints();
+  }
+
+  saveBreakpoints({ send = true } = {}) {
+    prefs.set(`breaks.${this.key}`, Object.fromEntries([...this.breaks].map(([f, l]) => [f, [...l].sort((a, b) => a - b)])));
+    if (send) this.code.setBreakpoints(this.breaks.get(this.path) || []);
+    this.showBreakCount();
+    if (send && this.session && this.dbg.session === this.session) this.dbg.setBreakpoints(this.breakAddrs());
+  }
+
+  showBreakCount() {
+    const n = [...this.breaks.values()].reduce((a, s) => a + s.size, 0);
+    this.ui.dbgClear.textContent = n ? `${n} breakpoint${n > 1 ? 's' : ''} ✕` : '';
+  }
+
+  /** F6, ⏸/▶: pause the game, or run it on. */
+  debugToggle() {
+    if (!this.session || !this.debugInfo) return;
+    if (this.dbg.stopped) this.dbg.cont();
+    else {
+      this.ui.dbgWhere.textContent = 'Pausing…';
+      this.dbg.pause();
+    }
+  }
+
+  /** F10, F11, Shift+F11. */
+  debugKey(step) {
+    if (!this.session || !this.debugInfo) return;
+    if (!this.dbg.stopped) return this.debugToggle();
+    this.ui.dbgWhere.textContent = 'Stepping…';
+    this.dbg[step]();
+  }
+
+  /** The CPU stopped: show the line, its registers, the variables as they are. */
+  debugStopped(s) {
+    this.stopAt = s;
+    const u = this.ui;
+    u.debug.classList.add('stopped');
+    u.dbgPause.textContent = '▶';
+    u.dbgPause.title = 'Run on (F6 or F5)';
+    for (const b of [u.dbgOver, u.dbgInto, u.dbgOut]) b.disabled = false;
+    const where = s.where ? `${s.where.file}:${s.where.line}` : `$${s.pc.toString(16).toUpperCase().padStart(4, '0')}`;
+    u.dbgWhere.replaceChildren(h('b', {}, s.func ? `${s.func}()` : 'stopped'), ` ${where}`);
+    u.dbgRegs.textContent = formatRegs(s.pc, s.regs);
+    this.showStop();
+    this.watch();
+  }
+
+  /** Open the file and line the CPU stopped on. */
+  showStop() {
+    const w = this.stopAt?.where;
+    if (!w || !(w.file in this.files)) return;
+    if (this.mode !== 'code') this.setMode('code');
+    if (this.path !== w.file) this.openFile(w.file, { mode: false });
+    else this.code.setExecLine(w.line);
+  }
+
+  debugRunning() {
+    this.stopAt = null;
+    this.code.setExecLine(0);
+    const u = this.ui;
+    u.debug.classList.remove('stopped');
+    u.dbgPause.textContent = '⏸';
+    u.dbgPause.title = 'Pause at the next line of your code (F6)';
+    for (const b of [u.dbgOver, u.dbgInto, u.dbgOut]) b.disabled = true;
+    u.dbgWhere.replaceChildren(h('span.studio-small', {}, 'Running · click the margin left of a line number for a breakpoint (F9)'));
+    u.dbgRegs.textContent = '';
+    this.showBreakCount();
   }
 
   /** Read the running game's globals into the Variables panel. */
@@ -709,8 +1014,13 @@ export class Studio {
   }
 
   stop() {
+    this.dbg.detach();
+    this.stopAt = null;
+    this.code.setExecLine(0);
+    this.ui.debug.hidden = true;
     this.session?.stop();
     this.session = null;
+    this.setPad(prefs.get('pad', TOUCH));
     this.ui.stop.disabled = true;
     this.ui.stage.replaceChildren(h('div.studio-idle', {}, h('b', {}, 'Press ▶ Run'), h('span', {}, 'to build the game and start it here')));
   }

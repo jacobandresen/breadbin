@@ -30,7 +30,7 @@ const c = RETROBOX;
 
 export const retroboxTheme = EditorView.theme({
   '&': { color: c.fg, backgroundColor: c.bg, height: '100%' },
-  '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: '13.5px', lineHeight: '1.6' },
+  '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: 'var(--studio-code-size, 13.5px)', lineHeight: '1.6' },
   '.cm-content': { caretColor: c.fg0, padding: '10px 0' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: c.fg0, borderLeftWidth: '2px' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: c.visual },
@@ -71,6 +71,16 @@ export const retroboxTheme = EditorView.theme({
   '.cm-lintRange-error': { backgroundImage: 'none', textDecoration: `underline wavy ${c.red}`, textUnderlineOffset: '3px' },
   '.cm-lintRange-warning': { backgroundImage: 'none', textDecoration: `underline wavy ${c.orange}`, textUnderlineOffset: '3px' },
   '.cm-lint-marker-error': { content: 'none' },
+  // the debugger: breakpoints (red dots) in their own margin, the line the CPU stopped on (yellow)
+  '.cm-bp-gutter': { cursor: 'pointer', minWidth: '16px' },
+  '.cm-bp-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  '.cm-bp': { display: 'block', width: '10px', height: '10px' },
+  '.cm-bp-none': { visibility: 'hidden' },
+  '.cm-bp-bp, .cm-bp-both': { borderRadius: '50%', backgroundColor: c.red, boxShadow: `0 0 6px ${c.red}88` },
+  '.cm-bp-both': { outline: `2px solid ${c.yellow}`, outlineOffset: '1px' },
+  '.cm-bp-exec': { width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: `9px solid ${c.yellow}` },
+  '.cm-exec-line': { backgroundColor: `${c.yellow}2a`, boxShadow: `inset 3px 0 0 ${c.yellow}` },
+  '&.cm-focused .cm-exec-line.cm-activeLine, .cm-exec-line.cm-activeLine': { backgroundColor: `${c.yellow}38` },
   '.cm-gutter-lint': { width: '14px' },
   '.cm-placeholder': { color: c.comment },
   '.cm-specialChar': { color: c.red },

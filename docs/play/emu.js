@@ -46,11 +46,14 @@ function kernalGuard(kernal, basic) {
   })();`;
 }
 // With onHotkey (the Studio): keys meant for the page, not the C64, while the
-// C64 has the keyboard: Ctrl+Enter (run), Ctrl+S (save), F1 (help), Escape
-// (back to the code). Caught before vc64web sees them.
+// C64 has the keyboard: Ctrl+Enter (run), Ctrl+S (save), F1 (help), Alt+Enter
+// (full screen), Escape (back to the code), and the debugger's F6, F10 and
+// F11 (studio/debugger.js). Caught before vc64web sees them.
 const HOTKEYS = `addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
-  const key = mod && e.key === 'Enter' ? 'run' : mod && (e.key === 's' || e.key === 'S') ? 'save' : e.key === 'F1' ? 'help' : e.key === 'Escape' ? 'escape' : null;
+  // F6, F10, F11 (the debugger's pause, step over, step into; Shift+F11 step out) aren't C64 keys
+  const key = e.altKey && e.key === 'Enter' ? 'fullscreen' : mod && e.key === 'Enter' ? 'run' : mod && (e.key === 's' || e.key === 'S') ? 'save' : e.key === 'F1' ? 'help' : e.key === 'Escape' ? 'escape'
+    : e.key === 'F6' ? 'pause' : e.key === 'F10' ? 'over' : e.key === 'F11' ? (e.shiftKey ? 'out' : 'into') : null;
   if (!key) return;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -101,6 +104,7 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
   let poll = 0;
   let peeks = 0;
   const peekWaiting = new Map();
+  const callWaiting = new Map();
   // the frame may already be gone (the player closed while a timer was waiting)
   const script = (s) => frame.contentWindow?.postMessage({ cmd: 'script', script: s }, ORIGIN);
   const onMessage = (ev) => {
@@ -113,6 +117,9 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
     } else if (msg === 'breadbin_peek') {
       peekWaiting.get(ev.data.id)?.(ev.data.bytes);
       peekWaiting.delete(ev.data.id);
+    } else if (msg === 'breadbin_call') {
+      callWaiting.get(ev.data.id)?.(ev.data);
+      callWaiting.delete(ev.data.id);
     } else if (msg === 'breadbin_hotkey') {
       onHotkey?.(ev.data.key);
     } else if (msg === 'breadbin_alert') {
@@ -243,10 +250,31 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
         setTimeout(() => peekWaiting.has(id) && (peekWaiting.delete(id), resolve(null)), 1000);
       });
     },
+    /** Run `code` (a script) in the emulator's page: to install helpers that call() then uses. */
+    script,
+    /**
+     * Call `fn` (the name of an async function in the emulator's page, say
+     * 'bbdbg.go') with `arg` (anything JSON can carry); resolves to what it
+     * returns. Rejects with its error, or when it doesn't answer in `ms`.
+     */
+    call(fn, arg = null, ms = 20000) {
+      const id = ++peeks;
+      return new Promise((resolve, reject) => {
+        callWaiting.set(id, (d) => (d.error ? reject(new Error(d.error)) : resolve(d.value)));
+        script(`(async () => {
+          let value, error;
+          try { value = await ${fn}(${JSON.stringify(arg)}); } catch (e) { error = String(e && e.message || e); }
+          parent.postMessage({ msg: 'breadbin_call', id: ${id}, value, error }, '*');
+        })();`);
+        setTimeout(() => callWaiting.has(id) && (callWaiting.delete(id), reject(new Error(`${fn}: no answer`))), ms);
+      });
+    },
     reload(bytes) {
       let bin = '';
       for (const b of bytes) bin += String.fromCharCode(b);
       script(`(async () => {
+        // the debugger lets go first: its breakpoints were the old program's
+        if (window.bbdbg) await window.bbdbg.detach();
         const data = Uint8Array.from(atob('${btoa(bin)}'), (c) => c.charCodeAt(0));
         // blank the old screen first: its READY would pass for the new boot's
         for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);

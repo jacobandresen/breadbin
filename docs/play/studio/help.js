@@ -45,6 +45,7 @@ export function helpSheet(api) {
       'The names your assets get (SPR_, TILE_, FLAG_, ROOM_, SONG_, SFX_) are in gen/assets.h, and the editor completes them.'),
     h('div.studio-help-grid', {}, ...sections),
     h('p.studio-small', {}, 'Keys: Ctrl+Enter build and run · Ctrl+S save · Alt+1…5 the modes · F12 or Ctrl+click go to a definition · Ctrl+F find · Ctrl+Space complete · Ctrl+/ comment'),
+    h('p.studio-small', {}, 'Debugging: click the margin left of a line number (or F9) for a breakpoint · F6 pause or run on · F10 step over · F11 step into · Shift+F11 step out. The game stops at the line, shown in yellow, with the CPU\'s registers under the C64; the Variables panel shows the globals as they are there.'),
   );
   dlg.addEventListener('click', (e) => e.target === dlg && close());
   return dlg;
