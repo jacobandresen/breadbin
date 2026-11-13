@@ -5,7 +5,7 @@ import * as ia from './ia.js';
 import * as csdb from './csdb.js';
 import { verified, recent } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton, wipNote, footer } from './ui.js';
+import { $, h, art, shelf, facts, closeButton, wipNote, footer, shareButton } from './ui.js';
 
 
 // its most telling capture (tools/playtest picks the biggest), else the sixth: the first are the loading
@@ -54,7 +54,7 @@ export async function showDemo(d) {
       h('h2', {}, d.title),
       h('p.by', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')),
       info,
-      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('demo', d) }, '▶ Run')),
+      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('demo', d) }, '▶ Run'), shareButton('demos', d)),
       wipNote(d),
       d.rom1541 && h('p.needs', {}, h('b', {}, '💾 Trackmo. '),
         'It loads with its own code on the disk drive, so it runs on an emulated 1541 with breadbin\'s free DOS, at real-drive speed.',

@@ -9,7 +9,7 @@ import { verified } from './catalogue.js';
 import { settings, save } from './settings.js';
 import { SidPlayer, sidHeader } from './sid.js';
 import { Viz, NAMES } from './viz.js';
-import { $, h, toast, fmt, nextChip, pixel } from './ui.js';
+import { $, h, toast, fmt, nextChip, pixel, share } from './ui.js';
 
 const RADIO_MAX_MS = 4 * 60e3;
 let player;
@@ -57,6 +57,7 @@ export async function initTunes() {
   $('#btn-pause').addEventListener('click', () => player.setPaused(!player.paused));
   $('#btn-stop').addEventListener('click', stop);
   $('#btn-skip').addEventListener('click', next);
+  $('#btn-share').addEventListener('click', () => current && share('tunes', current.tune.id, current.tune.name));
   $('#btn-radio').addEventListener('click', () => {
     radio = !radio;
     $('#btn-radio').setAttribute('aria-pressed', String(radio));
@@ -84,6 +85,28 @@ export async function initTunes() {
   if (!rows.length) list.append(h('p.banner', {}, 'No playtested tunes yet: run tools/playtest to build verified.json.'));
 }
 
+/** A shared link (#tunes/<id>/play): play that tune. Most browsers let a page
+ *  make sound only after a tap or a key, so if the audio is held back the
+ *  visitor is asked for one, and the tune starts with it. */
+export function playTune(id) {
+  const row = rows.find((r) => String(r.tune.id) === id);
+  if (!row) return toast(`That tune isn't on the list: ${id}`);
+  playRow(row); // creates the player's AudioContext on its first run
+  // a context the browser allowed is running by now; a held one stays suspended
+  setTimeout(() => {
+    if (player.ctx?.state !== 'suspended' || current !== row) return;
+    toast(`▶ Tap anywhere to play ${row.tune.name}`, 10000);
+    const go = () => {
+      removeEventListener('pointerdown', go, true);
+      removeEventListener('keydown', go, true);
+      player.ctx.resume();
+      $('#toast').classList.remove('show');
+    };
+    addEventListener('pointerdown', go, true);
+    addEventListener('keydown', go, true);
+  }, 500);
+}
+
 /** Show only rows matching `term`. */
 export function filterTunes(term) {
   const needle = term.toLowerCase();
@@ -107,6 +130,7 @@ async function playRow(row, song = 0) {
   current?.classList.remove('current');
   current = row;
   row.classList.add('current', 'loading');
+  updateButtons();
   row.scrollIntoView({ block: 'nearest' });
   clearTimeout(radioTimer);
   try {
@@ -151,6 +175,7 @@ function stop() {
   clearTimeout(radioTimer);
   current?.classList.remove('current');
   current = null;
+  updateButtons();
   renderNowPlaying(null);
 }
 
@@ -158,6 +183,7 @@ function updateButtons() {
   $('#btn-pause').textContent = player.paused ? 'Resume' : 'Pause';
   $('#btn-pause').disabled = !player.playing;
   $('#btn-stop').disabled = !player.playing;
+  $('#btn-share').disabled = !current;
 }
 
 /** The card above the visualiser: CSDb details when known, else the SID header. */

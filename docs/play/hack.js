@@ -6,7 +6,7 @@
 
 import * as emu from './emu.js';
 import * as store from './store.js';
-import { prepare, patchedKernal } from './engine.js';
+import { prepare, patchedKernal, patchedBasic } from './engine.js';
 import { $, h } from './ui.js';
 
 const raw = (repo, sha, dir = '') => `https://raw.githubusercontent.com/${repo}/${sha}/${dir}`;
@@ -149,7 +149,7 @@ export function initHack() {
     if (!prg) return;
     session?.stop();
     const run = await prepare('hack.prg', prg, { canMount: false });
-    session = emu.run(stage, run, { kernal: await patchedKernal(store.cachedBytes) });
+    session = emu.run(stage, run, { kernal: await patchedKernal(store.cachedBytes), basic: await patchedBasic(store.cachedBytes) });
     // on a phone the screen sits under the editor: bring it into view
     if (matchMedia('(max-width: 900px)').matches) stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };

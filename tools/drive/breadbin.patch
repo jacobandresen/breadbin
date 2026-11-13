@@ -1,5 +1,5 @@
 diff --git a/src/dos.s b/src/dos.s
-index 6c32026..f757ec9 100644
+index 6c32026..36aa653 100644
 --- a/src/dos.s
 +++ b/src/dos.s
 @@ -31,6 +31,12 @@ VIA2_PB   = $1C00
@@ -15,7 +15,21 @@ index 6c32026..f757ec9 100644
  VIA2_PCR  = $1C0C         ; Peripheral Control Register de VIA2
  
  ; PCR: CB2 (bits 7-5) = modo de cabeza (110 escritura, 111 lectura);
-@@ -78,8 +84,16 @@ MOTOR_BIT  = %00000100    ; VIA2_PB bit 2: motor del disco (1 = encendido)
+@@ -70,7 +76,12 @@ EOI_TO    = $40
+ EOI_PULSE = $20
+ BIT_DELAY = $10
+ 
+-DATA_BUF  = $0300         ; buffer provisional de recepcion
++DATA_BUF  = $0200         ; buffer provisional de recepcion
++                          ; (breadbin) at $0200, the 1541's command buffer, up to 64
++                          ; bytes: at $0300 (buffer 0) every command received wrote
++                          ; over drive code uploaded there (Krestology and Krestage
++                          ; by Crest send M-W to $0300 in chunks)
++DATA_BUF_LEN = $40
+ TX_LEN    = 3             ; longitud del buffer de transmision de prueba
+ 
+ ; --- controlador de disco ---
+@@ -78,8 +89,16 @@ MOTOR_BIT  = %00000100    ; VIA2_PB bit 2: motor del disco (1 = encendido)
  STEP_MASK  = %00000011    ; VIA2_PB bits 0-1: fase del stepper (medias pistas)
  ZONE_MASK  = %01100000    ; VIA2_PB bits 5-6: zona de velocidad (bitrate)
  SYNC_FLAG  = %10000000    ; VIA2_PB bit 7: /SYNC, activo en bajo (0 = en SYNC)
@@ -34,7 +48,7 @@ index 6c32026..f757ec9 100644
  GCR_BLK    = $04BB        ; bloque de datos GCR crudo (325 bytes, $04BB-$05FF).
                            ; Termina justo antes de BAM_BUF ($0600) para no pisarlo,
                            ; permitiendo mantener la BAM en RAM durante un SAVE. El
-@@ -91,8 +105,8 @@ NAME_BUF   = $0280        ; nombre de fichero buscado (16 bytes)
+@@ -91,8 +110,8 @@ NAME_BUF   = $0280        ; nombre de fichero buscado (16 bytes)
  CMD_BUF    = $0240        ; comando recibido por el canal 15 (texto)
  NAME_BUF2  = $0268        ; segundo nombre (RENAME: nombre nuevo, 16 bytes)
  STATUS_BUF = $0290        ; cadena del canal de estado (hasta $02BF)
@@ -45,7 +59,13 @@ index 6c32026..f757ec9 100644
  DATA_DEC_BUF = $0400      ; 260 bytes decodificados del bloque de datos (RAM real)
  DIR_BUF    = $0700        ; sector de directorio (256 bytes)
  CHAIN_BUF  = $0700        ; buffer de sector para la cadena de fichero (compartido)
-@@ -111,22 +125,10 @@ BAM_BUF    = $0600        ; sector BAM (pista 18 sector 0) en RAM
+@@ -106,27 +125,15 @@ CH_WRITE = 2
+ HDR_MARK   = $08          ; marca de bloque de cabecera
+ DATA_MARK  = $07          ; marca de bloque de datos
+ MAX_SCAN   = $0800        ; bytes maximos a escanear por SYNC
+-MAX_TRIES  = 64           ; bloques maximos a examinar buscando un sector
++MAX_TRIES  = 128          ; bloques maximos a examinar buscando un sector
+ BAM_BUF    = $0600        ; sector BAM (pista 18 sector 0) en RAM
  LIST_BUF   = $0300        ; programa BASIC del directorio generado (LOAD "$")
  
  .zeropage
@@ -72,7 +92,7 @@ index 6c32026..f757ec9 100644
  
  ; --- codec GCR ---
  gcr_src:   .res 2         ; puntero de origen
-@@ -220,6 +222,7 @@ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
+@@ -220,6 +227,7 @@ list_dig:    .res 1       ; temporal (digitos / longitud / tipo)
  ; --- canal de comandos por el bus ---
  cmd_pending: .res 1       ; $FF: comando recibido por el canal 15, pendiente
  stat_rd:     .res 1       ; indice de lectura del canal de estado (TALK 15)
@@ -80,7 +100,7 @@ index 6c32026..f757ec9 100644
  cmd_pos:     .res 1       ; posicion de lectura en CMD_BUF
  scr_count:   .res 1       ; ficheros borrados por SCRATCH
  dir_dirty:   .res 1       ; $FF si el sector de directorio en DIR_BUF cambio
-@@ -246,14 +249,31 @@ rd_state:    .res 1       ; 0 bloque por cargar, 1 cargado, 2 fin de fichero
+@@ -246,14 +254,31 @@ rd_state:    .res 1       ; 0 bloque por cargar, 1 cargado, 2 fin de fichero
  rd_gen:      .res 1       ; dsk_gen cuando se cargo el bloque
  dsk_gen:     .res 1       ; cambia cada vez que se pisa DATA_DEC_BUF
  save_append: .res 1       ; $FF si la escritura anade a un fichero existente
@@ -114,7 +134,7 @@ index 6c32026..f757ec9 100644
  
      lda #VIA2_PB_OUTS
      sta VIA2_DDRB
-@@ -261,6 +281,30 @@ reset:
+@@ -261,6 +286,30 @@ reset:
      sta VIA2_PA
      sta VIA2_DDRA
      sta VIA2_PB
@@ -145,7 +165,7 @@ index 6c32026..f757ec9 100644
  
      lda #VIA1_DDRB_INIT
      sta VIA1_DDRB
-@@ -284,6 +328,9 @@ reset:
+@@ -284,6 +333,9 @@ reset:
      sta cmd_pending
      sta save_err
      sta open_pending
@@ -155,7 +175,7 @@ index 6c32026..f757ec9 100644
      sta ch_dir
      sta open_repl
      lda #FTYPE_PRG_CLOSED
-@@ -335,6 +382,11 @@ mainloop:
+@@ -335,6 +387,11 @@ mainloop:
      beq @noopen
      jsr chan_open
  @noopen:
@@ -167,7 +187,13 @@ index 6c32026..f757ec9 100644
      lda VIA1_PB
      and #ATN_IN
      bne @atn
-@@ -357,6 +409,12 @@ mainloop:
+@@ -353,10 +410,18 @@ mainloop:
+     jsr iec_atn
+     jmp mainloop
+ 
++; (breadbin) the serial routines go on in CODE2, so that CODE ends before $C11B
++.segment "CODE2"
+ ; ----------------------------------------------------------------------------
  ;  iec_recv_data: recibe datos como listener hasta EOI o retorno de ATN
  ; ----------------------------------------------------------------------------
  iec_recv_data:
@@ -180,7 +206,19 @@ index 6c32026..f757ec9 100644
      lda #$00
      sta iec_atn_exp
      lda iec_chan_mode
-@@ -450,6 +508,10 @@ iec_talk:
+@@ -370,8 +435,11 @@ iec_recv_data:
+     ldx iec_abort
+     bne @ret
+     ldx data_idx
++    cpx #DATA_BUF_LEN           ; (breadbin) no further than the buffer
++    bcs @full
+     sta DATA_BUF,x
+     inc data_idx
++@full:
+     lda iec_eoi
+     beq @loop
+     lda #$FF
+@@ -450,6 +518,10 @@ iec_talk:
      sta iec_state
      rts
  
@@ -191,7 +229,7 @@ index 6c32026..f757ec9 100644
  ;  iec_turnaround: la 1541 toma el rol de talker (asierta CLK, libera DATA) y
  ;  espera a que el host se vuelva listener (asierte DATA). Si el host retoma ATN
  ;  antes, iec_abort = $FF.
-@@ -604,11 +666,61 @@ iec_copy_name:
+@@ -604,11 +676,61 @@ iec_copy_name:
  @done:
      rts
  
@@ -253,7 +291,7 @@ index 6c32026..f757ec9 100644
      jsr iec_copy_name           ; nombre recibido (DATA_BUF) -> NAME_BUF, relleno $A0
      jsr dir_find_chain          ; busca en la cadena de sectores de directorio
      lda dir_found
-@@ -861,6 +973,7 @@ iec_atn:
+@@ -861,6 +983,7 @@ iec_atn:
      lda #$00
      sta iec_chan_mode
  @ul_out:
@@ -261,7 +299,46 @@ index 6c32026..f757ec9 100644
      jmp @cmdloop
  @not_unlisten:
      cmp #$5F
-@@ -976,7 +1089,7 @@ iec_atn:
+@@ -880,7 +1003,7 @@ iec_atn:
+     lda iec_cmd
+     and #$1F
+     cmp iec_dev
+-    bne @cmdloop
++    bne @not_mine
+     lda iec_state
+     ora #ST_LISTEN
+     sta iec_state
+@@ -891,11 +1014,28 @@ iec_atn:
+     lda iec_cmd
+     and #$1F
+     cmp iec_dev
+-    bne @cmdloop
++    bne @not_mine
+     lda iec_state
+     ora #ST_TALK
+     sta iec_state
+     jmp @cmdloop
++@not_mine:
++    ; (breadbin) a LISTEN or TALK for another device. A 1541 lets go of DATA and
++    ; ignores the bus until ATN is released, so the byte the host sends next
++    ; under ATN (the secondary address) finds nobody listening and the KERNAL
++    ; reports "device not present" (ST bit 7). Krill's loader (We Are New and
++    ; other Fairlight, Censor and Oxyron trackmos) LISTENs to devices 8-14 in
++    ; turn this way to make sure its drive is alone on the bus; acknowledging
++    ; every byte made each number look like a second drive, and it gave up
++    ; (error $FD). ATNA stays set until @done, so the hardware doesn't take DATA.
++    lda VIA1_PB
++    and #DATA_OUT_CLR
++    sta VIA1_PB
++@nm_wait:
++    lda VIA1_PB
++    and #ATN_IN
++    bne @nm_wait
++    jmp @done
+ 
+ @secondary:
+     lda iec_state
+@@ -976,7 +1116,7 @@ iec_atn:
      lda #$00
      sta iec_chan_mode
      lda iec_sa
@@ -270,7 +347,7 @@ index 6c32026..f757ec9 100644
      cmp ch_sa
      bne @sc_done                ; nada abierto en ese canal
      lda ch_dir
-@@ -986,6 +1099,9 @@ iec_atn:
+@@ -986,15 +1126,13 @@ iec_atn:
  @sc_free:
      lda #CH_NONE
      sta ch_dir
@@ -280,7 +357,17 @@ index 6c32026..f757ec9 100644
  @sc_done:
      jmp @cmdloop
  @done:
-@@ -1013,6 +1129,12 @@ iec_recv_byte:
+-    ; ATN liberado: devolver el control de DATA al hardware (ATNA=0) para que la
+-    ; asercion automatica vuelva a operar en el proximo ATN.
+-    lda VIA1_PB
+-    and #ATNA_CLR
+-    sta VIA1_PB
+-    rts
++    jmp iec_atn_done            ; (breadbin) in CODE2: CODE0 is full up to $D042
+ 
+ ; ----------------------------------------------------------------------------
+ ;  iec_recv_byte: recibe un byte como listener (LSB primero) con deteccion de
+@@ -1013,6 +1151,12 @@ iec_recv_byte:
      lda VIA1_PB
      and #CLK_IN
      bne @w_clkrel
@@ -293,7 +380,7 @@ index 6c32026..f757ec9 100644
      ; listener listo: liberar DATA
      lda VIA1_PB
      and #DATA_OUT_CLR
-@@ -1044,6 +1166,10 @@ iec_recv_byte:
+@@ -1044,6 +1188,10 @@ iec_recv_byte:
      and #DATA_OUT_CLR
      sta VIA1_PB
  @w_first:
@@ -304,7 +391,39 @@ index 6c32026..f757ec9 100644
      lda VIA1_PB
      and #CLK_IN
      beq @w_first
-@@ -2849,6 +2975,10 @@ dir_find_in_buf:
+@@ -1424,15 +1572,15 @@ disk_read_block_gcr:
+ ;  bloque. fsec_error = $00 exito (256 datos en DATA_DEC_BUF+1), $FF fallo.
+ disk_find_sector_hw:
+     inc dsk_gen                 ; DATA_DEC_BUF va a cambiar (canal de lectura)
++    jsr hdr_expect              ; (breadbin) the wanted header, in GCR
+     lda #MAX_TRIES
+     sta dsk_tries
+ @try:
+     jsr disk_wait_sync          ; SYNC (de cabecera o de bloque de datos)
+     bcs @fail
+     jsr disk_read10             ; 10 bytes -> RAW_BUF
+-    lda RAW_BUF
+-    cmp #$52                    ; primer byte GCR de la marca de cabecera ($08)
+-    bne @next                   ; $53 seria un bloque de datos: ignorarlo
++    jsr hdr_match               ; (breadbin) the wanted sector's header? (Z = 1)
++    bne @next                   ; another sector's, or a data block: on to the next SYNC
+     ; es una cabecera: leer su bloque de datos enseguida (sin decodificar en medio)
+     jsr disk_wait_sync          ; SYNC del bloque de datos
+     bcs @fail
+@@ -2151,7 +2299,11 @@ disk_seek:
+     dec cur_track
+     jmp @loop
+ @done:
+-    rts
++    ; (breadbin) and the bitrate for the track's zone, for reading as much as for
++    ; writing: a file that crossed from track 24 into 25 (Natural Wonders by
++    ; Oxyron, 413 blocks) was read at the wrong speed there and its LOAD ended
++    ; with READ ERROR after 10 blocks.
++    jmp disk_set_speed_zone
+ 
+ ;  disk_seek_test: lee la pista actual, hace seek hacia adentro (pista 24) y luego
+ ;  hacia afuera (pista 17), confirmando cada destino leyendo la cabecera. Deja la
+@@ -2849,6 +3001,10 @@ dir_find_in_buf:
      bne @slot
      rts
  
@@ -315,7 +434,7 @@ index 6c32026..f757ec9 100644
  ;  dir_make_entry: escribe una entrada nueva en el primer slot libre de DIR_BUF
  ;  (tipo 0). Toma dir_ftype, dir_track, dir_sector, dir_blocks_lo/hi y el nombre
  ;  en NAME_BUF. dir_found = $FF si se creo, $00 si no habia slot libre.
-@@ -3488,6 +3618,35 @@ status_set:
+@@ -3488,6 +3644,40 @@ status_set:
  cmd_execute:
      lda #$00
      sta cmd_pending
@@ -348,10 +467,15 @@ index 6c32026..f757ec9 100644
 +    bne @text
 +    jmp cmd_me
 +@text:
++    lda DATA_BUF                ; (breadbin) & runs a USR file in the drive
++    cmp #'&'
++    bne @notamp
++    jmp cmd_amp
++@notamp:
      ldx #$00
  @cp:
      cpx data_idx
-@@ -3546,6 +3705,121 @@ cmd_execute:
+@@ -3546,6 +3736,121 @@ cmd_execute:
  @ret:
      rts
  
@@ -473,7 +597,7 @@ index 6c32026..f757ec9 100644
  ;  cmd_find_colon: cmd_pos = posicion tras el ':' de CMD_BUF. C = 1 si no hay ':'.
  cmd_find_colon:
      ldx #$00
-@@ -4263,8 +4537,15 @@ chan_open:
+@@ -4263,8 +4568,15 @@ chan_open:
  @tok:
      lda dir_track
      sta rd_track
@@ -489,7 +613,7 @@ index 6c32026..f757ec9 100644
      lda #2
      sta rd_pos
      lda #$00
-@@ -4755,11 +5036,649 @@ disk_link_valid:
+@@ -4755,91 +5067,1115 @@ disk_link_valid:
      rts
  
  ; ----------------------------------------------------------------------------
@@ -521,6 +645,8 @@ index 6c32026..f757ec9 100644
  nmi:
      rti
  
+-.segment "RODATA"
+-TX_BUF: .byte $11, $22, $33
 +; ----------------------------------------------------------------------------
 +;  Job queue (added for breadbin). The 1541's documented interface for code
 +;  running in the drive: job codes at $00-$04 for buffers 0-4 ($0300-$07FF),
@@ -582,7 +708,33 @@ index 6c32026..f757ec9 100644
 +@z3:
 +    lda #21
 +    rts
-+
+ 
+-; tabla GCR directa: nibble (0..15) -> codigo de 5 bits
+-gcr_enc_tab:
+-    .byte $0A,$0B,$12,$13,$0E,$0F,$16,$17
+-    .byte $09,$19,$1A,$1B,$0D,$1D,$1E,$15
+-; tabla GCR inversa: codigo de 5 bits (0..31) -> nibble ($FF si invalido)
+-gcr_dec_tab:
+-    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+-    .byte $FF,$08,$00,$01,$FF,$0C,$04,$05
+-    .byte $FF,$FF,$02,$03,$FF,$0F,$06,$07
+-    .byte $FF,$09,$0A,$0B,$FF,$0D,$0E,$FF
+-; mascaras de bit individual: bit_mask[n] = 1<<n
+-bit_mask:
+-    .byte $01,$02,$04,$08,$10,$20,$40,$80
+-; mascaras acumuladas: low_mask9[n] = (1<<n)-1, con los n bits bajos a 1
+-low_mask9:
+-    .byte $00,$01,$03,$07,$0F,$1F,$3F,$7F,$FF
+-; tipos de fichero del listado: indice = (tipo & 7), tres letras cada uno
+-ftype_tab:
+-    .byte "DEL"
+-    .byte "SEQ"
+-    .byte "PRG"
+-    .byte "USR"
+-    .byte "REL"
+-; texto de la linea de cierre del listado de directorio
+-free_text:
+-    .byte "BLOCKS FREE.", 0
 +;  job_start: the timer interrupt, every 10 ms, and interrupts on.
 +job_start:
 +    lda #$00
@@ -597,7 +749,57 @@ index 6c32026..f757ec9 100644
 +    sta VIA2_IER
 +    cli
 +    rts
-+
+ 
+-; --- canal de estado: tabla de codigos y mensajes (subconjunto del DOS) ---
+-;     Codigos en decimal. El espacio inicial de algunos mensajes reproduce la
+-;     cadena que entrega una 1541 de referencia por el bus (contraste de caja
+-;     negra, test/oracle_estado_vice.py).
+-err_tab:
+-    .byte 0
+-    .word msg_ok
+-    .byte 1
+-    .word msg_scratched
+-    .byte 21
+-    .word msg_read
+-    .byte 25
+-    .word msg_write
+-    .byte 30
+-    .word msg_syntax
+-    .byte 31
+-    .word msg_syntax
+-    .byte 33
+-    .word msg_syntax
+-    .byte 34
+-    .word msg_syntax
+-    .byte 62
+-    .word msg_notfound
+-    .byte 63
+-    .word msg_exists
+-    .byte 64
+-    .word msg_mismatch
+-    .byte 70
+-    .word msg_nochannel
+-    .byte 66
+-    .word msg_illegal
+-    .byte 72
+-    .word msg_full
+-    .byte 73
+-    .word msg_dosid
+-    .byte $FF                ; por defecto
+-    .word msg_generic
+-msg_ok:        .byte " OK", 0
+-msg_scratched: .byte " FILES SCRATCHED", 0
+-msg_read:      .byte "READ ERROR", 0
+-msg_write:     .byte "WRITE ERROR", 0
+-msg_syntax:    .byte "SYNTAX ERROR", 0
+-msg_notfound:  .byte " FILE NOT FOUND", 0
+-msg_exists:    .byte " FILE EXISTS", 0
+-msg_full:      .byte "DISK FULL", 0
+-msg_mismatch:  .byte " FILE TYPE MISMATCH", 0
+-msg_nochannel: .byte "NO CHANNEL", 0
+-msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
+-msg_dosid:     .byte "PASCUAL DOS 1541", 0
+-msg_generic:   .byte "ERROR", 0
 +job_scan:
 +    ldx #$00
 +js_next:
@@ -807,6 +1009,55 @@ index 6c32026..f757ec9 100644
 +;  V1.8 by Nostalgia, which detects a 1541 and then runs its own reader as
 +;  EXECUTE jobs (see its notes in tools/drive/README.md).
 +
++;  (breadbin) compat_f505: end the running EXECUTE job with OK. Natural
++;  Wonders' loader (Oxyron) leaves its job this way once it has sent a block
++;  whose link leads to another track (or ends the file): the link's track is in
++;  its job slot ($08), and its own code queues the job again for that track, or
++;  goes on to the next file when it is 0.
++compat_f505:
++    lda #$01
++    jmp compat_f969
++
++;  (breadbin) compat_f8e0: decode the data block an EXECUTE job read itself, 256
++;  GCR bytes in its buffer (page in $31) and 69 in JOB_OVF ($01BA-$01FE), in place
++;  to the 256 data bytes; the block's mark goes to $38 and its checksum to $3A, as
++;  on a 1541. Natural Wonders' loader reads each block like that, then checks the
++;  XOR of the 256 bytes against $3A. The disk routines' zero page is saved around
++;  it: it is the job's while the job runs.
++compat_f8e0:
++    jsr job_save_zp
++    lda #$00
++    sta dsk_ptr
++    lda $31
++    sta dsk_ptr+1
++    jsr job_decode
++    jsr job_restore_zp
++    lda job_mark
++    sta $38
++    lda job_sum
++    sta $3A
++    rts
++
++;  (breadbin) compat_f4d1: from an EXECUTE job, read the job's sector (track and
++;  sector in its slot, $06+2n) as a READ job does, into the buffer whose page is
++;  in $31, and end the job with the result. Krestology and Krestage (Crest) set
++;  up $31 and $43 and jump here from their drive code to read a block.
++compat_f4d1:
++    jsr job_save_zp
++    lda JOB_CUR
++    sta job_n
++    tax
++    jsr job_head
++    lda #$00
++    sta dsk_ptr
++    lda $31
++    sta dsk_ptr+1
++    jsr job_read_ptr
++    pha
++    jsr job_restore_zp
++    pla
++    jmp compat_f969
++
 +;  compat_f418: end the running job with OK (result 1), as drive code does
 +;  when its EXECUTE job is done (NOSDOS V1.8, after scanning or reading a track).
 +compat_f418:
@@ -969,6 +1220,8 @@ index 6c32026..f757ec9 100644
 +    clc
 +    adc #$03
 +    sta dsk_ptr+1
++;  (breadbin) job_read_ptr: the same, the head already there and the buffer in dsk_ptr
++job_read_ptr:
 +    lda #MAX_TRIES
 +    sta dsk_tries
 +@try:
@@ -1136,13 +1389,342 @@ index 6c32026..f757ec9 100644
 +@r:
 +    rts
 +
- .segment "RODATA"
- TX_BUF: .byte $11, $22, $33
- 
-@@ -4841,6 +5760,63 @@ msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
- msg_dosid:     .byte "PASCUAL DOS 1541", 0
- msg_generic:   .byte "ERROR", 0
- 
++.segment "CODE2"
++;  (breadbin) the end of iec_atn, moved out of CODE0 (full up to $D042)
++;  (breadbin) Picking the wanted sector off the track without decoding headers.
++;  disk_find_sector_hw read every header's data block before decoding the
++;  header, and decoding took so long that the next header's SYNC went by: the
++;  search saw every second sector. Tracks of 17, 19 or 21 sectors show the other
++;  half on the next turn, but tracks 25-30 have 18, and the same half came round
++;  for ever, so no block there could be read (Natural Wonders by Oxyron, whose
++;  file crosses from track 24 into 25, stopped after 10 blocks with READ ERROR).
++;  Now the header's raw GCR is compared with the wanted one first, which takes a
++;  few cycles: the sector number and the track are bits 20-39 of the 40 that
++;  encode $08, checksum, sector, track, that is the low nibble of the third GCR
++;  byte and the fourth and fifth. Only the wanted sector's data block is read;
++;  the full header decode still checks it after.
++;  hdr_expect: RAW_BUF2+4..+8 = GCR of $08, 0, want_sector, want_track.
++hdr_expect:
++    lda #$08
++    sta RAW_BUF2+0
++    lda #$00
++    sta RAW_BUF2+1
++    lda want_sector
++    sta RAW_BUF2+2
++    lda want_track
++    sta RAW_BUF2+3
++    lda #<RAW_BUF2
++    sta gcr_src
++    lda #>RAW_BUF2
++    sta gcr_src+1
++    lda #<(RAW_BUF2+4)
++    sta gcr_dst
++    lda #>(RAW_BUF2+4)
++    sta gcr_dst+1
++    jmp gcr_encode
++;  hdr_match: Z = 1 if RAW_BUF starts a header ($52) for want_sector on want_track.
++hdr_match:
++    lda RAW_BUF
++    cmp #$52                    ; first GCR byte of the header mark $08
++    bne @no
++    lda RAW_BUF+2
++    eor RAW_BUF2+4+2
++    and #$0F                    ; bits 20-23: the top of the sector number
++    bne @no
++    lda RAW_BUF+3
++    cmp RAW_BUF2+4+3
++    bne @no
++    lda RAW_BUF+4
++    cmp RAW_BUF2+4+4
++@no:
++    rts
++
++;  (breadbin) cmd_amp: "&name", as on a 1541: load the USR file into drive
++;  memory and run it. The file is records of address (lo, hi), count (0 = 256),
++;  the bytes and a checksum (their sum with the carries added back in, the
++;  address and count included); the code starts at the first record's address
++;  once all are in. The name is the command line, up to 16 characters ("*" a
++;  wildcard), which takes the "&" into it: Dutch Breeze by Black Mail sends
++;  "&DUTCH DRIVEBOOT*PETER & DRAGON" for its file "&DUTCH DRIVEBOOT", and its
++;  drive code reads the rest of the line at $0200, where the command is copied
++;  as for M-E. The blocks are read into buffer 4 ($0700) with the job reader,
++;  since the records fill $0300-$05FF, where the DOS decodes sectors itself.
++AMP_PTR   = $0180         ; 2 bytes: where the next record byte goes
++AMP_START = $0182         ; 2 bytes: the first record's address
++AMP_PHASE = $0184         ; 0 lo, 1 hi, 2 count, 3 bytes, 4 checksum; $80 = no record yet
++AMP_LEFT  = $0185         ; bytes of the record still to come
++AMP_SUM   = $0186
++AMP_END   = $0187         ; the last data byte's offset in the block
++AMP_I     = $0188
++cmd_amp:
++    ldx #$00
++@cmd:
++    lda DATA_BUF,x
++    sta $0200,x
++    inx
++    cpx data_idx
++    bne @cmd
++    ldx #$00
++@nm:
++    cpx data_idx
++    beq @pad
++    lda DATA_BUF,x
++    cmp #$0D
++    beq @pad
++    sta NAME_BUF,x
++    inx
++    cpx #16
++    bne @nm
++    beq @find
++@pad:
++    lda #$A0
++    sta NAME_BUF,x
++    inx
++    cpx #16
++    bne @pad
++@find:
++    lda #$00
++    sta data_idx
++    jsr dir_find_chain
++    lda dir_found
++    bne @found
++    lda #62                     ; FILE NOT FOUND
++    jsr set_error
++    jmp status_set
++@found:
++    lda dir_track
++    sta $0E                     ; buffer 4's job slot: track, sector
++    lda dir_sector
++    sta $0F
++    lda #$00
++    sta AMP_PHASE
++    lda #$80                    ; no record yet: its address is the start
++    sta AMP_START+1
++@block:
++    jsr job_save_zp
++    ldx #$04
++    jsr job_read                ; -> $0700, A = 1 OK
++    pha
++    jsr job_restore_zp
++    pla
++    cmp #$01
++    beq @read
++    lda #20                     ; READ ERROR
++    jsr set_error
++    jmp status_set
++@read:
++    ldx #$FF                    ; the block's last byte, or the link's end
++    lda $0700
++    bne @full
++    ldx $0701
++@full:
++    stx AMP_END
++    ldx #$02
++@byte:
++    stx AMP_I
++    lda $0700,x
++    jsr amp_byte
++    bcs @bad
++    ldx AMP_I
++    cpx AMP_END
++    beq @next
++    inx
++    bne @byte
++@next:
++    lda $0700                   ; the link to the next block
++    beq @done
++    sta $0E
++    lda $0701
++    sta $0F
++    jmp @block
++@bad:
++    lda #23                     ; checksum
++    jsr set_error
++    jmp status_set
++@done:
++    lda AMP_START
++    sta mptr
++    lda AMP_START+1
++    sta mptr+1
++    lda cur_track
++    sta $22
++    jsr job_start
++    tsx
++    stx me_sp
++    jsr me_call
++    jmp me_done
++
++;  amp_byte: one byte of the record stream (A). C = 1: a checksum didn't match.
++amp_byte:
++    ldx AMP_PHASE
++    beq @lo
++    dex
++    beq @hi
++    dex
++    beq @count
++    dex
++    beq @data
++    cmp AMP_SUM                 ; the checksum
++    bne @err
++    lda #$00
++    sta AMP_PHASE
++    clc
++    rts
++@err:
++    sec
++    rts
++@lo:
++    sta AMP_PTR
++    sta AMP_SUM
++    inc AMP_PHASE
++    clc
++    rts
++@hi:
++    sta AMP_PTR+1
++    jsr amp_sum
++    lda AMP_START+1             ; the first record's address is the start
++    bpl @phase
++    lda AMP_PTR
++    sta AMP_START
++    lda AMP_PTR+1
++    sta AMP_START+1
++@phase:
++    inc AMP_PHASE
++    clc
++    rts
++@count:
++    sta AMP_LEFT
++    jsr amp_sum
++    inc AMP_PHASE
++    clc
++    rts
++@data:
++    ldy AMP_PTR                 ; (dsk_ptr) for the store: the DOS's zero page
++    sty dsk_ptr                 ; is its own while & reads
++    ldy AMP_PTR+1
++    sty dsk_ptr+1
++    ldy #$00
++    sta (dsk_ptr),y
++    jsr amp_sum
++    inc AMP_PTR
++    bne @nc
++    inc AMP_PTR+1
++@nc:
++    dec AMP_LEFT
++    bne @more
++    inc AMP_PHASE               ; the checksum next
++@more:
++    clc
++    rts
++
++amp_sum:
++    clc
++    adc AMP_SUM
++    adc #$00                    ; the carry back in
++    sta AMP_SUM
++    rts
++
++iec_atn_done:
++    ; ATN liberado: devolver el control de DATA al hardware (ATNA=0) para que la
++    ; asercion automatica vuelva a operar en el proximo ATN.
++    lda VIA1_PB
++    and #ATNA_CLR
++    sta VIA1_PB
++    ; (breadbin) Neither listener nor talker now (after UNLISTEN, or commands for
++    ; another device): let go of DATA, which iec_atn took on entry, as a 1541
++    ; does when it goes idle. Held, the bus never looked free: Bitfire's
++    ; installer (The Star Wars Demo, Wonderland XIII, by Censor Design) waits for
++    ; DATA to go high before its drive code takes the line for its handshake.
++    lda iec_state
++    and #(ST_LISTEN | ST_TALK)
++    bne @held
++    lda VIA1_PB
++    and #DATA_OUT_CLR
++    sta VIA1_PB
++@held:
++    rts
++
++.segment "RODATA"
++TX_BUF: .byte $11, $22, $33
++
++; tabla GCR directa: nibble (0..15) -> codigo de 5 bits
++gcr_enc_tab:
++    .byte $0A,$0B,$12,$13,$0E,$0F,$16,$17
++    .byte $09,$19,$1A,$1B,$0D,$1D,$1E,$15
++; tabla GCR inversa: codigo de 5 bits (0..31) -> nibble ($FF si invalido)
++gcr_dec_tab:
++    .byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
++    .byte $FF,$08,$00,$01,$FF,$0C,$04,$05
++    .byte $FF,$FF,$02,$03,$FF,$0F,$06,$07
++    .byte $FF,$09,$0A,$0B,$FF,$0D,$0E,$FF
++; mascaras de bit individual: bit_mask[n] = 1<<n
++bit_mask:
++    .byte $01,$02,$04,$08,$10,$20,$40,$80
++; mascaras acumuladas: low_mask9[n] = (1<<n)-1, con los n bits bajos a 1
++low_mask9:
++    .byte $00,$01,$03,$07,$0F,$1F,$3F,$7F,$FF
++; tipos de fichero del listado: indice = (tipo & 7), tres letras cada uno
++ftype_tab:
++    .byte "DEL"
++    .byte "SEQ"
++    .byte "PRG"
++    .byte "USR"
++    .byte "REL"
++; texto de la linea de cierre del listado de directorio
++free_text:
++    .byte "BLOCKS FREE.", 0
++
++; --- canal de estado: tabla de codigos y mensajes (subconjunto del DOS) ---
++;     Codigos en decimal. El espacio inicial de algunos mensajes reproduce la
++;     cadena que entrega una 1541 de referencia por el bus (contraste de caja
++;     negra, test/oracle_estado_vice.py).
++err_tab:
++    .byte 0
++    .word msg_ok
++    .byte 1
++    .word msg_scratched
++    .byte 21
++    .word msg_read
++    .byte 25
++    .word msg_write
++    .byte 30
++    .word msg_syntax
++    .byte 31
++    .word msg_syntax
++    .byte 33
++    .word msg_syntax
++    .byte 34
++    .word msg_syntax
++    .byte 62
++    .word msg_notfound
++    .byte 63
++    .word msg_exists
++    .byte 64
++    .word msg_mismatch
++    .byte 70
++    .word msg_nochannel
++    .byte 66
++    .word msg_illegal
++    .byte 72
++    .word msg_full
++    .byte 73
++    .word msg_dosid
++    .byte $FF                ; por defecto
++    .word msg_generic
++msg_ok:        .byte " OK", 0
++msg_scratched: .byte " FILES SCRATCHED", 0
++msg_read:      .byte "READ ERROR", 0
++msg_write:     .byte "WRITE ERROR", 0
++msg_syntax:    .byte "SYNTAX ERROR", 0
++msg_notfound:  .byte " FILE NOT FOUND", 0
++msg_exists:    .byte " FILE EXISTS", 0
++msg_full:      .byte "DISK FULL", 0
++msg_mismatch:  .byte " FILE TYPE MISMATCH", 0
++msg_nochannel: .byte "NO CHANNEL", 0
++msg_illegal:   .byte "ILLEGAL TRACK OR SECTOR", 0
++msg_dosid:     .byte "PASCUAL DOS 1541", 0
++msg_generic:   .byte "ERROR", 0
++
 +.segment "D042"
 +    jmp compat_d042
 +.segment "D586"
@@ -1162,6 +1744,15 @@ index 6c32026..f757ec9 100644
 +;  found no 1581 there and stopped with "DRIVE ERROR!".
 +.segment "FEA0"
 +    .byte $0D
++.segment "C11B"
++;  (breadbin) $C11B: ORA $1C00 / STA $1C00 / CLI / RTS, where a 1541's ROM has the
++;  end of its LED routine. Bitfire's drive code (The Star Wars Demo by Censor
++;  Design) calls it with A = $04 to start the motor; here it was in the middle of
++;  other code, the motor stayed off and the loader waited for a SYNC forever.
++    ora VIA2_PB
++    sta VIA2_PB
++    cli
++    rts
 +.segment "C194"
 +    jmp compat_c194
 +;  The 1541's reset routine is at $EAA0: programs reset the drive with
@@ -1184,8 +1775,22 @@ index 6c32026..f757ec9 100644
 +;  goes on (in the browser a disk write would not outlive the visit anyway).
 +.segment "F575"
 +    rts
++.segment "F77F"
++;  (breadbin) The GCR encode table where the 1541's ROM has it: nibble (0-15) ->
++;  its 5-bit code, the same values as gcr_enc_tab. Krill's loader (We Are New
++;  and other Fairlight, Censor and Oxyron trackmos) builds its decode table in
++;  the drive's zero page from these 16 bytes (LDX $F77F,Y / STA $11,X); erased
++;  ROM ($FF) put all of it in one byte, and every block it read came out wrong.
++    .byte $0A,$0B,$12,$13,$0E,$0F,$16,$17
++    .byte $09,$19,$1A,$1B,$0D,$1D,$1E,$15
++.segment "F4D1"
++    jmp compat_f4d1
++.segment "F505"
++    jmp compat_f505
 +.segment "F7E8"
 +    jmp compat_f7e8
++.segment "F8E0"
++    jmp compat_f8e0
 +.segment "F969"
 +    jmp compat_f969
 +;  The GCR decode tables at the addresses fast loaders read them from: code
@@ -1199,12 +1804,11 @@ index 6c32026..f757ec9 100644
 +    .byte $FF,$08,$00,$01,$FF,$0C,$04,$05
 +    .byte $FF,$FF,$02,$03,$FF,$0F,$06,$07
 +    .byte $FF,$09,$0A,$0B,$FF,$0D,$0E,$FF
-+
+ 
  .segment "VECTORS"
      .word nmi
-     .word reset
 diff --git a/src/dos1541.cfg b/src/dos1541.cfg
-index a596c2a..417fe3e 100644
+index a596c2a..19cb29f 100644
 --- a/src/dos1541.cfg
 +++ b/src/dos1541.cfg
 @@ -6,7 +6,7 @@
@@ -1216,10 +1820,11 @@ index a596c2a..417fe3e 100644
      RAM:  start = $0100, size = $0700, type = rw, define = yes;
  
      # 16 KB de ROM. fillval $FF imita una EPROM borrada en los huecos.
-@@ -16,6 +16,23 @@ MEMORY {
+@@ -16,6 +16,28 @@ MEMORY {
  SEGMENTS {
      ZEROPAGE: load = ZP,  type = zp;
      CODE:     load = ROM, type = ro;
++    C11B:     load = ROM, type = ro, start = $C11B;
 +    C194:     load = ROM, type = ro, start = $C194;
 +    CODE0:    load = ROM, type = ro;
 +    D042:     load = ROM, type = ro, start = $D042;
@@ -1231,11 +1836,15 @@ index a596c2a..417fe3e 100644
 +    E5C4:     load = ROM, type = ro, start = $E5C4;
 +    EAA0:     load = ROM, type = ro, start = $EAA0;
 +    F418:     load = ROM, type = ro, start = $F418;
++    F4D1:     load = ROM, type = ro, start = $F4D1;
++    F505:     load = ROM, type = ro, start = $F505;
 +    F50A:     load = ROM, type = ro, start = $F50A;
 +    F556:     load = ROM, type = ro, start = $F556;
 +    F575:     load = ROM, type = ro, start = $F575;
++    F77F:     load = ROM, type = ro, start = $F77F;
 +    F7E8:     load = ROM, type = ro, start = $F7E8;
 +    GCRTAB:   load = ROM, type = ro, start = $F8A0;
++    F8E0:     load = ROM, type = ro, start = $F8E0;
 +    F969:     load = ROM, type = ro, start = $F969;
 +    FEA0:     load = ROM, type = ro, start = $FEA0;
      VECTORS:  load = ROM, type = ro, start = $FFFA;

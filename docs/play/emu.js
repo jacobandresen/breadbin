@@ -24,19 +24,25 @@ const KERNAL_IN = `(async () => {
 // on an iPhone, sound that plays even with the silent switch on, like a video
 const AUDIO_SESSION = `if (navigator.audioSession) navigator.audioSession.type = 'playback';`;
 /**
- * Script that keeps breadbin's KERNAL in: vc64web downloads the stock Open ROMs
- * as it starts and installs each when it arrives, which can be after ours went
- * in (the C64 then runs without breadbin's fixes). A late stock KERNAL is
- * swapped for ours.
+ * Script that keeps breadbin's KERNAL (and BASIC) in: vc64web downloads the
+ * stock Open ROMs as it starts and installs each when it arrives, which can be
+ * after ours went in (the C64 then runs without breadbin's fixes). A late stock
+ * KERNAL or BASIC is swapped for ours.
  */
-function kernalGuard(kernal) {
-  let bin = '';
-  for (const b of kernal) bin += String.fromCharCode(b);
+function kernalGuard(kernal, basic) {
+  const b64 = (rom) => {
+    let bin = '';
+    for (const b of rom) bin += String.fromCharCode(b);
+    return btoa(bin);
+  };
   return `(() => {
-    const ours = Uint8Array.from(atob('${btoa(bin)}'), (c) => c.charCodeAt(0));
+    const rom = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const ours = { kernal: rom('${b64(kernal)}'), basic: ${basic ? `rom('${b64(basic)}')` : 'null'} };
     const load = wasm_loadfile;
     wasm_loadfile = (name, data, len, ...rest) =>
-      /kernal_generic/.test(name) ? load('kernal.rom', ours, ours.length, ...rest) : load(name, data, len, ...rest);
+      /kernal_generic/.test(name) ? load('kernal.rom', ours.kernal, ours.kernal.length, ...rest)
+      : /basic_generic/.test(name) && ours.basic ? load('basic.rom', ours.basic, ours.basic.length, ...rest)
+      : load(name, data, len, ...rest);
   })();`;
 }
 const CLEAR_SCREEN = `for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);`;
@@ -53,11 +59,11 @@ const SID_QUALITY = `wasm_set_sid_engine('ReSID ${matchMedia('(pointer: coarse)'
  * virtual drive instead of being mounted, starting with the file named `boot`
  * (else the first), with live `patches` for the game's loader and the
  * release's `others` disks (drive.js). `roms`
- * optionally carries the user's own { kernal, basic, charset, floppy }; without them, `kernal` is the patched Open ROMs KERNAL. `port` is
+ * optionally carries the user's own { kernal, basic, charset, floppy }; without them, `kernal` and `basic` are the patched Open ROMs. `port` is
  * the joystick port (1 or 2) the controls drive.
  * Returns { frame, send(), stop() }.
  */
-export function run(host, file, { roms = {}, kernal = null, port = 2, onState, onDrive, onAlert, onAudio } = {}) {
+export function run(host, file, { roms = {}, kernal = null, basic = null, port = 2, onState, onDrive, onAlert, onAudio } = {}) {
   const disk = !file.vdrive && /\.(d64|g64)$/i.test(file.name);
   const config = {
     openROMS: !roms.kernal,
@@ -111,8 +117,8 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
           // blank the screen first: the READY still on it would otherwise pass
           // for the new boot's, and keys typed before it are lost
           script(CLEAR_SCREEN);
-          script(kernalGuard(kernal));
-          frame.contentWindow?.postMessage({ cmd: 'load', kernal_rom: kernal, ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
+          script(kernalGuard(kernal, basic));
+          frame.contentWindow?.postMessage({ cmd: 'load', kernal_rom: kernal, ...(basic && { basic_rom: basic }), ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
           script(KERNAL_IN);
           setTimeout(start, 4000); // in case the message never comes
         } else start();
@@ -168,8 +174,14 @@ export function run(host, file, { roms = {}, kernal = null, port = 2, onState, o
         wasm_set_warp(1);
         ${WAIT_READY}
         await new Promise((r) => setTimeout(r, 3000));
+        const before = readies();
         wasm_auto_type('load"*",8,1:\\n');
-        await disk_loading_finished();
+        // RUN once the LOAD is over, that is when its READY shows. vc64web's
+        // disk_loading_finished() can come before the drive has even started
+        // (RUN typed during the LOAD is lost: Edge of Disgrace's one-block boot
+        // file, Soiled Legacy). A program that starts itself shows no READY and
+        // needs no RUN.
+        while (readies() <= before) await new Promise((r) => setTimeout(r, 200));
         wasm_set_warp(0);
         wasm_auto_type('\\nrun:\\n');
       })();`);

@@ -7,7 +7,8 @@ import * as ia from './ia.js';
 import { verified, search } from './catalogue.js';
 import { initGames, showGame, gameCard, coversReady } from './games.js';
 import { initDemos, showDemo, demoCard } from './demos.js';
-import { initTunes, filterTunes } from './tunes.js';
+import { initTunes, filterTunes, playTune } from './tunes.js';
+import { launch } from './emulator.js';
 import { initHack } from './hack.js';
 import { openSettings } from './settings.js';
 import { $, h, toast, shelf } from './ui.js';
@@ -22,8 +23,11 @@ const boot = () => $('#boot').classList.add('done');
 setTimeout(boot, 3500);
 
 function route() {
-  // everything after the tab is the id, which may hold a "/" of its own
+  // everything after the tab is the id, which may hold a "/" of its own; a
+  // trailing "/play" (a shared link, see ui.js share) starts it as well
   const [tab, ...rest] = (location.hash.slice(1) || 'games').split('/');
+  const play = rest.length > 1 && rest.at(-1) === 'play';
+  if (play) rest.pop();
   const item = rest.join('/');
   current = tab in views ? tab : 'games';
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== current;
@@ -33,12 +37,23 @@ function route() {
   $('#search').closest('label').style.visibility = current === 'hack' ? 'hidden' : '';
   $('#search').value = terms[current] || '';
   if (!started.has(current)) started.set(current, Promise.resolve(views[current]()).then(boot, boot));
-  if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item));
+  if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item), play);
+  if (item && current === 'tunes') started.get('tunes').then(() => playTune(decodeURIComponent(item)));
 }
 
-/** Deep link (#games/<id>, #demos/<id>). Ids not on the verified list open too,
- *  which is how the playtests reach new titles. */
-async function openItem(tab, id) {
+/** Deep link (#games/<id>, #demos/<id>): its card, or with `play` the game or
+ *  demo itself. Ids not on the verified list open too, which is how the
+ *  playtests reach new titles. */
+async function openItem(tab, id, play) {
+  const item = await findItem(tab, id);
+  if (!item) return;
+  if (!play) return tab === 'games' ? showGame(item) : showDemo(item);
+  // the shelf's address, so closing the player leaves the shelf, not a link that starts it again
+  history.replaceState(null, '', `#${tab}`);
+  launch(tab === 'games' ? 'game' : 'demo', item);
+}
+
+async function findItem(tab, id) {
   try {
     const v = await verified();
     const query = new URLSearchParams(location.search);
@@ -51,18 +66,17 @@ async function openItem(tab, id) {
     const listed = (tab === 'games' ? v.games : v.demos).find((x) => x.id === id);
     // the query overrides a listed game's file, parts and patches, so playtests can try others
     const known = listed && { ...listed, ...(boot && { boot }), ...extras };
-    if (known) return tab === 'games' ? showGame(known) : showDemo(known);
+    if (known) return known;
     if (id.startsWith('gb64:')) {
       await coversReady;
       const gb = id.slice(5);
-      return showGame({ id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: query.get('run') || '', boot, ...extras });
+      return { id, gb, title: gb.split('/').pop().replace(/_\d+_\d+\.zip$/i, ''), run: query.get('run') || '', boot, ...extras };
     }
     const m = (await ia.metadata(id)).metadata;
     if (!m) throw new Error('no such item');
     const first = (x) => (Array.isArray(x) ? x[0] : x);
     const title = ia.displayTitle(String(first(m.title) || id));
-    const item = { id, ia: id, boot, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || ''), ...extras };
-    return tab === 'games' ? showGame(item) : showDemo(item);
+    return { id, ia: id, boot, title, group: String(first(m.csdb_group) || '').replace(/,\s*$/, ''), publisher: String(first(m.creator) || ''), ...extras };
   } catch (e) {
     toast(`Couldn't open ${id}: ${e.message}`);
   }
