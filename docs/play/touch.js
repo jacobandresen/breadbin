@@ -1,11 +1,10 @@
 // touch - an on-screen joystick for phones and tablets, drawn in breadbin's own
-// page around the emulator rather than over the C64 screen: the <blip-deck> control deck
-// (github.com/jacobandresen/blip-deck, MIT; loaded from jsDelivr by index.html), a
-// ball-top arcade stick with an 8-way gate that leans with the thumb, and red
-// FIRE caps. A row of keys covers what joystick games ask for at the title
-// screen (SPACE, RETURN, F1-F7, RUN/STOP) and the Y/N and number questions of
-// crack trainer menus. Input reaches vc64web through the listener installed by
-// PAD_LISTENER.
+// page around the emulator rather than over the C64 screen: the <blip-deck> control
+// deck (github.com/jacobandresen/blip-deck, MIT; loaded from jsDelivr by index.html),
+// a ball-top arcade stick and one FIRE button, as a C64 joystick has. A row of keys
+// covers what joystick games ask for at the title screen (SPACE, RETURN, F1-F7,
+// RUN/STOP) and the Y/N and number questions of crack trainer menus. Input reaches
+// vc64web through the listener installed by PAD_LISTENER.
 
 /** Script for vc64web's {cmd: "script"}: route breadbin's pad messages to the
  *  emulator's own joystick and keyboard handlers. */
@@ -44,15 +43,17 @@ const KEYS = [
   ['1', [7, 0]],
 ];
 
+/** Sideways on a phone: the deck's controls go to the gutters beside the screen. */
+const LANDSCAPE = matchMedia('(orientation: landscape) and (max-height: 600px)');
+
 /**
- * Build the pad inside `root`: the keys, and a <blip-deck> (from jsDelivr, see index.html) for the stick and FIRE.
+ * Build the pad inside `root`: the keys, and a <blip-deck> for the stick and FIRE.
  * `send(message)` posts to the emulator frame. Returns { el, setPort(n), destroy() }.
  */
 export function createPad(root, send, { port = 2 } = {}) {
-  const { BlipDeck, BlipController } = window;
   const el = document.createElement('div');
   el.className = 'pad';
-  el.innerHTML = '<div class="pad-keys"></div><div id="topbar" class="kiosk-bar"><blip-deck seats="1" buttons=\'[{"label":"FIRE"}]\'></blip-deck></div>';
+  el.innerHTML = '<div class="pad-keys"></div><blip-deck buttons=\'["FIRE"]\'></blip-deck>';
   root.append(el);
 
   const keys = el.querySelector('.pad-keys');
@@ -71,45 +72,31 @@ export function createPad(root, send, { port = 2 } = {}) {
     keys.append(b);
   }
 
-  // The deck reads its layout from the page: upright, or sideways on a phone.
-  const html = document.documentElement;
-  const layout = () => html.setAttribute('data-layout', innerHeight <= 520 && innerWidth > innerHeight * 1.25 ? 'landscape' : 'upright');
-  layout();
-  addEventListener('resize', layout);
-  html.setAttribute('data-controls', 'stick');
-  html.toggleAttribute('data-has-touch', 'ontouchstart' in window || navigator.maxTouchPoints > 0);
-  const stick = el.querySelector('#stick-base'), fire = el.querySelector('#fire-buttons');
-
-  // The deck's logical inputs become the C64 joystick's: both caps fire.
-  const held = {};
-  let state = { x: 'RELEASE_X', y: 'RELEASE_Y' };
-  BlipController.init({
-    onInput(name, down) {
-      held[name] = down;
-      if (name === 'button1' || name === 'button2') {
-        send({ bbjoy: [port + (down ? 'PRESS_FIRE' : 'RELEASE_FIRE')] });
-        if (down) buzz(10);
-        return;
-      }
-      BlipDeck.lean(stick, (held.right ? 1 : 0) - (held.left ? 1 : 0), (held.down ? 1 : 0) - (held.up ? 1 : 0));
-      const x = held.right ? 'PULL_RIGHT' : held.left ? 'PULL_LEFT' : 'RELEASE_X';
-      const y = held.down ? 'PULL_DOWN' : held.up ? 'PULL_UP' : 'RELEASE_Y';
-      const cmds = [];
-      if (x !== state.x) cmds.push(port + x);
-      if (y !== state.y) cmds.push(port + y);
-      state = { x, y };
-      if (cmds.length) { send({ bbjoy: cmds }); if (x !== 'RELEASE_X' || y !== 'RELEASE_Y') buzz(4); }
-    },
+  // The deck's names become the C64 joystick's commands, sent for an axis when it changes: it is released only when
+  // neither of its ways is held.
+  const deck = el.querySelector('blip-deck');
+  const held = new Set();
+  let sent = { X: 'RELEASE_X', Y: 'RELEASE_Y' };
+  const axis = (minus, plus, x) => (held.has(plus) ? `PULL_${plus.toUpperCase()}` : held.has(minus) ? `PULL_${minus.toUpperCase()}` : `RELEASE_${x}`);
+  deck.addEventListener('blip-input', ({ detail: { name, down } }) => {
+    if (name === 'button1') {
+      send({ bbjoy: [port + (down ? 'PRESS_FIRE' : 'RELEASE_FIRE')] });
+      if (down) buzz(10);
+      return;
+    }
+    if (down) held.add(name);
+    else held.delete(name);
+    const now = { X: axis('left', 'right', 'X'), Y: axis('up', 'down', 'Y') };
+    send({ bbjoy: ['X', 'Y'].filter((a) => now[a] !== sent[a]).map((a) => port + now[a]) });
+    sent = now;
+    if (down) buzz(4);
   });
-  BlipController.bindButtons(fire);
-  const unbind = BlipDeck.bindStick({ stick, fire, dirs: { up: 'up', down: 'down', left: 'left', right: 'right' } });
-
-  // the pad never scrolls, zooms or opens a context menu
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  const layout = () => deck.setAttribute('layout', LANDSCAPE.matches ? 'landscape' : 'upright');
+  layout();
+  LANDSCAPE.addEventListener('change', layout);
 
   const setPort = (n) => {
-    send({ bbjoy: [`${port}RELEASE_XY`, `${port}RELEASE_FIRE`] });
-    state = { x: 'RELEASE_X', y: 'RELEASE_Y' };
+    deck.release(); // its releases go to the old port
     port = n;
   };
 
@@ -117,10 +104,8 @@ export function createPad(root, send, { port = 2 } = {}) {
     el,
     setPort,
     destroy: () => {
-      unbind();
-      BlipController.releaseAll();
-      removeEventListener('resize', layout);
-      for (const a of ['data-layout', 'data-controls', 'data-has-touch']) html.removeAttribute(a);
+      deck.release();
+      LANDSCAPE.removeEventListener('change', layout);
       el.remove();
     },
   };
