@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 
 // STUDIO_DOCS: another copy to serve, e.g. a deploy stamped by tools/stamp.mjs
+// BLIP_DECK: a local build of blip-deck (its dist/blip-deck.js) to use in place of the
+// released one from jsDelivr, to try a new deck here before it is tagged
 const DOCS = process.env.STUDIO_DOCS ? path.resolve(process.env.STUDIO_DOCS) + path.sep : fileURLToPath(new URL('../../../../docs/', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.gz': 'application/gzip' };
 
@@ -61,6 +63,11 @@ export async function openStudio(browser, base, { folder = true, width = 1500, h
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));
   await page.setViewport({ width, height });
+  if (process.env.BLIP_DECK) {
+    const deck = fs.readFileSync(process.env.BLIP_DECK, 'utf8');
+    await page.setRequestInterception(true);
+    page.on('request', (r) => (/\/blip-deck@[^/]+\/dist\/blip-deck\.js$/.test(r.url()) ? r.respond({ status: 200, contentType: 'text/javascript', body: deck }) : r.continue()));
+  }
   if (folder) {
     await page.evaluateOnNewDocument(() => {
       window.showDirectoryPicker = async () => {

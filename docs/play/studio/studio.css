@@ -479,19 +479,19 @@
 .studio-codetools .studio-tool { padding: 2px 8px; font: 600 12px var(--code-font); background: transparent; color: var(--rb-gray); }
 .studio-codetools .studio-tool:hover { background: #3c3836; color: var(--rb-fg); }
 
-/* the control deck under the C64: the player's <blip-deck>, stood in the side panel */
+/* the control deck under the C64: the player's key row and <blip-deck>, in the C64 frame's own plum casing */
 .studio-deck { flex: none; }
 .studio-deck .pad {
-  display: grid; gap: 10px; padding: 4px 0 6px;
+  display: grid; gap: 10px; padding: 10px 10px 0; border-radius: 14px; overflow: hidden;
+  background: linear-gradient(to bottom, #3a3150, var(--plum));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 2px 0 var(--edge), 0 14px 30px rgb(0 0 0 / 0.35);
   touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
-.studio-deck .pad #topbar { position: relative; inset: auto; height: 132px; padding: 0 6px; }
-:root[data-seats="1"] .studio-deck .pad #topbar #deck-p2,
-.studio-deck .pad #deck-p1 .arcade-btn ~ .arcade-btn { display: none; }
-:root[data-seats="1"] .studio-deck .pad #topbar #deck-p1 {
-  display: flex; flex: 1 1 auto; flex-direction: row; justify-content: space-between; align-items: flex-end;
-}
-:root[data-seats="1"] .studio-deck .pad #topbar :is(#stick-base, #fire-buttons) { align-self: end; }
+.studio-deck .pad-keys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.studio-deck .pad-key { padding-left: 4px; padding-right: 4px; }
+/* RUN/STOP is the widest: two cells, so the eleven keys make two even rows of six */
+.studio-deck .pad-key:nth-child(7) { grid-column: span 2; }
+.studio-screen .emu-sound { top: 18px; }
 .studio-padbtn { padding: 6px 11px; }
 
 /* the debugger's bar, under the C64: pause/run, the steps, where the CPU stopped and its registers */

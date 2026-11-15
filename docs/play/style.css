@@ -573,30 +573,18 @@ dialog[open] { animation: rise 160ms ease-out; }
 .pad-keys { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .key.pill.pad-key { font-size: 9px; padding: 8px 9px 10px; touch-action: none; }
 
-/* The stick and FIRE are the <blip-deck> control deck (blip-deck.css): its bar stands at the foot of the screen, as in blip. */
-.emu.touch .pad #topbar { left: 14px; right: 14px; }
-/* <blip-deck> is blip's two-player arcade panel: even with seats="1" it draws a second, dead station and
-   two caps per station. A C64 joystick is one stick and one button, so breadbin keeps station one only,
-   with its first cap, and spreads it over the whole deck: stick at the left end, FIRE at the right.
-   :root[data-seats] and #topbar out-rank blip's upright small-phone rule, which sets both stations to grid. */
-:root[data-seats="1"] .emu.touch .pad #topbar #deck-p2,
-.emu.touch .pad #deck-p1 .arcade-btn ~ .arcade-btn { display: none; }
-:root[data-seats="1"] .emu.touch .pad #topbar #deck-p1 {
-  display: flex; flex: 1 1 auto; flex-direction: row;
-  justify-content: space-between; align-items: flex-end;
-}
-/* blip's upright rule pins the stick to the top of its station and the caps to the foot; side by side
-   they share the foot, as they do sideways. */
-:root[data-seats="1"] .emu.touch .pad #topbar :is(#stick-base, #fire-buttons) { align-self: end; }
+/* The stick and FIRE are the <blip-deck> control deck: it draws itself, and only needs a place. */
+.emu.touch .pad blip-deck { align-self: end; }
 /* Landscape phones: the screen in the middle, stick left, fire right. */
 @media (orientation: landscape) and (max-height: 600px) {
   .emu.touch .emu-bar { padding: 6px 12px 9px; }
   /* dvh: the height Safari leaves between its toolbars; the keys get a row under the screen */
   .emu.touch .emu-stage { flex: 1; padding: 6px; align-items: start; }
   .emu.touch .emu-frame { width: calc((100vh - 140px) * 1.333); width: calc((100dvh - 140px) * 1.333); box-shadow: 0 0 0 6px var(--plum), 0 0 0 8px var(--key-edge); }
-  /* Sideways the deck is a fixed overlay in the gutters, so the pad holds only the key row: given the
-     upright pad's 200px it squeezed the stage, and the frame spilled under the keys. */
+  /* Sideways the deck lies over the whole screen with its stick and FIRE in the gutters (layout="landscape"),
+     so the pad holds only the key row: given the upright pad's 200px it squeezed the stage. */
   .emu.touch .pad { flex: none; min-height: 0; padding: 6px 10px calc(8px + env(safe-area-inset-bottom)); }
+  .emu.touch .pad blip-deck { position: fixed; inset: 0; z-index: 5; align-self: stretch; }
 }
 
 /* ── Boot screen: the oven preheating ────────────────────────────── */

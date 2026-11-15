@@ -10,7 +10,7 @@
 ; so the handler ends by pulling them itself.
 
         .export _bb_irq_on, _bb_frames
-        .import bbs_play
+        .import bbs_play, bbs_init
 
         .segment "BSS"
 _bb_frames:
@@ -36,6 +36,14 @@ _bb_irq_on:
         lda #$01
         sta $d01a               ; VIC: raster interrupts on
         sta $d019               ; acknowledge any old one
+        ; The SID powers up silent: its master volume ($D418) is 0 until a
+        ; program sets it. bbs_init (bbsound.s) clears every SID register,
+        ; sets full volume and, with A = $FF, starts no song. Without this,
+        ; bb_music() and bb_sfx() played into a muted chip: every Studio
+        ; game (Bubbler, Bouncer, Pixels...) was silent in the C64, though
+        ; the MUSIC editor, whose PSID stub calls bbs_init, was not.
+        lda #$ff
+        jsr bbs_init
         cli
         rts
 

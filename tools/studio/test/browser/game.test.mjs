@@ -131,8 +131,10 @@ test('the control deck under the C64 plays: its FIRE starts Bubbler', { skip, ti
   const c = await c64(page);
   await c.until(async () => /PRESS {2}FIRE/.test(await c.row(21)), 30000);
   await page.click('.studio-padbtn');
-  await page.waitForSelector('.studio-deck:not([hidden]) #fire-buttons .arcade-btn');
-  const fire = await page.$eval('.studio-deck #fire-buttons .arcade-btn', (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  // the FIRE button, inside the <blip-deck>'s shadow root
+  const cap = await page.waitForSelector('.studio-deck:not([hidden]) blip-deck >>> [part~="button"]');
+  const box = await cap.boundingBox();
+  const fire = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(fire.x, fire.y);
   await page.mouse.down();
   await sleep(300);

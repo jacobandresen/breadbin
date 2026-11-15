@@ -14,6 +14,7 @@ import { prepare, patchedKernal, patchedBasic } from '../engine.js';
 import { h, toast, share } from '../ui.js';
 import { packCart } from '../cart.js';
 import { createPad } from '../touch.js';
+import { pollGamepads } from '../gamepad.js';
 import { SidPlayer } from '../sid.js';
 import { CodeEditor } from './code-editor.js';
 import { build, warmUp, psid, headers } from './builder.js';
@@ -168,7 +169,8 @@ export class Studio {
       h('div.studio-dbg-bar', {}, u.dbgPause, u.dbgOver, u.dbgInto, u.dbgOut, u.dbgWhere),
       h('div.studio-dbg-foot', {}, u.dbgRegs, u.dbgClear));
     u.side = h('aside.studio-side', {},
-      (u.screen = h('div.studio-screen', {}, u.stage,
+      // Safari starts the C64's sound only after a tap inside it: the note says so, and lets the tap through
+      (u.screen = h('div.studio-screen', {}, u.stage, (u.sound = h('p.emu-sound', { hidden: true }, '🔇 Tap the C64 for sound')),
         h('button.studio-fullbtn', { onclick: () => this.fullscreen(), title: 'The C64 full screen (Alt+Enter; Esc to come back)', 'aria-label': 'Full screen' }, '⛶'))),
       u.debug,
       u.deck,
@@ -262,7 +264,7 @@ export class Studio {
     this.ui.padBtn.setAttribute('aria-pressed', String(on));
     const show = on && !!this.session;
     this.ui.deck.hidden = !show;
-    if (show && !this.pad && window.BlipDeck) {
+    if (show && !this.pad) {
       this.pad = createPad(this.ui.deck, (m) => this.session?.send(m), { port: 2 });
     } else if (!show && this.pad) {
       this.pad.destroy();
@@ -840,6 +842,7 @@ export class Studio {
       const prg = await prepare('game.prg', r.prg, { canMount: false });
       this.session = emu.run(this.ui.stage, prg, {
         border: 0.1,
+        onAudio: (state) => (this.ui.sound.hidden = state !== 'suspended'),
         kernal: await patchedKernal(store.cachedBytes),
         basic: await patchedBasic(store.cachedBytes),
         // the Studio's keys still work while the C64 has the keyboard
@@ -855,6 +858,8 @@ export class Studio {
       });
     }
     this.ui.stop.disabled = false;
+    // a gamepad is joystick 2, as the deck is
+    this.stopGamepads ??= pollGamepads((m) => this.session?.send(m), () => 2);
     this.setPad(prefs.get('pad', TOUCH));
     this.ui.debug.hidden = false;
     if (!this.dbg.session || this.dbg.session !== this.session) this.debugFresh(this.session, r.prg);
@@ -1020,6 +1025,9 @@ export class Studio {
     this.ui.debug.hidden = true;
     this.session?.stop();
     this.session = null;
+    this.stopGamepads?.();
+    this.stopGamepads = null;
+    this.ui.sound.hidden = true;
     this.setPad(prefs.get('pad', TOUCH));
     this.ui.stop.disabled = true;
     this.ui.stage.replaceChildren(h('div.studio-idle', {}, h('b', {}, 'Press ▶ Run'), h('span', {}, 'to build the game and start it here')));

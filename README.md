@@ -136,7 +136,7 @@ Breadbin runs on free software, each under its own licence:
 - [CodeMirror](https://codemirror.net/) by Marijn Haverbeke: the code editor
   (MIT). Its colours follow Neovim's retrobox (after gruvbox by morhetz).
 - [blip-deck](https://github.com/jacobandresen/blip-deck): the touch pad's
-  arcade stick and buttons (MIT), loaded from jsDelivr at a pinned tag.
+  arcade stick and FIRE button (MIT), loaded from jsDelivr at a pinned tag.
 - Pixelify Sans, Silkscreen, Figtree and JetBrains Mono from Google Fonts (SIL
   Open Font License).
 
