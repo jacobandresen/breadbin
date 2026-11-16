@@ -1,0 +1,408 @@
+/* themes/chicago.css - "Chicago": a tribute to the desktop of 1995 (the name
+   its maker gave it while it was being built). A teal desk; grey chrome cut
+   in bevels, light from the top left; navy title bars with their buttons;
+   white, sunken places for what you read and type; a taskbar along the
+   bottom with a Start button (breadbin's own toast) and a clock in its tray.
+   No logos of anyone else's: the shapes and colours of the time, in free type
+   (Arimo, Cousine) close to the faces it used.
+
+   On with <html data-theme="chicago"> (themes/themes.js). */
+
+@layer tokens {
+  :root[data-theme="chicago"] {
+    color-scheme: light;
+
+    /* the sixteen colours of the time, those it used */
+    --desk: #008080;
+    --face: #c0c0c0;
+    --light: #dfdfdf;
+    --hilite: #fff;
+    --shadow: #808080;
+    --dark: #0a0a0a;
+    --navy: #000080;
+
+    --bg-deep: var(--hilite);
+    --bg: var(--face);
+    --surface: var(--face);
+    --raised: var(--face);
+    --raised-hi: var(--light);
+    --raised-top: var(--face);
+    --edge: var(--dark);
+    --bg-glow: var(--face);
+    --screen: #000;
+    --screen-glow: #000;
+    --screen-ink: var(--hilite);
+    --checker-a: var(--light);
+    --checker-b: var(--hilite);
+
+    --text: #000;
+    --text-dim: #404040;
+    --accent: var(--navy);
+    --accent-deep: var(--navy);
+    --on-accent: var(--hilite);
+    --highlight: var(--navy);
+    --danger: #800000;
+    --on-danger: var(--hilite);
+    --ok: #008000;
+    --info: var(--navy);
+    --glint: var(--shadow);
+    --shade: #000;
+
+    --pane: var(--face);
+    --pane-hi: var(--hilite);
+    --line: var(--shadow);
+
+    /* the code: as the free editor of the time showed C by default - Courier on white, a grey margin,
+       blue keywords, purple types, green comments, orange numbers, grey strings, brown #lines, navy operators */
+    --code-bg: var(--hilite);
+    --code-bg-soft: var(--face);
+    --code-bg-hard: var(--face);
+    --code-bar: var(--face);
+    --code-rule: var(--shadow);
+    --code-bg1: var(--face);
+    --code-bg2: var(--light);
+    --code-gutter: #e4e4e4;
+    --code-line: #e8e8ff;
+    --code-fg: #000;
+    --code-fg0: #000;
+    --code-gray: #404040;
+    --code-comment: #008000;
+    --code-linenr: var(--shadow);
+    --code-red: #0000ff; /* keywords */
+    --code-yellow: #8000ff; /* types */
+    --code-green: #808080; /* strings */
+    --code-function: #000;
+    --code-purple: #ff8000; /* numbers */
+    --code-aqua: #804000; /* the preprocessor */
+    --code-operator: #000080;
+    --code-orange: #000080; /* brackets and punctuation, as operators */
+    --code-blue: #000;
+    --code-visual: #c0c0c0;
+    --code-search: #ffff80;
+
+    --radius-s: 0;
+    --radius: 0;
+    --radius-l: 0;
+
+    --ui-font: "Arimo", Arial, "Helvetica Neue", sans-serif;
+    --pixel-font: var(--ui-font);
+    --display-font: var(--ui-font);
+    --code-font: "Cousine", "Courier New", monospace;
+    --code-min: 14px;
+    --studio-console: 1; /* the key under Esc drops a console down over the Studio (studio/console.js) */
+
+    --page: var(--desk);
+
+    /* the bevels, each four lines of light and shade: raised, pressed, a field sunk into the face, a window's frame */
+    --bevel-out: inset -1px -1px var(--dark), inset 1px 1px var(--hilite), inset -2px -2px var(--shadow), inset 2px 2px var(--light);
+    --bevel-in: inset -1px -1px var(--hilite), inset 1px 1px var(--dark), inset -2px -2px var(--light), inset 2px 2px var(--shadow);
+    --bevel-field: inset -1px -1px var(--hilite), inset 1px 1px var(--shadow), inset -2px -2px var(--light), inset 2px 2px var(--dark);
+    --bevel-window: inset -1px -1px var(--dark), inset 1px 1px var(--light), inset -2px -2px var(--shadow), inset 2px 2px var(--hilite);
+    --bevel-tray: inset -1px -1px var(--hilite), inset 1px 1px var(--shadow);
+    /* a pressed taskbar button, or a scrollbar's track: the face and white, a pixel each */
+    --checker: repeating-conic-gradient(var(--hilite) 0 25%, var(--face) 0 50%) 0 0 / 2px 2px;
+  }
+}
+
+@layer theme {
+:root[data-theme="chicago"] {
+  /* square, still, lit from one side only */
+  & *, & ::before, & ::after {
+    border-radius: 0;
+    text-shadow: none;
+    backdrop-filter: none;
+    transition: none;
+    letter-spacing: 0;
+  }
+  & body { font-size: 13px; }
+  & ::selection { background: var(--navy); color: var(--hilite); }
+  & :focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+
+  /* the scrollbars: grey thumbs between buttons, on a checkered track */
+  & * { scrollbar-color: auto; }
+  & ::-webkit-scrollbar { width: 16px; height: 16px; }
+  & ::-webkit-scrollbar-track { background: var(--checker); }
+  & ::-webkit-scrollbar-thumb { background: var(--face); box-shadow: var(--bevel-out); }
+  & ::-webkit-scrollbar-button:single-button { display: block; width: 16px; height: 16px; background: var(--face); box-shadow: var(--bevel-out); }
+  & ::-webkit-scrollbar-corner { background: var(--face); }
+
+  /* ── buttons: raised, and pressed in when pushed or on ──────────── */
+  & .key {
+    color: #000; background: var(--face); border: 0; box-shadow: var(--bevel-out);
+    &:hover { background: var(--face); }
+    &:active, &[aria-pressed="true"], &.on { background: var(--face); color: #000; box-shadow: var(--bevel-in); transform: none; }
+    &[aria-pressed="true"], &.on { background: var(--checker); }
+    &:disabled { color: var(--shadow); text-shadow: 1px 1px 0 var(--hilite); opacity: 1; }
+  }
+  & .key.pill { font: 13px var(--ui-font); text-transform: none; padding: 4px 12px; min-width: 75px; }
+  /* the button Enter presses: ringed in black */
+  & .key.pill.primary {
+    color: #000; background: var(--face); box-shadow: 0 0 0 1px var(--dark), var(--bevel-out); &:hover { background: var(--face); }
+    &:active { box-shadow: 0 0 0 1px var(--dark), var(--bevel-in); }
+  }
+  & .key.icon { box-shadow: var(--bevel-out); }
+
+  /* ── the taskbar, along the bottom ─────────────────────────────── */
+  & .case {
+    order: 9; gap: 4px; padding: 2px 2px 2px; z-index: 3;
+    background: var(--face); box-shadow: inset 0 1px var(--light), inset 0 2px var(--hilite);
+    &::after { content: none; }
+  }
+  /* Start: breadbin's toast, and bold */
+  & .brand {
+    padding: 3px 6px 3px 4px; gap: 4px; color: #000; background: var(--face); box-shadow: var(--bevel-out);
+    &:active { box-shadow: var(--bevel-in); }
+  }
+  & .brand-logo { width: 18px; height: 18px; filter: none; transform: none; }
+  & .brand-label { font: 700 13px var(--ui-font); color: #000; }
+  & .tabs { gap: 3px; margin: 0 auto 0 4px; }
+  & .tab {
+    min-width: 0; justify-content: flex-start; padding: 4px 8px; gap: 6px;
+    font: 13px var(--ui-font); text-transform: none; color: #000; background: var(--face); box-shadow: var(--bevel-out);
+    &:hover { background: var(--face); }
+    &[aria-selected="true"] { font-weight: 700; color: #000; background: var(--checker); box-shadow: var(--bevel-in); }
+  }
+  & .tab-icon { font-size: 14px; }
+  @media (width > 900px) { & .tab { min-width: 150px; } } /* (the taskbar's buttons full width only where they fit) */
+  & .case-tools { gap: 4px; }
+  & .key-well { background: var(--hilite); box-shadow: var(--bevel-field); }
+  & .search {
+    input { padding: 3px 6px; color: #000; font-size: 13px; }
+    input::placeholder { color: var(--shadow); }
+    &:focus-within { box-shadow: var(--bevel-field); }
+  }
+  & #open-settings { width: 28px; height: 24px; font-size: 14px; color: #000; }
+  /* the tray: the time, sunk into the bar at its end */
+  & .theme-clock { display: flex; align-items: center; align-self: stretch; padding: 0 10px; font-size: 13px; white-space: nowrap; box-shadow: var(--bevel-tray); }
+  @media (width < 600px) { & .theme-clock { display: none; } }
+
+  /* ── windows on the desk ───────────────────────────────────────── */
+  & .view:not(.studio) { padding: 8px 8px 24px; }
+  /* a shelf: a window, its title on a navy bar with the window's buttons, its icons on white */
+  & .shelf { margin: 0 0 10px; padding: 3px; background: var(--face); box-shadow: var(--bevel-window); }
+  & .shelf-head {
+    margin: 0; padding: 2px 3px 2px 6px; gap: 6px; background: var(--navy); color: var(--hilite);
+    /* minimise, maximise, close: drawn, not anyone's mark */
+    &::after {
+      content: "_  □  ×"; flex: none; white-space: pre; padding: 0 4px; font: 700 12px/16px var(--ui-font); color: #000; background: var(--face);
+      box-shadow: var(--bevel-out);
+    }
+    .key.pill { min-width: 0; padding: 1px 8px; font-size: 12px; }
+  }
+  & .shelf-chip { display: none; }
+  & .shelf-title { font: 700 13px var(--ui-font); text-transform: none; color: var(--hilite); }
+  & .shelf-rule { background: none; }
+  & .shelf .n { color: var(--hilite); }
+  & .row, & .grid { margin-top: 3px; padding: 10px; background: var(--hilite); box-shadow: var(--bevel-field); scrollbar-color: auto; }
+
+  /* a card: an icon on white, its name under it; chosen, the name in navy */
+  & .card {
+    background: none; box-shadow: none; color: #000; padding: 2px;
+    &:hover, &:focus-visible { background: none; box-shadow: none; transform: none; outline: 0;
+      .card-title { background: var(--navy); color: var(--hilite); outline: 1px dotted var(--light); outline-offset: -1px; }
+      .art { filter: none; }
+    }
+  }
+  & .art { background: var(--face); box-shadow: none; &::after { box-shadow: none; } }
+  & .card .art::after { content: none; }
+  & .art .placeholder { font: 700 13px var(--ui-font); color: #000; background: var(--face); }
+  & .card-title { font-size: 12px; font-weight: 400; padding: 0 2px; margin: 0 auto; }
+  & .card-sub { color: var(--text-dim); }
+  & .badge, & .tag { font: 11px var(--ui-font); padding: 1px 4px; color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000; }
+  & .wip { font: 700 11px var(--ui-font); padding: 1px 4px; color: var(--hilite); background: var(--danger); box-shadow: none; }
+  & .skeleton .art { background: var(--checker); animation: none; }
+  & .skeleton .card-title { background: var(--face); }
+  & .banner { color: #000; background: var(--face); box-shadow: var(--bevel-window); b { color: #000; } }
+  /* the page's foot: a status bar */
+  & .foot { margin: 10px 0 0; padding: 4px 8px; color: #000; background: var(--face); box-shadow: var(--bevel-tray); border: 0; }
+  & .linkish, & a { color: #0000ff; }
+
+  /* ── Tunes: a tribute to the MP3 player of 1997 - a gunmetal main window with a green
+     display and little transport buttons, and its playlist in green on black ────── */
+  & .view.tunes {
+    --amp-metal: linear-gradient(to bottom, #3b3b56, #23232f);
+    --amp-green: #00e800;
+    --amp-dim: #0a8a0a;
+    gap: 8px; padding: 8px;
+  }
+  /* the main window, laid out as the player's: the little display at the left, the title beside it, the buttons under */
+  & .tune-player {
+    align-self: start; /* a compact window, as the player was, not a column */
+    display: grid; grid-template-columns: calc(124px * 3 + 8px) minmax(0, 1fr); grid-template-areas: "title title" "vis np" "ctl ctl";
+    padding: 0 6px 8px; gap: 6px; color: var(--amp-green);
+    background: var(--amp-metal); box-shadow: inset 1px 1px #6c6c8a, inset -1px -1px #0c0c12, 0 0 0 1px #000;
+    /* the title bar: gold rules either side of its name, as the players of the time drew theirs */
+    &::before {
+      grid-area: title;
+      content: "BREADBIN SID PLAYER"; display: block; margin: 0 -6px; padding: 2px 0; text-align: center;
+      font: 9px/12px "Silkscreen", monospace; letter-spacing: 2px; color: #e8e2c0;
+      background:
+        linear-gradient(#2c2c40, #2c2c40) center / 15em 100% no-repeat,
+        repeating-linear-gradient(to bottom, #b8a35a 0 1px, #5a4f24 1px 2px, transparent 2px 3px) 0 3px / 100% 7px no-repeat,
+        #2c2c40;
+    }
+    > * { margin-inline: 0; }
+  }
+  /* the display: black glass, green pixels; the title runs across it */
+  & .now-playing {
+    grid-area: np; align-self: stretch;
+    min-height: 0; padding: 6px 8px; gap: 10px; grid-template-columns: minmax(0, 1fr);
+    background: #000; box-shadow: inset 1px 1px #000, inset -1px -1px #5a5a78, 0 0 0 1px #15151f;
+    color: var(--amp-green); font: 10px/1.5 "Silkscreen", monospace;
+  }
+  & .np-shot { display: none; } /* (the player had no pictures) */
+  & .np-title {
+    overflow: hidden; white-space: nowrap; margin: 0 0 4px;
+    font: 12px/1.3 "Silkscreen", monospace; color: var(--amp-green); text-transform: uppercase;
+    animation: amp-scroll 12s linear infinite;
+  }
+  & :is(.np-artist, .np-meta, .np-stats, .np-group) { font: 10px/1.5 "Silkscreen", monospace; color: var(--amp-green); font-weight: 400; font-style: normal; margin: 0; }
+  & .np-stats { color: #c8e800; }
+  & .np-idle { color: var(--amp-green); font: 10px/1.6 "Silkscreen", monospace; b { color: #c8e800; font-weight: 400; } }
+  /* its display (amp.js): the time and the spectrum, 124x16 pixels, three screen pixels each */
+  & .screen-bezel {
+    grid-area: vis; flex: none; aspect-ratio: auto; height: calc(16px * 3 + 8px); min-height: 0; padding: 4px; background: #000;
+    box-shadow: inset 1px 1px #000, inset -1px -1px #5a5a78, 0 0 0 1px #15151f;
+  }
+  & .select {
+    font: 10px "Silkscreen", monospace; color: var(--amp-green); background-color: #000; box-shadow: 0 0 0 1px #15151f, inset -1px -1px #5a5a78;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='4'%3E%3Cpath d='M0 0h7L3.5 4z' fill='%2300e800'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 7px 4px;
+  }
+  & .select option { color: var(--amp-green); background: #000; }
+  & #viz-kind { display: none; } /* (it picks among the C64 visualisers; this player has its own: click the display) */
+  /* the transport: little buttons of light metal, pictures on the player's own (pause, stop, next) */
+  & .player-controls { grid-area: ctl; }
+  & .player-controls .buttons { gap: 2px; justify-content: flex-start; }
+  & :is(#btn-pause, #btn-stop, #btn-skip) { font-size: 0; min-width: 30px; &::before { font: 10px/14px var(--ui-font); } }
+  & #btn-pause::before { content: "▮▮"; letter-spacing: -1px; }
+  & #btn-stop::before { content: "■"; }
+  & #btn-skip::before { content: "▶▶|"; letter-spacing: -2px; }
+  @media (width < 600px) { & .tune-player { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "vis" "np" "ctl"; } }
+  @media (width <= 900px) { & .tune-player { align-self: stretch; } }
+  & .player-controls .key.pill {
+    min-width: 0; padding: 2px 8px; font: 9px/14px "Silkscreen", monospace; text-transform: uppercase; color: #20202c;
+    background: linear-gradient(to bottom, #e2e2ee, #a8a8bc); box-shadow: inset 1px 1px #fff, inset -1px -1px #5c5c74, 0 0 0 1px #0c0c12;
+    &:active, &[aria-pressed="true"] { background: linear-gradient(to bottom, #a8a8bc, #d0d0de); box-shadow: inset 1px 1px #5c5c74, inset -1px -1px #fff, 0 0 0 1px #0c0c12; }
+    &:disabled { color: #6c6c84; text-shadow: none; }
+  }
+  & .subtune { color: var(--amp-green); font: 10px "Silkscreen", monospace; }
+
+  /* the playlist: its own window, green on black, each tune numbered; the one playing in white on blue */
+  & .tune-list {
+    counter-reset: amp; background: #000; border: 0;
+    box-shadow: inset 1px 1px #000, inset -1px -1px #5a5a78, 0 0 0 3px #2c2c40, 0 0 0 4px #000;
+    font-family: "Arimo", Arial, sans-serif; scrollbar-color: #5a5a78 #000;
+  }
+  & .tune-list::-webkit-scrollbar-track { background: #000; }
+  & .tune-list::-webkit-scrollbar-thumb { background: linear-gradient(to right, #5c5c74, #a8a8bc); box-shadow: none; }
+  & .tune-section {
+    font: 9px/12px "Silkscreen", monospace; letter-spacing: 1px; text-transform: uppercase; color: #e8e2c0;
+    background: #2c2c40; border-left: 0; box-shadow: none; .count { color: #b8a35a; }
+  }
+  & .tune {
+    grid-template-columns: auto 1fr auto; gap: 4px; padding: 1px 6px; color: var(--amp-green); border-bottom: 0;
+    counter-increment: amp;
+    &::before { content: counter(amp) "."; color: var(--amp-green); font-size: 12px; min-width: 2.2em; text-align: right; }
+    &:hover { background: none; color: #fff; }
+    &.current { background: #0000c6; color: #fff; box-shadow: none; .tune-sub, .tune-rating, .play { color: #fff; } }
+  }
+  & .tune .play { display: none; }
+  & #viz { min-height: 0; }
+  & .tune-name { font-size: 12px; }
+  & .tune-sub, & .tune-rating { font-size: 11px; color: #0bb80b; }
+  & .tune.current:not(.loading) .play { --bar: #fff; }
+
+  /* ── dialogs: a window, its title bar its heading ──────────────── */
+  & dialog.sheet {
+    padding: 3px; color: #000; background: var(--face); box-shadow: var(--bevel-window), 2px 2px 0 rgb(0 0 0 / 0.2);
+    &::backdrop { background: none; backdrop-filter: none; } /* (`*` doesn't reach ::backdrop) */
+  }
+  & dialog[open] { animation: none; }
+  & .sheet-body { padding: 0 10px 12px; }
+  & .sheet h2 { margin: 0 -10px 10px; padding: 3px 34px 3px 6px; font: 700 13px var(--ui-font); color: var(--hilite); background: var(--navy); }
+  & .sheet .close {
+    top: 6px; right: 6px; width: 16px; height: 14px; padding: 0; font: 700 11px/1 var(--ui-font); color: #000; background: var(--face);
+    box-shadow: var(--bevel-out);
+  }
+  & .settings h3 { font: 700 13px var(--ui-font); text-transform: none; color: #000; border-bottom: 1px solid var(--shadow); box-shadow: 0 1px var(--hilite); padding-bottom: 2px; }
+  & .settings p { color: #000; }
+  & .settings .credits a { color: #0000ff; font-weight: 400; }
+  & .settings .credits li { border-bottom: 0; }
+  & .field input[type="text"], & .field input[type="url"] { color: #000; background: var(--hilite); box-shadow: var(--bevel-field); }
+  & :is(.field input[type="range"], .check input) { accent-color: var(--navy); }
+  & .theme-choice { background: var(--face); box-shadow: var(--bevel-out); &:has(:checked) { box-shadow: var(--bevel-in); background: var(--checker); } b { font-weight: 700; } }
+
+  /* ── the player: a window, the C64 in it ───────────────────────── */
+  & .emu { background: var(--desk); }
+  & .emu-bar {
+    margin: 8px 8px 0; padding: 3px 3px 3px 6px; gap: 4px; color: var(--hilite); background: var(--navy);
+    box-shadow: 0 0 0 3px var(--face), 0 0 0 4px var(--hilite), 0 0 0 5px var(--dark);
+    .key.pill { min-width: 0; padding: 2px 8px; font-size: 12px; }
+  }
+  & #emu-close { min-width: 0; padding: 0 5px; }
+  & .emu-title { font: 700 13px var(--ui-font); color: var(--hilite); }
+  & .emu-status { color: var(--light); }
+  & .emu-online { color: #ffff80; }
+  & .emu-frame { box-shadow: 0 0 0 3px var(--face), 0 0 0 4px var(--shadow), 0 0 0 5px var(--dark), 0 0 0 6px var(--light); }
+  & .emu-note { color: var(--hilite); }
+  & .emu-sound { color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000; animation: none; }
+  & .emu-loading { padding: 12px 20px; font: 13px var(--ui-font); color: #000; background: var(--face); box-shadow: var(--bevel-window); }
+  /* progress, as the time showed it: navy blocks with gaps */
+  & .emu-loading .bar, & .boot-bar { height: 18px; padding: 2px; background: var(--hilite); box-shadow: var(--bevel-field); }
+  & .emu-loading .bar i, & .boot-bar i { background: repeating-linear-gradient(90deg, var(--navy) 0 8px, transparent 8px 10px); box-shadow: none; }
+  & .emu-error { color: #000; background: var(--face); box-shadow: var(--bevel-window); padding: 12px 16px; b { font: 700 13px var(--ui-font); color: #000; } }
+  & .emu-tools { color: #000; background: var(--face); box-shadow: var(--bevel-window); }
+  & .tools-head { font: 700 13px var(--ui-font); }
+  & .tools-sec { border-top: 1px solid var(--shadow); summary { color: #000; } }
+  & :is(.tools-item, .tools-mem, .tools-num, .tools-addr) { color: #000; background: var(--hilite); box-shadow: var(--bevel-field); border: 0; }
+  & .tools-item code, & .tools-val { color: var(--navy); }
+  & .tools-act { color: #000; background: var(--face); box-shadow: var(--bevel-out); &:hover { background: var(--face); color: #000; } }
+
+  /* ── starting up: a window on the desk, blocks filling its bar ─── */
+  & .boot { background: var(--desk); }
+  & .boot-screen { padding: 3px 3px 14px; gap: 10px; background: var(--face); box-shadow: var(--bevel-window); width: min(280px, 100vw - 32px); }
+  & .boot-screen::before { content: "breadbin"; justify-self: stretch; padding: 3px 6px; font: 700 13px var(--ui-font); color: var(--hilite); background: var(--navy); }
+  & .boot-logo { width: 48px; height: 48px; animation: none; filter: none; }
+  & .boot-word { font: 700 18px var(--ui-font); color: #000; }
+  & #boot-status { font: 13px var(--ui-font); color: #000; }
+  & .boot-bar { width: min(240px, 100% - 24px); }
+  & .boot-bar i { width: 60%; animation: none; }
+
+  & .toast { color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000, 2px 2px 0 rgb(0 0 0 / 0.3); font-size: 13px; }
+
+  /* ── the Studio: a window of toolbars and panes ────────────────── */
+  & .studio-bar { background: var(--face); border-bottom: 0; box-shadow: inset 0 -1px var(--shadow), inset 0 -2px var(--hilite); }
+  & .studio-project { color: #000; background: var(--face); box-shadow: var(--bevel-out); font: 700 13px var(--ui-font); }
+  & .studio-modes { gap: 2px; padding: 0; background: none; box-shadow: none; }
+  & .studio-mode {
+    color: #000; background: var(--face); box-shadow: var(--bevel-out);
+    &[aria-selected="true"] { background: var(--checker); box-shadow: var(--bevel-in); color: #000; }
+  }
+  /* the C64's own screen stays dark: what is written on it, light */
+  & .studio-idle { color: var(--light); b { color: var(--hilite); } }
+  & .studio-banner { color: #000; background: #ffffe1; border-bottom: 1px solid var(--shadow); }
+  & .studio-main, & .studio-side, & .studio-files { background: var(--face); }
+  & .studio-files { box-shadow: var(--bevel-field); background: var(--hilite); }
+  & .studio-codewrap { box-shadow: var(--bevel-field); }
+  /* the open file as the editor's document tab: white, an orange edge on top */
+  & .studio-codehead { background: var(--face); box-shadow: inset 0 -1px var(--shadow); }
+  & .studio-crumb { padding: 3px 10px 2px; color: #000; background: var(--hilite); box-shadow: inset 0 3px #fa0, inset 1px 0 var(--shadow), inset -1px 0 var(--shadow); }
+  & .studio-status { color: #000; background: var(--face); box-shadow: inset 0 1px var(--hilite); }
+  & .studio-tool, & .studio-toolbtn { color: #000; }
+  & .studio-input, & .studio-select { color: #000; background: var(--hilite); box-shadow: var(--bevel-field); border: 0; }
+  & .studio-phonebar { background: var(--face); box-shadow: inset 0 1px var(--light), inset 0 2px var(--hilite); }
+  & .studio-phoneview {
+    color: #000; background: var(--face); box-shadow: var(--bevel-out);
+    &[aria-pressed="true"] { background: var(--checker); box-shadow: var(--bevel-in); color: #000; }
+  }
+}
+}
+
+/* the look's swatch in Settings (style.css draws the picker) */
+@layer tokens {
+  .theme-choice[data-look="chicago"] { --swatch-1: #008080; --swatch-2: #c0c0c0; --swatch-3: #000080; }
+}
+
+@keyframes amp-scroll { from { text-indent: 100%; } to { text-indent: -100%; } }
+@media (prefers-reduced-motion: reduce) { :root[data-theme="chicago"] .np-title { animation: none; } }

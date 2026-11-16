@@ -6,8 +6,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { serve, launch, openStudio, run, setCode, sleep } from './harness.mjs';
+import { serve, launch, openStudio, run, setCode, sleep, online, sharedLink } from './harness.mjs';
 
+// (the tests that run the C64 need vc64web, on the internet)
+const offline = !(await online()) && 'vc64web is not reachable';
 const server = await serve();
 const browser = await launch();
 test.after(async () => {
@@ -387,19 +389,28 @@ test('save to a folder: the files go to disk, edits follow, and changes made the
 
 test('Share: a link with the game in it starts it in breadbin\'s player', async () => {
   const page = await openStudio(browser, server.url);
-  assert.ok(await page.$eval('.studio-share', (b) => b.disabled), 'nothing to share before a build');
   assert.match(await run(page), /^Built in/);
   // the link goes to the clipboard (caught here)
-  await page.evaluate(() => (navigator.clipboard.writeText = async (t) => (window.__copied = t)));
-  await page.click('.studio-share');
-  const link = await page.waitForFunction(() => window.__copied, { timeout: 20000 }).then((h) => h.jsonValue());
-  assert.match(link, /#games\/prg%3A[A-Za-z0-9_-]+\/play$/);
+  const link = await sharedLink(page, server.url);
+  // readable up to the data: #play/<Title>/<data>
+  assert.match(link, /#play\/Bubbler\/[A-Za-z0-9_-]+$/);
   // a friend opens it, in another browser profile: the player starts with the game
   const friend = await (await browser.createBrowserContext()).newPage();
-  await friend.goto(link.replace(/^https?:\/\/[^/]+/, new URL(server.url).origin), { waitUntil: 'domcontentloaded' });
+  await friend.goto(link, { waitUntil: 'domcontentloaded' });
   await friend.waitForFunction(() => !document.querySelector('#emu').hidden, { timeout: 30000 });
   assert.equal(await friend.$eval('#emu-title', (e) => e.textContent), 'Bubbler');
   await friend.waitForSelector('#emu-stage iframe', { timeout: 30000 });
+  // a link of the old form (#games/prg:<gzip of title and PRG>/play) still opens
+  const old = await friend.evaluate(async () => {
+    const prg = new Uint8Array([1, 8, 0x60]);
+    const title = new TextEncoder().encode('Old Game');
+    const raw = new Uint8Array([title.length, ...title, ...prg]);
+    const gz = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+    return `prg:${btoa(String.fromCharCode(...gz)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+  });
+  await friend.evaluate(() => document.querySelector('#emu-close').click());
+  await friend.evaluate((id) => (location.hash = `#games/${encodeURIComponent(id)}/play`), old);
+  await friend.waitForFunction(() => document.querySelector('#emu-title').textContent === 'OLD GAME' || document.querySelector('#emu-title').textContent === 'Old Game', { timeout: 30000 });
   await friend.close();
 });
 
@@ -488,5 +499,201 @@ test('every example builds in the browser\'s worker', async () => {
     assert.match(await run(page), /^Built in/, id);
     await page.evaluate(() => window.breadbinStudio.stop());
   }
+  assert.deepEqual(page.errors, []);
+});
+
+test('Share & export: the web page is one file that plays the game without the Studio', async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => (window.breadbinStudio.download = (name, bytes) => (window.__dl = { name, text: new TextDecoder().decode(bytes) })));
+  await page.click('.studio-share');
+  await page.waitForSelector('.studio-export[open] .studio-card');
+  const cards = await page.$$eval('.studio-export .studio-card b', (b) => b.map((x) => x.textContent));
+  assert.deepEqual(cards, ['A link', 'Web page', 'C64 program']);
+  await (await page.$$('.studio-export .studio-card'))[1].click();
+  const dl = await (await page.waitForFunction(() => window.__dl, { timeout: 30000 })).jsonValue();
+  assert.equal(dl.name, 'bubbler.html');
+  // opened on its own, away from the Studio: the game's title screen
+  const p2 = await (await browser.createBrowserContext()).newPage();
+  const errors = [];
+  p2.on('pageerror', (e) => errors.push(e.message));
+  await p2.setContent(dl.text);
+  assert.equal(await p2.title(), 'Bubbler');
+  await p2.click('.start');
+  // the title's yellow-green BUBBLER (colour 7) is on the canvas
+  await p2.waitForFunction(() => {
+    const d = document.querySelector('canvas').getContext('2d').getImageData(0, 0, 384, 272).data;
+    for (let i = 0; i < d.length; i += 4) if (d[i] === 0xb8 && d[i + 1] === 0xc7 && d[i + 2] === 0x6f) return true;
+    return false;
+  }, { timeout: 15000 });
+  assert.deepEqual(errors, []);
+  await p2.close();
+});
+
+test('a lesson: the jump made a setting, run, tuned higher, step by step', { skip: offline, timeout: 120000 }, async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => window.breadbinStudio.startLesson('jump'));
+  await page.waitForSelector('.studio-lesson:not([hidden])');
+  const n = () => page.$eval('.studio-lesson-n', (e) => e.textContent);
+  const next = async () => {
+    await page.waitForSelector('.studio-lesson.done .studio-lesson-next:not([disabled])', { timeout: 60000 });
+    await page.click('.studio-lesson-next');
+  };
+  assert.equal(await n(), '1 / 3');
+  await page.evaluate(() => [...document.querySelectorAll('.studio-lesson button')].find((b) => b.textContent === 'Show me').click());
+  await next();
+  assert.equal(await n(), '2 / 3');
+  assert.match(await run(page), /^Built in/);
+  await next();
+  assert.equal(await n(), '3 / 3');
+  await page.waitForSelector('.studio-tuning input[aria-label=jump]', { timeout: 60000 });
+  await page.$eval('.studio-tuning input[aria-label=jump]', (i) => {
+    i.value = -10;
+    i.dispatchEvent(new Event('input'));
+    i.dispatchEvent(new Event('change'));
+  });
+  await next();
+  await page.waitForFunction(() => /That's the lesson/.test(document.querySelector('.studio-lesson').textContent));
+  assert.match(await page.evaluate(() => window.breadbinStudio.files['src/main.c']), /^signed char jump = -10;/m);
+  assert.deepEqual(page.errors, []);
+});
+
+test('History: each Run keeps a version; restore puts the project back as it was', { timeout: 120000 }, async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => window.breadbinStudio.openExample('blank'));
+  assert.match(await run(page), /^Built in/);
+  const before = await page.evaluate(() => window.breadbinStudio.files['src/main.c']);
+  await page.evaluate(() => window.breadbinStudio.edited('src/main.c', window.breadbinStudio.files['src/main.c'].replace('int y = 100;', 'int y = 90;')));
+  assert.match(await run(page), /^Built in/);
+  await page.evaluate(() => window.breadbinStudio.openPicker());
+  await page.waitForSelector('.studio-picker-history summary');
+  await page.click('.studio-picker-history summary');
+  await page.waitForFunction(() => document.querySelectorAll('.studio-history-row').length >= 2, { timeout: 10000 });
+  assert.match(await page.$eval('.studio-history-row', (r) => r.textContent), /main\.c/);
+  page.on('dialog', (d) => d.accept());
+  await page.evaluate(() => [...document.querySelectorAll('.studio-history-row')][1].querySelector('button').click());
+  await page.waitForFunction((b) => window.breadbinStudio.files['src/main.c'] === b, { timeout: 10000 }, before);
+  assert.deepEqual(page.errors, []);
+});
+
+test('on a phone: code and C64 take turns (Run shows the C64), code keys above the keyboard type', { skip: offline, timeout: 120000 }, async () => {
+  const page = await (await browser.createBrowserContext()).newPage();
+  page.errors = [];
+  page.on('pageerror', (e) => page.errors.push(e.message));
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+  await page.goto(`${server.url}#hack`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.breadbinStudio?.files?.['project.json']);
+  const visible = (sel) => page.$eval(sel, (e) => e.offsetParent !== null);
+  assert.ok(await visible('.studio-phonebar'));
+  assert.ok(await visible('.studio-code'), 'the code first');
+  assert.equal(await visible('.studio-stage'), false, 'the C64 waits');
+  // the key bar: shown while the editor has the focus; ; typed at the cursor
+  await page.evaluate(() => window.breadbinStudio.openFile('src/main.c', { line: 1 }));
+  await page.tap('.cm-content');
+  await page.waitForSelector('.studio-keybar:not([hidden])');
+  const before = await page.evaluate(() => window.breadbinStudio.code.view.state.doc.length);
+  await page.evaluate(() => [...document.querySelectorAll('.studio-key')].find((k) => k.textContent === ';').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  assert.equal(await page.evaluate(() => window.breadbinStudio.code.view.state.doc.length), before + 1);
+  await page.evaluate(() => [...document.querySelectorAll('.studio-key')].find((k) => k.textContent === '↶').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  await page.waitForFunction((n) => window.breadbinStudio.code.view.state.doc.length === n, {}, before);
+  // ⋯: the completion list, without a Ctrl+Space (after "bb_" it offers the runtime's calls)
+  await page.evaluate(() => window.breadbinStudio.code.view.dispatch(window.breadbinStudio.code.view.state.replaceSelection('bb_')));
+  await page.evaluate(() => [...document.querySelectorAll('.studio-key')].find((k) => k.textContent === '⋯').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  await page.waitForFunction(() => /bb_spr/.test(document.querySelector('.cm-tooltip-autocomplete')?.textContent || ''), { timeout: 5000 });
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => [...document.querySelectorAll('.studio-key')].find((k) => k.textContent === '↶').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  await page.waitForFunction((n) => window.breadbinStudio.code.view.state.doc.length === n, {}, before);
+  // ▶ Run in the bar: the C64 takes the screen; Code brings the code back
+  await page.evaluate(() => document.activeElement.blur());
+  await page.evaluate(() => [...document.querySelectorAll('.studio-phonebar button')].find((b) => /Run/.test(b.textContent)).click());
+  await page.waitForFunction(() => document.querySelector('.studio-stage')?.offsetParent && !document.querySelector('.studio-code').offsetParent, { timeout: 60000 });
+  await page.click('.studio-phoneview[data-view=work]');
+  assert.ok(await visible('.studio-code'));
+  assert.deepEqual(page.errors, []);
+});
+
+test('the cheat sheet: a call tapped goes into the code at the cursor', async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(() => window.breadbinStudio.openFile('src/main.c', { line: 1 }));
+  await page.evaluate(() => window.breadbinStudio.openHelp());
+  await page.waitForSelector('.studio-help[open] .studio-help-sig');
+  await page.evaluate(() => [...document.querySelectorAll('.studio-help-sig')].find((b) => b.textContent.includes('bb_spr(')).click());
+  const at = await page.evaluate(() => {
+    const st = window.breadbinStudio.code.view.state;
+    return st.doc.sliceString(st.selection.main.head - 7, st.selection.main.head + 1);
+  });
+  assert.equal(at, 'bb_spr()', 'name(), the cursor between the brackets');
+  assert.equal(await page.$('.studio-help[open]'), null, 'the sheet closed');
+  assert.deepEqual(page.errors, []);
+});
+
+test('the looks: Settings switches the theme at once, a reload keeps it, the code follows', async () => {
+  const page = await openStudio(browser, server.url);
+  const look = () => page.evaluate(() => ({
+    theme: document.documentElement.dataset.theme || 'bakery',
+    page: getComputedStyle(document.body).backgroundColor,
+    code: getComputedStyle(document.querySelector('.cm-editor')).backgroundColor,
+    font: getComputedStyle(document.body).fontFamily,
+  }));
+  const pick = async (id) => {
+    await page.click('#open-settings');
+    await page.click(`.theme-choice[data-look="${id}"]`);
+    await page.keyboard.press('Escape');
+  };
+  const bakery = await look();
+  assert.equal(bakery.theme, 'bakery');
+  assert.equal(bakery.code, 'rgb(28, 28, 28)', 'retrobox: the code on #1c1c1c');
+
+  await pick('classic');
+  const classic = await look();
+  assert.equal(classic.theme, 'classic');
+  assert.equal(classic.page, 'rgb(53, 40, 121)', 'the C64\'s blue screen');
+  assert.equal(classic.code, 'rgb(53, 40, 121)', 'the code on it too, without rebuilding the editor');
+  assert.match(classic.font, /PXL 64/);
+  assert.ok(await page.evaluate(() => document.fonts.ready.then(() => document.fonts.check('16px "PXL 64"'))), 'the C64 type loaded');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.breadbinStudio?.files?.['project.json']);
+  assert.equal((await look()).theme, 'classic', 'a reload keeps the look');
+
+  await pick('geos');
+  const geos = await look();
+  assert.equal(geos.theme, 'geos');
+  assert.match(geos.font, /Micro 5/);
+  assert.ok(await page.$('.theme-clock'), 'the desktop\'s clock in the menu bar');
+
+  await pick('chicago');
+  const chicago = await look();
+  assert.equal(chicago.page, 'rgb(0, 128, 128)', 'the teal desk');
+  assert.equal(chicago.code, 'rgb(255, 255, 255)', 'the code on white');
+  assert.match(chicago.font, /Arimo/);
+  assert.ok(await page.$('.theme-clock'), 'the clock in the taskbar\'s tray');
+
+  await pick('bakery');
+  assert.deepEqual(await look(), bakery, 'back to the bakery, exactly');
+  assert.equal(await page.$('.theme-clock'), null);
+  assert.deepEqual(page.errors, []);
+});
+
+test('the console (Chicago): ` drops it down, commands run, ` puts it away; other looks have none', async () => {
+  const page = await openStudio(browser, server.url);
+  const look = (id) => page.evaluate(async (id) => (await import('./themes/themes.js')).applyTheme(id), id);
+  await page.click('.cm-content');
+  await page.keyboard.press('Backquote');
+  assert.ok(await page.$eval('.studio-console', (e) => e.hidden), 'none in the bakery: ` is a character there');
+  await look('chicago');
+  await page.click('.cm-content');
+  await page.keyboard.press('Backquote');
+  assert.equal(await page.$eval('.studio-console', (e) => e.hidden), false, 'down');
+  for (const cmd of ['ls', 'mode sprites', 'nonsense']) {
+    await page.keyboard.type(cmd);
+    await page.keyboard.press('Enter');
+  }
+  assert.equal(await page.evaluate(() => window.breadbinStudio.mode), 'sprites');
+  const log = await page.$eval('.studio-console-lines', (e) => e.textContent);
+  assert.match(log, /src\/main\.c/, 'ls lists the files');
+  assert.match(log, /Unknown command "nonsense"/);
+  await page.keyboard.press('Backquote');
+  assert.ok(await page.$eval('.studio-console', (e) => e.hidden), 'up again');
+  await look('bakery');
   assert.deepEqual(page.errors, []);
 });

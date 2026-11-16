@@ -114,12 +114,12 @@ function watcher(page) {
 async function checkRun({ tab, id }) {
   const want = linkFor(tab, id);
   const notes = [];
-  // 1. the card's Share button, on a phone: its share sheet
+  // 1. the player's Share button, on a phone: its share sheet
   let { ctx, page } = await visitor({ phone: true });
   try {
     await page.goto(`${BASE}#${tab}/${encodeURIComponent(id)}`, { waitUntil: 'domcontentloaded' });
-    const card = await copyFrom(page, '#detail[open] .share');
-    if (card.copied !== `share:${want}`) return { ok: false, why: `card Share on a phone gave ${card.copied}` };
+    const card = await copyFrom(page, '#emu-share');
+    if (card.copied !== `share:${want}`) return { ok: false, why: `the player's Share on a phone gave ${card.copied}` };
   } finally {
     await ctx.close();
   }

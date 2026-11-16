@@ -33,7 +33,7 @@ Open the Hack tab. The Studio starts on **Bubbler**, a one-screen platformer
 (after blip's Bubbler); the projects menu (the cartridge, top left) has
 **Bouncer** (bricks and a bat, after blip's Bouncer), **Pixels** (a tour of
 the bitmap mode, blits and peek/poke), an **Empty game** to start from, and three classic intros in ACME assembly. Each example opens as
-its own copy: change anything, and **↺ Reset example** brings it back.
+its own copy: change anything, and **Reset example** (in Projects) brings it back.
 
 Press **▶ Run** (Ctrl+Enter). The Studio writes `gen/` from the assets,
 compiles every `.c` and `.s` file, links them with the runtime, and starts the
@@ -44,9 +44,108 @@ saving a file in your own editor when the project is in a folder.
 
 Compiler errors show under the C64 and as red underlines in the code; click
 one to go to its line. The bar under the C64 is the memory the program uses,
-of the 46 KB it has. **Variables** (under it, folded) shows the running game's
-global variables, read from the C64 four times a second: a debugger's watch
-list, for seeing what the game thinks is going on.
+of the 46 KB it has.
+
+### On a phone
+
+The code and the C64 take turns on the screen: **{ } Code**, **▶ Run** and
+**🕹 Game** sit at the bottom, and Run shows the game (with the control deck
+under it). Tapping into the code brings up a row of keys above the phone's
+keyboard: the symbols C is made of (`{ } ( ) ; = [ ] < > " ' + - * / & | ! #`),
+Tab, the arrows, undo and ⋯ (complete: the bb_ calls, the assets and your
+names that fit there), a touch each, without the keyboard's symbol pages.
+Long lines wrap, the code is a size the phone doesn't zoom in on, and the
+file list folds away (◧ files brings it back). Completion pops up as you
+type, and a call tapped in the cheat sheet (?) goes into the code at the
+cursor. The sprite and tile canvases get the width of the screen, for a
+finger.
+
+In the **Chicago** look, the key under Esc (`` ` ``) drops a console down over
+the Studio: it logs each build and its problems, and takes `help`, `run`,
+`build`, `stop`, `open main.c`, `mode sprites`, `ls`, `clear` and `theme`.
+
+In the **Classic** look (Settings → Look) the Studio takes turns the same way
+on any screen, as a C64 shows one thing at a time, and its type is the C64's
+at half width (4x8), as 80-column C64 software drew it: twice the columns for
+the code, on the same big pixels as the rest of the look.
+
+### Live values: tune the game while it plays
+
+While the game runs, the code shows the game's global variables at the end
+of each line that uses them, read from the C64 four times a second: `px 104`,
+`lives 3`, `ex [40,96,152,…]`. A value that just changed flashes. They're a
+debugger's watch list, right where the code is, and they stay put when a
+breakpoint stops the game.
+
+Drag a value sideways to change it in the running game (Shift: ten at a
+time), or click it and type one. On the line that declares the variable with
+a number (`unsigned char gravity = 3;`, underlined in yellow) the new number
+goes into the code as well, so a good setting survives the next Run (Ctrl+Z
+takes it back). That is how game feel gets found: Bubbler's jump is three
+variables in `main.c` (`jump`, `gravity`, `max_fall`) instead of `#define`s,
+to be dragged until the jump feels right. A `#define` is compiled into the
+code, so to tune one, make it a variable for a while.
+
+**Tuning**, under the C64, has a slider for each of the game's knobs: the
+globals declared with a number that the code never changes (assigns,
+increments or takes the address of). Bubbler's are `jump`, `gravity` and
+`max_fall`; `start_x`, which the game sets at each round, is not one. A
+slider changes the running game as it moves, and writes its number into the
+declaration when let go. Click a knob's number to go to it.
+
+Click a variable's name to **graph** it: its last five seconds, a point per
+frame, under the C64 (up to three at once). Graph `py_px` and jump: the arc is
+there to see, and to reshape with `gravity` while you watch.
+
+**Slow motion**: the **1×** button at the end of the debugger's bar (or
+Shift+F6) runs the whole C64 at 0.5× and then 0.25× speed, to watch a jump,
+a hit or a collision box frame by frame; press it again for full speed. (It
+is VirtualC64's speed option; the sound slows down with it.)
+
+**Try it again**: **◉** (Shift+F8) marks a moment, say just before the jump
+that falls short. Change `jump` or `gravity`, then **↺** (F8) puts the
+whole C64 back at that moment, with the Tuning settings as the code has
+them now. The same jump, over and over, until it feels right. **▷**
+(Alt+F8) goes back too, and plays what you did from there again, by
+itself: compare settings, not thumbs. (The mark is a VirtualC64 snapshot.)
+
+**Keep my place** (under the C64, on by default): a Run doesn't start the
+game from its title. The runtime keeps a tape of the joystick, frame by
+frame, and the seed of its random numbers (`bb_tape` in `bb.c`); the Run
+writes that tape into the new build's program and plays it at warp speed,
+so the new code is back where you were, or at the marked moment (marked
+again there), in a second or two. Edit and continue, for a C64. Games made
+on the Studio's runtime only; a game that reads the keyboard or the clock
+can take another path on the way.
+
+**▢** over the C64 draws the **hitboxes**: each sprite's box with its slot
+number, and the boxes the game tests with `bb_overlap()` (the runtime keeps
+the last eight calls' boxes), red where they overlap.
+
+The **frame meter** under the C64 says how much of each frame (1/50 s) the
+game's code takes before it waits in `bb_frame()`, from the raster line it
+gets there at; over a frame, it counts the frames missed.
+
+**Live editing**: a change in SPRITES or TILES goes into the running game
+at once (the images at $D000, the character set, the colours), no Run. A new
+or removed sprite needs a Run.
+
+**🔧 Tools** (beside Pad) are the player's: a monitor (memory as hex or code,
+Pause, Step, breakpoints at addresses) and a cheat finder (README: Play).
+
+**🎲 sfx…** in MUSIC, by Patterns, makes up a sound effect of a kind (jump,
+coin, laser, explosion, power-up, hit, blip): a pattern and its instrument,
+played once. Pick it again for another take.
+
+**🎓 Lessons** (in Projects) are short guided changes to the Empty game: a
+card under the toolbar says what to do, **Show me** does it, and it moves
+on when the step is done. **🕘 History** (in Projects) keeps a version of
+the project at each Run that changed something (the last 40), to restore.
+The problems list explains cc65's commonest messages in plain words, and
+`gen/` (what each build writes) stays folded in the file list.
+
+**Values in code** (under the C64) turns them off; **All variables**
+(folded, under the memory bar) lists every global at once.
 
 Art made elsewhere comes in with **⇧ PNG** in SPRITES (a 24×21 picture, or a
 sheet of them) and TILES (cut into 8×8): each picture becomes the nearest
@@ -120,6 +219,26 @@ step sets breakpoints at the lines it could stop at and runs until one is hit
 (`debugger.js`). After a one-instruction step, A, X and Y show as `··`, because
 only a breakpoint stop reports them.
 
+### Assembly projects
+
+An ACME project (the intros, or your own with `"lang": "acme"` in
+project.json) gets all of this as well: breakpoints, the steps, slow
+motion, a marked moment, the values beside the code, graphs and Tuning.
+The Studio asks ACME for its symbol list and its report (`-l`, `-r`), and
+`asmdebug.js` turns them into what C gets from ld65:
+
+- each line of code becomes a line the debugger can stop on;
+- each label on code starts a routine, which is a "function" for step over
+  and step out;
+- a **variable** is a label on data (`pos !byte 0`, or a label alone with
+  its data on the lines under it), or a constant naming a zero-page address
+  that the code uses as one (`counter = $fb`, then `inc counter`);
+- a **knob** is a label on one number that no instruction writes (no `sta`,
+  `inc`, `asl`… to it): `speed !byte 3`. Its slider writes the number back
+  into the line, in hex if it was hex.
+
+In a C project's own `.s` files (ca65), `_score` shows the C global `score`.
+
 ## Saving to your disk
 
 A project lives in one of three places:
@@ -157,14 +276,35 @@ A project lives in one of three places:
   project in and out. Firefox and Safari have no folder access, so this is
   how a project gets to and from the disk there.
 
-**⇩ Download .prg** saves the built program, for VICE (`x64sc game.prg`), an
-SD card for a real C64, or anything else that runs PRGs.
+### Share & export
 
-**🔗 Share** (beside the build result, and in the projects menu) makes a link
-that plays the game: the built program,
-gzipped, is inside the link (`docs/play/cart.js`), so nothing is uploaded
-anywhere. Whoever opens it gets the game in breadbin's player, with its touch
-controls on a phone. Bubbler's link is about 10,000 characters.
+**⇪ Share** (beside the build result, and in the projects menu) takes the
+game out of the Studio, in three shapes:
+
+| | |
+|---|---|
+| **A link** | plays the game in breadbin, on a phone too. It reads as what it is, `…/play/#play/Bubbler/7XsLd…`: the game's name, then the built program, compressed (`docs/play/cart.js`), so nothing is uploaded. Bubbler's link is about 10,900 characters |
+| **Web page** | `game.html`: one file, about 450 KB, that plays in any browser (Linux, Windows, Mac, phones), offline too, or on any web host |
+| **C64 program** | `game.prg`, for VICE (`x64sc game.prg`), an SD card in a real C64, or anything else that runs PRGs |
+
+The web page doesn't carry an emulator. It carries
+breadbin's own small C64 (`crates/breadbin/src/machine.rs`): the 6502, the
+VIC-II drawn a raster line at a time (every text and bitmap mode, sprites with
+priorities and collisions, the raster interrupt, bad lines), the CIAs with the
+joysticks and keyboard, and reSID. It is as much C64 as a Studio program
+needs, and no Commodore ROM: the KERNAL is a stub with the interrupt entry and
+exit, the screen editor's output and the keyboard buffer (CHROUT, PLOT,
+CLRSCR, GETIN, done in Rust when the CPU gets there), and an RTS everywhere
+else. So `printf`, cc65's conio (`cprintf`, `gotoxy`, `cgetc`, colours) and
+PETSCII art work as well as the runtime, sprites and raster tricks; the
+character ROM is the Studio's own font, with its own drawings of the PETSCII
+graphics. Disk and tape (LOAD, SAVE) are not there. The
+Studio's own C64 stays the place to make the game: the debugger, the live
+values and the reload are all there.
+
+The web page is `docs/play/studio/export/player.html` with the engine
+(`breadbin.wasm`), the program and a font (the Studio's) written into it,
+all in the browser: an export takes a moment and no compiler.
 
 `make` in the folder builds the same program, byte for byte, with a native
 cc65 (`cl65 -t c64 -Oirs -Cl`, the files in sorted order, RAM to $C000); the
@@ -331,7 +471,7 @@ third), 46 KB for code and data.
 docs/play/studio/
   studio.js         the shell: projects, modes, saving, build and run, polling a folder
   code-editor.js    CodeMirror 6: languages, completion, hover, diagnostics
-  theme.js          the retrobox colours
+  theme.js          the code's colours: the look's --code-* tokens (retrobox in breadbin's own)
   asm-lang.js       6502 assembly highlighting (ca65 and ACME)
   api.js            bb.h read into completion and help
   definitions.js    go to definition (F12): where a name is defined among the project's files
@@ -348,6 +488,19 @@ docs/play/studio/
   diagnostics.js    the tools' messages as editor markers (acme-diag.js for ACME)
   codegen.js        gen/: the runtime and the assets as C and assembly
   psid.js           the music as a PSID for the editor's sound
+  export.js         Share & export: the web page (export/player.html)
+  debugger.js       breakpoints and steps, through VirtualC64's RetroShell (debuginfo.js: lines to addresses)
+  asmdebug.js       ACME's symbol list and report as the debugger's lines and the live values' variables
+  tuning.js         the Tuning panel: knobs, the settings the code never changes
+  graphs.js         a variable over time, under the C64
+  tape.js           the joystick tape: Keep my place, ▷ replay
+  hitbox.js         the ▢ overlay: sprites' and bb_overlap's boxes
+  keybar.js         the code keys above a phone's keyboard
+  console.js        the drop-down console (in the Chicago look: the key under Esc)
+  lessons.js        the guided lessons
+  sfx.js            made-up sound effects (🎲 in MUSIC)
+  examples.js       the examples (and the ACME intros, fetched); resource.js: the Studio's own files
+  tar.js            .tar.gz reading: the cc65 sysroot travels as one
   assets/           the formats: sprites.js tiles.js map.js music.js font.js palette.js, image.js (PNG import)
   runtime/          bb.h bb.c bbfast.s bbirq.s bbsound.s: what every game links; bbpixel.c bbdraw.s: the pixels
   examples/         the example projects (written by tools/studio/make-examples.mjs)

@@ -18,7 +18,7 @@ static unsigned char floor_at(int feet) {
 void body_fall(void) {
   int old_feet = byp_ + FEET;
   int feet, top;
-  if (bvy_ < MAX_FALL) bvy_ += GRAVITY;
+  if (bvy_ < max_fall) bvy_ += gravity;
   by_ += bvy_;
   byp_ = by_ >> SUB;
   feet = byp_ + FEET;

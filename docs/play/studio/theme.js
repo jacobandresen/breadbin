@@ -1,52 +1,44 @@
-// theme - the code editor's colours: retrobox, the gruvbox-flavoured scheme
-// that ships with Vim and Neovim (colors/retrobox.vim, by Maxim Kim, after
-// gruvbox8 and gruvbox by morhetz), dark variant. Each colour below is the
-// one retrobox gives the Vim highlight group named beside it, so C reads
-// exactly as it does in Neovim.
+// theme - the code editor's look. In breadbin's own theme the colours are
+// retrobox, the gruvbox-flavoured scheme that ships with Vim and Neovim
+// (colors/retrobox.vim, by Maxim Kim, after gruvbox8 and gruvbox by morhetz),
+// dark variant: each highlight below takes the colour retrobox gives the Vim
+// group named beside it, so C reads exactly as it does in Neovim.
 
 import { EditorView, HighlightStyle, syntaxHighlighting, tags as t } from './vendor/codemirror.js';
 
-export const RETROBOX = {
-  bg: '#1c1c1c', // Normal
-  bg1: '#3c3836', // Pmenu
-  bg2: '#504945', // PmenuSel, MatchParen, NonText
-  line: '#303030', // CursorLine
-  fg: '#ebdbb2', // Normal
-  fg0: '#fbf1c7', // Cursor
-  gray: '#a89984',
-  comment: '#928374', // Comment
-  lineNr: '#7c6f64', // LineNr
-  red: '#fb5944', // Statement, Keyword, Conditional, Repeat, Label
-  green: '#b8bb26', // String, Function (bold)
-  yellow: '#fabd2f', // Type, Typedef, CursorLineNr
-  blue: '#83a598', // Identifier
-  purple: '#d3869b', // Constant, Number, Boolean, Character
-  aqua: '#8ec07c', // PreProc, Include, Define, Macro, Operator, Structure
-  orange: '#fe8019', // Special, Delimiter, StorageClass
-  visual: '#2a405a', // Visual
-  search: '#3a4a3a', // Search
-};
-const c = RETROBOX;
+// The colours are the theme's --code-* tokens (themes/bakery.css has them
+// for retrobox, beside each its Vim group), so a theme recolours the code
+// without rebuilding the editors.
+const NAMES = [
+  'bg', 'bg1', 'bg2', 'line', 'fg', 'fg0', 'gray', 'comment', 'linenr', 'gutter',
+  'red', 'green', 'function', 'yellow', 'blue', 'purple', 'aqua', 'operator', 'orange', 'visual', 'search',
+];
+const c = Object.fromEntries(NAMES.map((n) => [n, `var(--code-${n})`]));
+/** Colour token `v` (a var()) at opacity `alpha`. */
+const a = (v, alpha) => `rgb(from ${v} r g b / ${alpha})`;
 
-export const retroboxTheme = EditorView.theme({
+/** A token's value, for what can't read var(): a canvas. */
+export const token = (el, name) => getComputedStyle(el).getPropertyValue(name).trim();
+
+const retroboxTheme = EditorView.theme({
   '&': { color: c.fg, backgroundColor: c.bg, height: '100%' },
-  '.cm-scroller': { fontFamily: '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace', fontSize: 'var(--studio-code-size, 13.5px)', lineHeight: '1.6' },
+  '.cm-scroller': { fontFamily: 'var(--code-font)', fontSize: 'max(var(--code-min, 0px), round(var(--studio-code-size, 13.5px), var(--code-step, 0.5px)))', lineHeight: '1.6' },
   '.cm-content': { caretColor: c.fg0, padding: '10px 0' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: c.fg0, borderLeftWidth: '2px' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: c.visual },
   '.cm-activeLine': { backgroundColor: c.line },
-  '.cm-gutters': { backgroundColor: c.bg, color: c.lineNr, border: 'none', paddingRight: '4px' },
-  '.cm-activeLineGutter': { backgroundColor: c.bg, color: c.yellow, fontWeight: '700' },
+  '.cm-gutters': { backgroundColor: c.gutter, color: c.linenr, border: 'none', paddingRight: '4px' },
+  '.cm-activeLineGutter': { backgroundColor: c.gutter, color: c.yellow, fontWeight: '700' },
   '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px 0 14px', minWidth: '44px' },
   '.cm-foldGutter .cm-gutterElement': { color: c.bg2, transition: 'color 120ms' },
   '.cm-gutters:hover .cm-foldGutter .cm-gutterElement': { color: c.comment },
   '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': { backgroundColor: c.bg2, color: 'inherit', fontWeight: '700', textDecoration: 'underline' },
   '.cm-nonmatchingBracket': { color: c.red },
-  '.cm-searchMatch': { backgroundColor: c.search, outline: `1px solid ${c.green}55` },
-  '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: '#4b5e3b' },
-  '.cm-selectionMatch': { backgroundColor: '#ffffff12' },
+  '.cm-searchMatch': { backgroundColor: c.search, outline: `1px solid ${a(c.green, 0.33)}` },
+  '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: a(c.green, 0.35) },
+  '.cm-selectionMatch': { backgroundColor: a(c.fg, 0.07) },
   '.cm-tooltip': { backgroundColor: c.bg1, color: c.fg, border: `1px solid ${c.bg2}`, borderRadius: '8px', boxShadow: '0 12px 32px rgb(0 0 0 / 0.45)', overflow: 'hidden' },
-  '.cm-tooltip-autocomplete > ul': { fontFamily: '"JetBrains Mono", ui-monospace, monospace', fontSize: '12.5px', maxHeight: '16em' },
+  '.cm-tooltip-autocomplete > ul': { fontFamily: 'var(--code-font)', fontSize: '12.5px', maxHeight: '16em' },
   '.cm-tooltip-autocomplete > ul > li': { padding: '3px 10px !important' },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: c.bg2, color: c.fg0 },
   '.cm-completionIcon': { opacity: '0.9', width: '1.4em' },
@@ -76,26 +68,40 @@ export const retroboxTheme = EditorView.theme({
   '.cm-bp-gutter .cm-gutterElement': { display: 'flex', alignItems: 'center', justifyContent: 'center' },
   '.cm-bp': { display: 'block', width: '10px', height: '10px' },
   '.cm-bp-none': { visibility: 'hidden' },
-  '.cm-bp-bp, .cm-bp-both': { borderRadius: '50%', backgroundColor: c.red, boxShadow: `0 0 6px ${c.red}88` },
+  '.cm-bp-bp, .cm-bp-both': { borderRadius: '50%', backgroundColor: c.red, boxShadow: `0 0 6px ${a(c.red, 0.53)}` },
   '.cm-bp-both': { outline: `2px solid ${c.yellow}`, outlineOffset: '1px' },
   '.cm-bp-exec': { width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: `9px solid ${c.yellow}` },
-  '.cm-exec-line': { backgroundColor: `${c.yellow}2a`, boxShadow: `inset 3px 0 0 ${c.yellow}` },
-  '&.cm-focused .cm-exec-line.cm-activeLine, .cm-exec-line.cm-activeLine': { backgroundColor: `${c.yellow}38` },
+  // live values: the running game's globals at the end of the lines that use them
+  '.cm-live': { margin: '0 1.2em 0 2em', fontSize: '0.86em', color: c.comment, userSelect: 'none', whiteSpace: 'nowrap' },
+  '.cm-live-item': { display: 'inline-flex', alignItems: 'baseline', gap: '0.35em', padding: '0 0.55em', marginRight: '0.4em', borderRadius: '999px', backgroundColor: a(c.purple, 0.08), border: `1px solid ${a(c.purple, 0.15)}` },
+  '.cm-live-name': { color: c.gray },
+  '.cm-live-name.graphable': { cursor: 'pointer' },
+  '.cm-live-name.graphable:hover': { color: c.aqua, textDecoration: 'underline' },
+  '.cm-live-value': { color: c.purple, fontWeight: '700', borderRadius: '3px' },
+  '.cm-live-value.editable': { cursor: 'ew-resize', borderBottom: `1px dotted ${a(c.purple, 0.53)}` },
+  '.cm-live-value.editable:hover, .cm-live-value.scrubbing': { color: c.fg0, backgroundColor: a(c.purple, 0.33) },
+  '.cm-live-value.keep': { borderBottom: `1px solid ${a(c.yellow, 0.67)}` },
+  // a value that just changed: yellow while it keeps changing, fading back once it settles
+  '.cm-live-value.changed': { color: c.yellow, animation: 'cm-live-flash 400ms ease-out' },
+  '@keyframes cm-live-flash': { from: { textShadow: `0 0 6px ${c.yellow}` }, to: { textShadow: 'none' } },
+  '.cm-live-input': { font: 'inherit', fontWeight: '700', color: c.fg0, background: c.bg1, border: `1px solid ${c.purple}`, borderRadius: '3px', padding: '0 3px', outline: 'none', width: 'auto' },
+  '.cm-exec-line': { backgroundColor: a(c.yellow, 0.16), boxShadow: `inset 3px 0 0 ${c.yellow}` },
+  '&.cm-focused .cm-exec-line.cm-activeLine, .cm-exec-line.cm-activeLine': { backgroundColor: a(c.yellow, 0.22) },
   '.cm-gutter-lint': { width: '14px' },
   '.cm-placeholder': { color: c.comment },
   '.cm-specialChar': { color: c.red },
 }, { dark: true });
 
 // Vim's highlight groups, by the tags CodeMirror's C and assembly parsers give.
-export const retroboxHighlight = HighlightStyle.define([
+const retroboxHighlight = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.definitionKeyword, t.moduleKeyword, t.self], color: c.red }, // Statement, Keyword
   { tag: [t.typeName, t.standard(t.typeName), t.className, t.namespace], color: c.yellow }, // Type
   { tag: [t.modifier], color: c.orange }, // StorageClass: static, const, volatile, extern
-  { tag: [t.function(t.variableName), t.function(t.definition(t.variableName)), t.function(t.propertyName)], color: c.green, fontWeight: '700' }, // Function
+  { tag: [t.function(t.variableName), t.function(t.definition(t.variableName)), t.function(t.propertyName)], color: c.function, fontWeight: '700' }, // Function
   { tag: [t.string, t.special(t.string), t.docString], color: c.green }, // String
   { tag: [t.character, t.number, t.integer, t.float, t.bool, t.null, t.atom, t.constant(t.variableName), t.standard(t.variableName)], color: c.purple }, // Constant, Number
   { tag: [t.processingInstruction, t.macroName, t.meta, t.special(t.variableName)], color: c.aqua }, // PreProc, Macro
-  { tag: [t.operator, t.derefOperator, t.arithmeticOperator, t.logicOperator, t.bitwiseOperator, t.compareOperator, t.updateOperator], color: c.aqua }, // Operator
+  { tag: [t.operator, t.derefOperator, t.arithmeticOperator, t.logicOperator, t.bitwiseOperator, t.compareOperator, t.updateOperator], color: c.operator }, // Operator
   { tag: [t.bracket, t.paren, t.brace, t.squareBracket, t.angleBracket, t.separator, t.punctuation], color: c.orange }, // Delimiter
   { tag: [t.propertyName, t.attributeName], color: c.blue }, // Identifier (struct fields)
   { tag: [t.labelName], color: c.yellow, fontWeight: '700' }, // labels in assembly

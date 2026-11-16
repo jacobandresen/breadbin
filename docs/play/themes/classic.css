@@ -1,0 +1,410 @@
+/* themes/classic.css - "Classic": breadbin as if a C64 drew it. The light
+   blue border round a blue screen, light blue type in the C64's own 8x8 cell
+   (PXL 64: Retrofan's PXL font, from the MEGA65 Open ROMs, tools/pxlfont.py;
+   set proportionally, PXL 64 Text, for what is there to be read),
+   white for what matters, reverse video for what is chosen, a block cursor,
+   and big pixels: one token, --px, is how many screen pixels a C64 pixel
+   takes, and every size here is a whole number of them, so the type always
+   lands on the grid the way it did on a 320x200 screen.
+
+   On with <html data-theme="classic"> (themes/themes.js). */
+
+@font-face {
+  font-family: "PXL 64";
+  src: url("fonts/pxl64.woff2") format("woff2");
+  font-display: block; /* a moment of nothing beats a flash of the wrong type */
+}
+/* at half width, 4x8, as 80-column C64 software drew them in bitmap mode: the Studio's (tools/pxlfont.py) */
+@font-face {
+  font-family: "PXL 80";
+  src: url("fonts/pxl80.woff2") format("woff2");
+  font-display: block;
+}
+/* the same glyphs set for reading: each as wide as its pixels, plus one (tools/pxlfont.py) */
+@font-face {
+  font-family: "PXL 64 Text";
+  src: url("fonts/pxl64-text.woff2") format("woff2");
+  font-display: block;
+}
+
+@layer tokens {
+  :root[data-theme="classic"] {
+    color-scheme: dark;
+
+    /* a C64 pixel: 2 screen pixels on a phone, 3 on a laptop, 4 on a big screen */
+    --px: clamp(2px, round(down, 100vw / 440, 1px), 4px);
+    --char: calc(var(--px) * 8);
+    --border: calc(var(--px) * 12);
+
+    /* the C64's colours (Pepto's palette, as studio.css has them) */
+    --c64-blue: #352879;
+    --c64-lightblue: #6c5eb5; /* the border, the frames, the rules */
+    /* light blue as a CRT shows it: the type and reverse video (5.1:1 on the blue; #6c5eb5 is 2.3:1) */
+    --c64-glow: #a99ff0;
+    --c64-white: #fff;
+    --c64-cyan: #70a4b2;
+    --c64-lightgreen: #9ad284;
+    --c64-yellow: #b8c76f;
+    --c64-lightred: #9a6759;
+    --c64-grey: #959595;
+    --c64-purple: #6f3d86;
+    --c64-black: #000;
+
+    --bg-deep: #2a1f66; /* wells: a shade under the screen */
+    --bg: var(--c64-blue);
+    --surface: var(--c64-blue);
+    --raised: var(--c64-blue);
+    --raised-hi: #42339a;
+    --raised-top: var(--c64-blue);
+    --edge: var(--c64-lightblue);
+    --bg-glow: var(--c64-blue);
+    --screen: var(--c64-blue);
+    --screen-glow: var(--c64-blue);
+    --screen-ink: var(--c64-glow);
+    --checker-a: #2a1f66;
+    --checker-b: var(--c64-blue);
+
+    --text: var(--c64-glow);
+    --text-dim: #9a8fe8; /* 4.3:1 */
+
+    --accent: var(--c64-white);
+    --accent-deep: var(--c64-glow);
+    --on-accent: var(--c64-blue);
+    --highlight: var(--c64-white);
+    --danger: var(--c64-lightred);
+    --on-danger: var(--c64-white);
+    --ok: var(--c64-lightgreen);
+    --info: var(--c64-cyan);
+
+    --glint: var(--c64-glow);
+    --shade: #120c33;
+
+    --pane: var(--c64-blue);
+    --pane-hi: #42339a;
+    --line: var(--c64-lightblue);
+
+    /* the code: the screen's own blue, the syntax in the C64's brighter colours */
+    --code-bg: var(--c64-blue);
+    --code-bg-soft: #2a1f66;
+    --code-bg-hard: #1d1550;
+    --code-bar: #2a1f66;
+    --code-rule: var(--c64-glow);
+    --code-bg1: #2a1f66;
+    --code-bg2: #4a3ba6;
+    --code-line: #3d2f8c;
+    --code-fg: #a99ff0;
+    --code-fg0: var(--c64-white);
+    --code-gray: #8b80c9;
+    --code-comment: var(--c64-grey);
+    --code-linenr: #7466c6;
+    --code-red: var(--c64-white);
+    --code-green: var(--c64-lightgreen);
+    --code-yellow: var(--c64-yellow);
+    --code-blue: var(--c64-cyan);
+    --code-purple: #e7a6ff;
+    --code-aqua: var(--c64-cyan);
+    --code-orange: #a99ff0;
+    --code-visual: #5a4bc0;
+    --code-search: #3f6b3a;
+
+    --radius-s: 0;
+    --radius: 0;
+    --radius-l: 0;
+
+    --pixel-font: "PXL 64", "Noto Emoji", monospace;
+    --display-font: var(--pixel-font);
+    /* the words you read, proportional; the words you press, and the code, in the C64's cell */
+    --ui-font: "PXL 64 Text", "Noto Emoji", monospace;
+    --code-font: var(--pixel-font);
+    --c64-font: var(--pixel-font);
+    --code-step: 8px; /* the code's size (A- A+) snaps to whole C64 cells */
+    --code-min: var(--char); /* and is never under one: the code as a C64 shows it */
+    --studio-turns: 1; /* the Studio shows the code or the C64, taking turns, as a C64 shows one thing at a time */
+
+    /* the border round the screen */
+    --page: var(--c64-blue);
+    /* the CRT's scan lines, one C64 pixel apart */
+    --scanlines: repeating-linear-gradient(to bottom, transparent 0 calc(var(--px) - 1px), rgb(0 0 0 / 0.1) calc(var(--px) - 1px) var(--px));
+  }
+}
+
+@layer theme {
+:root[data-theme="classic"] {
+  /* the border: the whole window is the C64's frame, the page its screen */
+  background: var(--c64-lightblue);
+
+  /* one size of type, as a C64 has: one 8x8 cell; no smoothing of its edges */
+  & *, & ::before, & ::after {
+    font-size: var(--char);
+    line-height: 1.5; /* a C64 packs its rows; a page of reading wants air between them */
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: normal;
+    font-variant-emoji: text; /* emoji as one-colour signs, in the type's colour (Noto Emoji) */
+    border-radius: 0;
+    text-shadow: none;
+    backdrop-filter: none;
+    transition: none;
+  }
+  /* the code editor keeps its own size (A- A+), snapped to whole cells by --code-step */
+  & .cm-editor * { font-size: inherit; line-height: inherit; }
+  & body {
+    margin: var(--border);
+    height: calc(100% - 2 * var(--border));
+    background: var(--c64-blue);
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+    caret-color: var(--c64-glow);
+  }
+  /* a CRT: scan lines one C64 pixel apart, the screen a little brighter in the middle */
+  & body::after {
+    content: ""; position: fixed; inset: 0; z-index: 100; pointer-events: none;
+    background:
+      var(--scanlines),
+      radial-gradient(ellipse 80% 70% at 50% 45%, transparent 60%, rgb(0 0 0 / 0.2));
+  }
+  & input, & textarea, & [contenteditable] { caret-shape: block; }
+  & ::selection { background: var(--c64-glow); color: var(--c64-blue); }
+  & :focus-visible { outline: var(--px) solid var(--c64-white); outline-offset: var(--px); }
+  /* a picture waits, unseen, until pixelate.js has redrawn it (or let it be): never a flash of the fine original */
+  & :is(.art, .np-shot) img:not([data-c64-done]) { visibility: hidden; }
+  & img { image-rendering: pixelated; } /* (and themes/pixelate.js redraws the pictures on the C64's grid, in its colours) */
+  & .view, & .tune-list, & .row { scrollbar-color: var(--c64-glow) var(--c64-blue); }
+
+  /* what you press: a word in reverse video; under the pointer, white */
+  & .key {
+    color: var(--c64-blue); background: var(--c64-glow); box-shadow: none; border: 0;
+    &:hover { background: var(--c64-white); color: var(--c64-blue); }
+    &:active, &[aria-pressed="true"], &.on { background: var(--c64-white); color: var(--c64-blue); box-shadow: none; transform: none; }
+    &:disabled { opacity: 0.5; }
+  }
+  & .key.pill { padding: calc(var(--px) * 2) calc(var(--px) * 4); line-height: 1; text-transform: uppercase; }
+  & .key.pill.primary { background: var(--c64-white); color: var(--c64-blue); box-shadow: none; &:hover { background: var(--c64-lightgreen); } }
+  & .key.icon { width: auto; height: auto; padding: 0 var(--px); }
+
+  /* ── the top rows: the name, the tabs, the search ─────────────────── */
+  & .case {
+    padding: 0 0 var(--px); gap: 0 var(--char); flex-wrap: wrap; background: var(--c64-blue);
+    border-bottom: var(--px) solid var(--c64-lightblue);
+    &::after { content: none; }
+  }
+  & .brand-logo { display: none; }
+  & .brand-label { color: var(--c64-white); text-transform: uppercase; white-space: nowrap; }
+  & .tabs { gap: var(--char); }
+  & .tab {
+    min-width: 0; padding: var(--px) var(--px); color: var(--c64-glow); background: none; text-transform: uppercase;
+    &:hover { background: none; color: var(--c64-white); }
+    &[aria-selected="true"] { background: var(--c64-glow); color: var(--c64-blue); box-shadow: none; }
+  }
+  & .tab-icon { display: none; }
+  /* a C64 screen has words, not pictures: the Studio's tools by name, its modes without icons;
+     the pixel tools by their icon (their names won't fit in 8x8 cells) */
+  & .studio-mode-icon { display: none; }
+  & .studio-toolbtn small { display: none; }
+  & .studio-toolbtn span { font-family: system-ui, sans-serif; }
+  /* the Studio at the C64's size: its tips may take two fifths of it, scrolling, the code or the C64 the rest */
+  & .studio-hint { display: none; } /* (a line of shortcuts that wraps at this size: the cheat sheet, ?, has them) */
+  & .studio[data-turns] .studio-banner { flex: 0 1 auto; max-height: 40%; overflow-y: auto; align-items: start; }
+  & .studio-banner-text { flex: 1 1 100%; } /* the tips the full width, their buttons on a row under them */
+  /* the Studio is a workbench: there, as in 80-column C64 software, all its type is half as wide (PXL 80, 4x8),
+     on the C64's own pixel, as big as everywhere else */
+  & :is(.view.hack, .studio-picker, .studio-help) {
+    --pixel-font: "PXL 80", "Noto Emoji", monospace;
+    --display-font: var(--pixel-font);
+    --ui-font: var(--pixel-font);
+    --code-font: var(--pixel-font);
+    font-family: var(--ui-font); /* (body's font-family was resolved at body: inherited, it is the name, not the token) */
+  }
+  & .key-well { background: none; box-shadow: none; }
+  & .search {
+    input { width: calc(var(--char) * 14); padding: var(--px) var(--px); color: var(--c64-white); text-transform: uppercase; }
+    input::placeholder { color: var(--c64-glow); }
+    &:focus-within { box-shadow: none; }
+  }
+  /* a prompt before the search, the C64's question mark */
+  & .search::before { content: "?"; align-self: center; color: var(--c64-glow); }
+  & #open-settings { color: var(--c64-glow); background: none; &:hover { color: var(--c64-white); } }
+
+  /* ── the shelves: a heading in reverse video, the covers under it ── */
+  & .view:not(.studio) { padding: var(--char) var(--char) calc(var(--char) * 4); } /* (the Studio has no margin of its own) */
+  & .shelf-head { gap: var(--char); margin-bottom: var(--char); }
+  & .shelf-chip { display: none; }
+  & .shelf-title { padding: 0 var(--px); color: var(--c64-blue); background: var(--c64-glow); text-transform: uppercase; }
+  & .shelf-rule { height: var(--px); background: repeating-linear-gradient(90deg, var(--c64-glow) 0 var(--char), transparent var(--char) calc(var(--char) * 2)); }
+  & .shelf .n { color: var(--c64-glow); }
+  & .shelf-head .key.pill { padding: 0 var(--px); }
+
+  & .row { grid-auto-columns: calc(var(--char) * 8); gap: var(--char); }
+  & .grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--char) * 8), 1fr)); gap: var(--char); }
+  & .wide :is(.row) { grid-auto-columns: calc(var(--char) * 14); }
+  & .wide :is(.grid) { grid-template-columns: repeat(auto-fill, minmax(calc(var(--char) * 14), 1fr)); }
+  & .card {
+    background: none; box-shadow: none; color: var(--c64-glow); padding: 0; gap: var(--px);
+    &:hover, &:focus-visible { background: none; box-shadow: none; transform: none; outline: 0;
+      .art { outline: var(--px) solid var(--c64-white); }
+      .card-title { color: var(--c64-blue); background: var(--c64-white); }
+    }
+  }
+  & .art { background: var(--bg-deep); box-shadow: none; &::before { opacity: 0.2; } }
+  & .art::after { box-shadow: none; }
+  & .card .art::after {
+    content: "RUN"; color: var(--c64-blue); text-indent: 0;
+    background: var(--c64-white) center / auto no-repeat; inset: auto; left: 50%; top: 50%; translate: -50% -50%;
+    padding: var(--px) calc(var(--px) * 2); transform: none;
+  }
+  & .art .placeholder { color: var(--c64-white); background: var(--bg-deep); text-transform: uppercase; }
+  & .card-title { color: var(--c64-glow); padding: 0 var(--px); margin: 0 auto; -webkit-line-clamp: 2; }
+  & .card-sub { color: var(--text-dim); }
+  & .badge { padding: 0 var(--px); color: var(--c64-blue); background: var(--c64-white); box-shadow: none; }
+  & .tag { padding: 0 var(--px); color: var(--c64-white); background: var(--c64-blue); box-shadow: none; }
+  & .wip { padding: 0 var(--px); color: var(--c64-white); background: var(--c64-lightred); box-shadow: none; }
+  & .skeleton .art { background: var(--bg-deep); animation: none; }
+  & .skeleton .card-title { background: var(--bg-deep); }
+  & .banner { background: none; box-shadow: none; border: var(--px) solid var(--c64-lightblue); color: var(--c64-glow); b { color: var(--c64-white); } }
+  & .foot { border-top: var(--px) dashed var(--c64-lightblue); color: var(--c64-glow); }
+  & .linkish, & a { color: var(--c64-white); }
+  & .empty { color: var(--c64-glow); }
+
+  /* ── Tunes: a directory listing and the player ───────────────────── */
+  & .tune-list { border-right: var(--px) solid var(--c64-lightblue); }
+  & .tune-section {
+    background: var(--c64-glow); color: var(--c64-blue); border-left: 0; box-shadow: none; text-transform: uppercase;
+    .count { color: var(--c64-blue); text-transform: uppercase; }
+  }
+  & .tune {
+    border-bottom: 0; color: var(--c64-glow);
+    &:hover { background: var(--raised-hi); }
+    &.current { background: var(--c64-glow); color: var(--c64-blue); box-shadow: none; .tune-sub, .tune-rating, .play { color: var(--c64-blue); } }
+  }
+  & .tune.current:not(.loading) .play { --bar: var(--c64-blue); }
+  & .tune-sub, & .tune-rating { color: var(--text-dim); }
+  & .tune .play { color: var(--c64-white); }
+  & .now-playing { background: none; box-shadow: none; border: var(--px) solid var(--c64-lightblue); }
+  & .np-shot { box-shadow: none; border: var(--px) solid var(--c64-lightblue); }
+  & .np-title { color: var(--c64-white); text-transform: uppercase; }
+  & .np-stats { color: var(--c64-lightgreen); }
+  & .now-playing { flex: none; }
+  /* the visualiser: a C64 screen, border and all (384x272), its pixels whole (viz.js) */
+  & .screen-bezel { flex: none; aspect-ratio: 384 / 272; padding: 0; background: var(--c64-black); box-shadow: none; border: var(--px) solid var(--c64-lightblue); }
+  & #viz { min-height: 0; border-radius: 0; }
+  /* the visualiser's name: a long one, in the reading type, on a plain field (the arrow once, at the right) */
+  & .select {
+    color: var(--c64-blue); background-color: var(--c64-glow); font-family: var(--ui-font);
+    background-repeat: no-repeat; background-position: right calc(var(--char) / 2) center; background-size: calc(var(--px) * 4) auto;
+    padding: var(--px) calc(var(--char) * 1.5) var(--px) calc(var(--char) / 2);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23352879'/%3E%3C/svg%3E");
+  }
+  & .select option { background: var(--c64-blue); color: var(--c64-glow); }
+
+  /* ── dialogs: a window drawn in the C64's line characters ────────── */
+  /* (a dialog is in the top layer, over the screen's scan lines: it brings its own) */
+  & dialog.sheet {
+    background: var(--scanlines) local, var(--c64-blue); color: var(--c64-glow);
+    border: var(--px) solid var(--c64-lightblue);
+    box-shadow: 0 0 0 calc(var(--px) * 2) var(--c64-blue), 0 0 0 calc(var(--px) * 3) var(--c64-lightblue);
+    &::backdrop { background: rgb(from var(--c64-blue) r g b / 0.7); backdrop-filter: none; }
+  }
+  & dialog[open] { animation: none; }
+  /* a dialog is a C64 screen: forty columns wide */
+  & dialog.sheet:not(.studio-picker, .studio-help) { width: min(calc(var(--char) * 40 + 2 * var(--char)), calc(100vw - 2 * var(--border) - 2 * var(--char))); }
+  & .theme-picker { grid-template-columns: 1fr; }
+  & .theme-choice { background: none; box-shadow: none; border: var(--px) solid var(--c64-lightblue); padding: var(--px) var(--char);
+    &:has(:checked) { background: var(--c64-glow); color: var(--c64-blue); box-shadow: none; > span:last-child { color: var(--c64-blue); } }
+    b { text-transform: uppercase; }
+  }
+  & .theme-swatch { width: calc(var(--char) * 2); height: calc(var(--char) * 2); box-shadow: 0 0 0 var(--px) var(--c64-glow); }
+  & .sheet h2 { color: var(--c64-white); text-transform: uppercase; }
+  & .sheet .close { color: var(--c64-blue); }
+  & .settings h3 { color: var(--c64-white); text-transform: uppercase; }
+  & .settings .credits a { color: var(--c64-white); }
+  & .settings .credits li { border-bottom: 0; }
+  @media (width > 900px) { /* (the sheet's label column is sized for Figtree; a phone stacks them) */
+    & .field { grid-template-columns: max-content 1fr; }
+    & .rom-row { grid-template-columns: max-content 1fr auto; }
+  }
+  & .field input[type="text"], & .field input[type="url"] { background: var(--bg-deep); color: var(--c64-white); box-shadow: none; }
+  & :is(.field input[type="range"], .check input) { accent-color: var(--c64-glow); }
+
+  /* ── the player: its own bar over the C64, which here is already home ── */
+  & .emu { background: var(--c64-blue); inset: var(--border); }
+  & .emu-bar {
+    background: var(--c64-blue); box-shadow: none; padding: 0 0 var(--px); gap: var(--char);
+    border-bottom: var(--px) solid var(--c64-lightblue);
+    .key.pill { padding: 0 var(--px); }
+  }
+  /* narrower, the bar keeps one row: the archive.org link goes (the game's Share is there), on a phone its words go 80-column */
+  @media (width <= 900px) { & .emu-online { display: none; } }
+  @media (width < 600px) {
+    & .emu-bar { --pixel-font: "PXL 80", monospace; flex-wrap: wrap; gap: 0 var(--char); }
+    & .emu-bar :is(.key, .emu-title) { font-family: "PXL 80", monospace; }
+  }
+  & .emu-title { color: var(--c64-white); text-transform: uppercase; flex: 1 1 auto; min-width: calc(var(--char) * 6); }
+  /* the bar's buttons as words: the pictures and labels give way to a word each */
+  & :is(#emu-pad, #emu-tools, #emu-share, #emu-full, #emu-close) {
+    font-size: 0; > * { display: none; }
+    &::after { font-size: var(--char); }
+  }
+  & #emu-pad::after { content: "PAD"; }
+  & #emu-tools::after { content: "TOOLS"; }
+  & #emu-share::after { content: "SHARE"; }
+  & #emu-full::after { content: "FULL"; }
+  & #emu-close::after { content: "CLOSE"; }
+  & .emu-status { color: var(--c64-glow); text-transform: uppercase; }
+  & .emu-online { color: var(--c64-lightgreen); }
+  & .emu-frame { box-shadow: 0 0 0 var(--px) var(--c64-glow); }
+  & .emu-note { color: var(--c64-glow); }
+  & .emu-sound { background: var(--c64-white); color: var(--c64-blue); box-shadow: none; animation: none; text-transform: uppercase; }
+  & .emu-loading { color: var(--c64-glow); text-transform: uppercase; }
+  & .emu-loading .bar, & .boot-bar { background: var(--bg-deep); height: var(--char); }
+  & .emu-loading .bar i, & .boot-bar i { background: var(--c64-glow); box-shadow: none; }
+  & .emu-error { color: var(--c64-glow); b { color: var(--c64-lightred); text-transform: uppercase; } }
+  & .emu-tools { background: var(--c64-blue); box-shadow: none; border-left: var(--px) solid var(--c64-lightblue); color: var(--c64-glow); }
+  & .tools-sec { border-top: var(--px) dashed var(--c64-lightblue); summary { color: var(--c64-white); text-transform: uppercase; } }
+  & .tools-item { background: var(--bg-deep); }
+  & .tools-item code, & .tools-val { color: var(--c64-white); }
+  & .tools-act { background: var(--c64-glow); color: var(--c64-blue); &:hover { background: var(--c64-white); color: var(--c64-blue); } }
+  & .tools-mem { background: var(--bg-deep); color: var(--c64-glow); }
+  & .tools-num, & .tools-addr { background: var(--bg-deep); color: var(--c64-white); border: 0; }
+
+  /* ── the boot: the C64 coming on ─────────────────────────────────── */
+  & .boot { background: var(--c64-lightblue); padding: var(--border); place-items: stretch; }
+  & .boot-screen {
+    background: var(--c64-blue); justify-items: start; align-content: start; gap: 0; padding: var(--char);
+    color: var(--c64-glow);
+  }
+  & .boot-logo { display: none; }
+  /* the first line of the screen: the machine's name, centred between stars */
+  & .boot-word {
+    justify-self: stretch; text-align: center; color: var(--c64-glow); text-transform: uppercase;
+    &::before { content: "**** "; } &::after { content: " 64 ****"; }
+  }
+  & .boot-screen::before {
+    content: "free roms  40 columns  16 colours"; order: 1; justify-self: stretch; text-align: center; text-transform: uppercase;
+    margin: var(--char) 0 calc(var(--char) * 2);
+  }
+  & .boot-word { order: 0; }
+  & #boot-status {
+    order: 2; color: var(--c64-glow); text-transform: uppercase; letter-spacing: 0;
+    &::before { content: "LOADING "; }
+    &::after { content: ""; animation: none; width: auto; }
+  }
+  /* READY. and the cursor, blinking as it does: a block, on and off */
+  & .boot-screen::after {
+    content: "READY."; order: 3; margin-top: calc(var(--char) * 2);
+    text-transform: uppercase;
+  }
+  & .boot-bar { order: 4; width: var(--char); height: var(--char); background: var(--c64-glow); animation: c64-cursor 1s steps(1) infinite; overflow: visible; }
+  & .boot-bar i { display: none; }
+
+  /* ── the toast: a line in reverse video ──────────────────────────── */
+  & .toast { background: var(--c64-glow); color: var(--c64-blue); box-shadow: none; text-transform: uppercase; }
+}
+}
+
+@keyframes c64-cursor { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { :root[data-theme="classic"] * { animation: none !important; } }
+
+/* the look's swatch in Settings (style.css draws the picker) */
+@layer tokens {
+  .theme-choice[data-look="classic"] { --swatch-1: #352879; --swatch-2: #6c5eb5; --swatch-3: #fff; }
+}

@@ -1,44 +1,45 @@
-// cart - a whole C64 program in a link:
-// the Studio's "Share the game" packs the PRG (and its title) into the id of
-// an ordinary breadbin game link, #games/prg:<data>/play, and whoever opens it
-// gets the game running in the player. Nothing is uploaded anywhere: the
-// link is the game.
+// cart - a whole C64 program in a link, readable up to its data:
 //
-//   <data> = base64url(gzip([title length, title (UTF-8), PRG bytes]))
+//   https://…/play/#play/Bubbler/<data>
+//   <data> = base64url(deflate-raw(PRG bytes))
+//
+// The Studio's Share makes one (its "A link"), and whoever opens it gets the
+// game running in the player. Nothing is uploaded anywhere: the link is the
+// game. The title is the link's words (a space is "-").
+//
+// Links made before (#games/prg:<data>/play, <data> = base64url(gzip([title
+// length, title, PRG]))) still open.
 
-const PREFIX = 'prg:';
+const OLD = 'prg:';
 
-async function pipe(bytes, stream) {
-  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
-}
+const pipe = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+const URL64 = { alphabet: 'base64url', omitPadding: true };
+const fromB64 = (s) => Uint8Array.fromBase64(s, URL64);
 
-const toB64 = (bytes) => {
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-const fromB64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+/** The title as link words: "My Game!" -> "My-Game%21" (letters, digits and . _ ~ stay as they are). */
+const words = (title) => encodeURIComponent(String(title).trim().slice(0, 60).replace(/\s+/g, '-') || 'game').replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`);
 
-/** The game id for `prg` called `title`: "prg:..." */
+/** The id (after #play/) for `prg` called `title`: "Bubbler/<data>". */
 export async function packCart(prg, title) {
-  const name = new TextEncoder().encode(String(title).slice(0, 60));
-  const raw = new Uint8Array(1 + name.length + prg.length);
-  raw[0] = name.length;
-  raw.set(name, 1);
-  raw.set(prg, 1 + name.length);
-  return PREFIX + toB64(await pipe(raw, new CompressionStream('gzip')));
+  return `${words(title)}/${(await pipe(prg, new CompressionStream('deflate-raw'))).toBase64(URL64)}`;
 }
 
-/** Is `id` a game packed by packCart? */
-export const isCart = (id) => String(id).startsWith(PREFIX);
-
-/** The { title, prg } in a packCart id; throws if it is broken. */
+/** The { title, prg } in a link's id: a packCart one, or an old "prg:..." one; throws if it is broken. */
 export async function unpackCart(id) {
-  if (!isCart(id)) throw new Error('not a packed program');
-  const raw = await pipe(fromB64(id.slice(PREFIX.length)), new DecompressionStream('gzip'));
-  const n = raw[0];
-  const title = new TextDecoder().decode(raw.subarray(1, 1 + n));
-  const prg = raw.slice(1 + n);
+  let title;
+  let prg;
+  if (id.startsWith(OLD)) {
+    const raw = await pipe(fromB64(id.slice(OLD.length)), new DecompressionStream('gzip'));
+    title = new TextDecoder().decode(raw.subarray(1, 1 + raw[0]));
+    prg = raw.slice(1 + raw[0]);
+  } else {
+    const at = id.lastIndexOf('/');
+    title = decodeURIComponent(id.slice(0, at)).replace(/-/g, ' ');
+    prg = await pipe(fromB64(id.slice(at + 1)), new DecompressionStream('deflate-raw'));
+  }
   if (prg.length < 3) throw new Error('the program in the link is empty');
   return { title, prg };
 }
+
+/** Is `id` an old-style packed program (#games/prg:...)? */
+export const isCart = (id) => String(id).startsWith(OLD);

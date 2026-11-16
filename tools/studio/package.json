@@ -23,6 +23,8 @@
     "@lezer/highlight": "1.2.5",
     "codemirror": "6.0.2",
     "esbuild": "0.28.2",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
     "puppeteer-core": "23.11.1"
   }
 }

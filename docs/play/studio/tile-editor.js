@@ -5,11 +5,12 @@
 // shared colours are here too. Saves to assets/tiles.json (tiles.js).
 
 import { h, toast } from '../ui.js';
-import { PaintCanvas, History, colorPicker, toolbar, shift, flipH, flipV, drawRows, TOOLS, readImage, pickImage, sheetPng, saveBlob } from './pixels.js';
+import { PaintCanvas, History, colorPicker, toolbar, shift, flipH, flipV, drawRows, readImage, pickImage, sheetPng, saveBlob, pixelKey } from './pixels.js';
 import { cells, tileFromCell } from './assets/image.js';
 import { blankTile, FONT, COUNT } from './assets/tiles.js';
 import { PALETTE, COLOR_NAMES } from './assets/palette.js';
 import { screenChar } from './assets/font.js';
+import { constName } from './codegen.js';
 
 const SHEET = 3; // screen pixels per C64 pixel in the tile sheet
 
@@ -162,17 +163,13 @@ export class TileEditor {
       h('span', {}, this.index < FONT ? `· the font's “${screenChar(this.index)}”` : t ? '' : '· empty: paint to use it'));
     this.ui.name.value = t?.name || '';
     this.ui.name.disabled = this.index < FONT;
-    const n = t?.name ? `TILE_${t.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')}` : '';
+    const n = t?.name ? constName('TILE', t.name, new Set()) : '';
     this.ui.const.textContent = this.index < FONT ? `bb_text() draws it` : n ? `${n} = ${this.index}` : `tile ${this.index}`;
     for (const [k, b] of [...this.ui.mode.children].entries()) b.setAttribute('aria-pressed', String(k === (multi ? 1 : 0)));
     this.ui.own.replaceWith((this.ui.own = colorPicker(t?.color ?? 1, (c) => this.change((x) => (x.color = x.multi ? c & 7 : c)), { only8: multi })));
     this.el.classList.toggle('multi', multi);
     this.renderFlags();
-    const c = this.set.colors;
-    this.ui.bg.setValue(c.bg);
-    this.ui.mc1.setValue(c.mc1);
-    this.ui.mc2.setValue(c.mc2);
-    this.ui.border.setValue(c.border);
+    for (const k of ['bg', 'mc1', 'mc2', 'border']) this.ui[k].setValue(this.set.colors[k]);
     if (!multi && /[23]/.test(this.slot)) this.slot = '1';
     this.canvas.value = this.slot;
     this.renderSlots();
@@ -337,25 +334,14 @@ export class TileEditor {
   }
 
   key(e) {
-    if (e.target.matches('input, select, textarea')) return;
-    const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 'z') return (e.preventDefault(), e.shiftKey ? this.redo() : this.undo());
-    if ((e.ctrlKey || e.metaKey) && k === 'y') return (e.preventDefault(), this.redo());
-    if ((e.ctrlKey || e.metaKey) && k === 'c') return (e.preventDefault(), this.copyTile());
-    if ((e.ctrlKey || e.metaKey) && k === 'v') return (e.preventDefault(), this.pasteTile());
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const tool = TOOLS.find((t) => t.key === k);
-    if (tool) {
-      this.canvas.tool = tool.id;
-      this.ui.tools.render();
-    } else if (/^[1-4]$/.test(k)) this.pickSlot(['.', '1', '2', '3'][Number(k) - 1]);
-    else if (k === 'h') this.edit(flipH);
-    else if (k === 'v') this.edit(flipV);
-    else if (k === 'arrowleft') this.select(this.index - 1);
-    else if (k === 'arrowright') this.select(this.index + 1);
-    else if (k === 'arrowup') this.select(this.index - 16);
-    else if (k === 'arrowdown') this.select(this.index + 16);
-    else return;
-    e.preventDefault();
+    pixelKey(this, e, {
+      ctrl: { c: () => this.copyTile(), v: () => this.pasteTile() },
+      keys: {
+        arrowleft: () => this.select(this.index - 1),
+        arrowright: () => this.select(this.index + 1),
+        arrowup: () => this.select(this.index - 16),
+        arrowdown: () => this.select(this.index + 16),
+      },
+    });
   }
 }

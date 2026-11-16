@@ -21,7 +21,7 @@ const WORK = '/p';
 const enc = new TextEncoder();
 
 /** Is `path` something the build compiles? (`tests/` holds host-side tests.) */
-export const isSource = (path) => /\.(c|s)$/i.test(path) && !/^tests?\//.test(path);
+const isSource = (path) => /\.(c|s)$/i.test(path) && !/^tests?\//.test(path);
 
 export class Toolchain {
   constructor(factories, modules, sysroot) {

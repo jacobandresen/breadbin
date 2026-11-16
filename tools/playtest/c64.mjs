@@ -114,8 +114,6 @@ export async function open(browser, id, { kind = 'games', boot, run, parts, patc
   const query = new URLSearchParams(Object.entries({ run, boot, parts: parts?.join(','), patches: patches?.join(',') }).filter(([, v]) => v));
   const q = query.size ? `?${query}` : '';
   await page.goto(`${BASE}${q}#${kind}/${encodeURIComponent(id)}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#detail[open] .primary', { timeout: 45000 });
-  await page.click('#detail[open] .primary');
   await page.waitForFunction(
     () => /running|loaded|warp/.test(document.querySelector('#emu-status')?.textContent || '') || document.querySelector('.emu-error'),
     { timeout: 120000 },

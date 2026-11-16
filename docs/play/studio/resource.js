@@ -5,7 +5,7 @@
 const IS_NODE = typeof process !== 'undefined' && !!process.versions?.node && typeof window === 'undefined';
 
 /** The URL of `rel`, relative to docs/play/studio/. */
-export const resourceUrl = (rel) => new URL(rel, import.meta.url);
+const resourceUrl = (rel) => new URL(rel, import.meta.url);
 
 /** The bytes of `rel` (Uint8Array). */
 export async function resource(rel) {

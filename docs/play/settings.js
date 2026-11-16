@@ -1,15 +1,28 @@
-// settings - sound, touch pad, the user's own ROMs and the CSDb relay. Changes
-// to the sound are announced with a 'breadbin:sound' event.
+// settings - the look, sound, touch pad, the user's own ROMs and the CSDb
+// relay. Changes to the sound are announced with a 'breadbin:sound' event.
 
 import * as store from './store.js';
 import { $, h, toast, closeButton } from './ui.js';
+import { THEMES, applyTheme } from './themes/themes.js';
 
-const DEFAULTS = { hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0, pad: matchMedia('(pointer: coarse)').matches };
+const DEFAULTS = { theme: 'bakery', hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0, pad: matchMedia('(pointer: coarse)').matches };
 export const settings = { ...DEFAULTS, ...store.load('settings', {}) };
 
 export function save(patch) {
   Object.assign(settings, patch);
   store.save('settings', settings);
+}
+
+applyTheme(settings.theme);
+
+/** The looks, side by side, each a small picture of itself: pick one and the page changes at once. */
+function themePicker() {
+  return h('div.theme-picker', { role: 'radiogroup', 'aria-label': 'Look' }, THEMES.map((t) =>
+    h('label.theme-choice', { 'data-look': t.id },
+      h('input', { type: 'radio', name: 'theme', value: t.id, checked: settings.theme === t.id, onchange: () => save({ theme: applyTheme(t.id) }) }),
+      h('span.theme-swatch', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
+      h('b', {}, t.name),
+      h('span', {}, t.about))));
 }
 
 const ROMS = [
@@ -78,7 +91,8 @@ const CREDITS = [
   ['CSDb', 'https://csdb.dk/', 'the scene database: ratings, groups and parties.'],
   ['High Voltage SID Collection', 'https://www.hvsc.de/', 'the music.'],
   ['libretro-thumbnails', 'https://github.com/libretro-thumbnails/Commodore_-_64', 'the box art.'],
-  ['Pixelify Sans, Silkscreen, Figtree', 'https://fonts.google.com/', 'the type (SIL Open Font License).'],
+  ['Pixelify Sans, Silkscreen, Figtree, Micro 5, VT323, Noto Emoji, Arimo, Cousine', 'https://fonts.google.com/', 'the type (SIL Open Font License; Arimo and Cousine, Apache 2.0).'],
+  ['PXL font', 'https://github.com/MEGA65/open-roms', 'by Retrofan, from the MEGA65 Open ROMs: the Classic theme\'s type (LGPL-3.0).'],
 ];
 
 export function openSettings() {
@@ -94,6 +108,8 @@ export function openSettings() {
   };
   dlg.replaceChildren(closeButton(dlg), h('div.sheet-body', {},
     h('h2', {}, 'Settings'),
+    h('h3', {}, 'Look'),
+    themePicker(),
     h('h3', {}, 'Sound'),
     h('label.check', {}, hq, 'High-quality resampling (reSID band-limited; uses more CPU)'),
     h('label.field', {}, 'Stereo width', slider('width', 1)),
@@ -102,7 +118,7 @@ export function openSettings() {
     h('p', {}, 'Everything on the shelves runs on free ROMs: the MEGA65 Open ROMs in the C64 and, for trackmos, Pascual DOS in the 1541. If you own the Commodore ROMs (C64 Forever includes them), you can add them here instead: they stay in this browser and go only to the emulator.'),
     ROMS.map(romRow),
     h('h3', {}, 'CSDb relay'),
-    h('p', {}, 'csdb.dk only lets sites on its allowlist read it, so the details shown for demos and tunes go through a relay: r.jina.ai by default, or your own, with {url} where the CSDb address goes (e.g. https://your-worker.workers.dev/?url={url}).'),
+    h('p', {}, 'csdb.dk only lets sites on its allowlist read it, so the details shown for tunes go through a relay: r.jina.ai by default, or your own, with {url} where the CSDb address goes (e.g. https://your-worker.workers.dev/?url={url}).'),
     h('label.field', {}, 'Relay URL', relay),
     h('h3', {}, 'Downloads'),
     h('p', {}, 'Games, demos, tunes and catalogue pages are cached so they open again without a download. ', usage),

@@ -9,12 +9,20 @@
 <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="breadbin">
 <meta name="theme-color" content="#120f1c">
+<!-- the saved look, before anything paints (themes/themes.js keeps it after) -->
+<script>try { const t = JSON.parse(localStorage.getItem('breadbin.settings') || '{}').theme; if (t && t !== 'bakery') document.documentElement.dataset.theme = t; } catch {}</script>
+<!-- on a phone, "Add to Home Screen" opens breadbin full screen, without the browser around it -->
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://archive.org">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=JetBrains+Mono:wght@400;600;700&family=Pixelify+Sans:wght@500;700&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=JetBrains+Mono:wght@400;600;700&family=Pixelify+Sans:wght@500;700&family=Silkscreen&family=Micro+5&family=VT323&family=Noto+Emoji&family=Arimo:wght@400;700&family=Cousine&display=swap">
+<link rel="stylesheet" href="themes/bakery.css">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="studio/studio.css">
+<link rel="stylesheet" href="themes/classic.css">
+<link rel="stylesheet" href="themes/geos.css">
+<link rel="stylesheet" href="themes/chicago.css">
 </head>
 <body>
 
@@ -75,8 +83,6 @@
   </section>
 </main>
 
-<dialog id="detail" class="sheet"></dialog>
-
 <div id="emu" class="emu" hidden>
   <div class="emu-bar">
     <span class="emu-title" id="emu-title"></span>
@@ -85,9 +91,10 @@
     <button class="key pill" id="emu-disk" title="Put the next disk in the drive" hidden>💾 Disk 1/2</button>
     <button class="key pill" id="emu-port" title="Joystick port the controls drive">Port 2</button>
     <button class="key pill" id="emu-pad" aria-pressed="false" title="On-screen joystick">🕹 Pad</button>
+    <button class="key pill" id="emu-tools" aria-pressed="false" title="Tools: a cheat finder, a trainer, a monitor">🔧<span class="label"> Tools</span></button>
     <button class="key pill" id="emu-share" title="Share a link that starts this" aria-label="Share">🔗<span class="label"> Share</span></button>
-    <button class="key pill" id="emu-full">Fullscreen</button>
-    <button class="key pill" id="emu-close">Close</button>
+    <button class="key pill" id="emu-full" title="Fullscreen" aria-label="Fullscreen">⛶<span class="label"> Fullscreen</span></button>
+    <button class="key pill" id="emu-close" title="Close" aria-label="Close">✕<span class="label"> Close</span></button>
   </div>
   <div class="emu-stage" id="emu-stage"></div>
   <p class="emu-sound" id="emu-sound" hidden>🔇 Tap the screen for sound</p>

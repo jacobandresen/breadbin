@@ -13,8 +13,8 @@ C64 as a midnight bakery: plum-ink night, warm toast, pixel type.
 ## Play
 
 **16 games**, Bruce Lee to Out Run. **46 demos**, 1980s intros to trackmos like
-Edge of Disgrace, running on a free 1541 DOS. Pick a card, press Play, or
-click a picture below to start it.
+Edge of Disgrace, running on a free 1541 DOS. Click a card and it starts, or
+click a picture below.
 
 | | |
 |:---:|:---:|
@@ -25,7 +25,27 @@ click a picture below to start it.
 
 On a phone the player grows an arcade stick and a big red button.
 
+**🔧 Tools** opens a drawer beside the C64, the way an Action Replay cartridge
+did it:
+- a **cheat finder**: start a search, lose a life, press *Went down*, and
+  after a few rounds you are left with the address of the lives;
+- a **trainer**: *freeze* holds that byte at its value, and *who writes?*
+  lists the code that changes it, so you can *patch out* that code with NOPs;
+- a **monitor**: memory as hex or code, Pause, one-instruction Step,
+  breakpoints at addresses, and the CPU's registers.
+
 [![Giana Sisters in landscape on a phone, between the stick and the fire button](docs/images/shots/phone.png)](https://jacobandresen.github.io/breadbin/play/#games/gb64%3Ag2%2FGIANA1_03275_02.zip/play)
+
+**Four looks**, under Settings → Look:
+- **Midnight bakery**, breadbin's own;
+- **Classic**, breadbin as a C64 would draw it: the light blue border round the
+  blue screen, the C64's 8x8 type on its grid of big pixels, and the box art
+  redrawn in its 16 colours;
+- **GEOS**, the 1986 desktop: grey dither, striped title bars, bitmap type;
+- **Chicago**, a tribute to the desktop of 1995: teal, grey bevels, navy title
+  bars and a taskbar. Its Tunes are a 1997 MP3 player's, spectrum and all; its
+  code looks as a free editor of the time showed C; and in the Studio the key
+  under Esc drops a console down from the top.
 
 ## Listen
 
@@ -58,7 +78,13 @@ starts on the C64 beside the code, built in a third of a second.
   frames a second, and **Pixels**, a tour of lines, circles and blits.
 - **Peek, poke and pixels**: a 320x200 bitmap with blits thirty times faster
   than plotting.
-- **Share** a link with the whole game inside it.
+- **Tune it while it plays**: the code shows the game's variables, live; drag
+  one to change it in the running game, click its name to graph it.
+- **On a phone too**: code and game take turns on the screen, a row of code keys
+  sits above the keyboard (the symbols, Tab, arrows, undo, complete), and the
+  editors' canvases fit a finger.
+- **Share** a link with the whole game inside it, or **export** it: a web page
+  that plays offline in any browser, with breadbin's own small C64 inside.
 
 The [Studio guide](tools/studio/README.md) has a first tutorial, the runtime
 and how it all works.
@@ -103,11 +129,15 @@ Node. See [`tools/playtest`](tools/playtest/README.md) for how a pass is decided
 - **Studio**: cc65, ca65 and ld65 built to WebAssembly (`tools/studio`),
   CodeMirror 6, and a small C64 runtime with a SID player
   (`docs/play/studio/runtime`).
+- **Looks**: each theme is a sheet of tokens (`docs/play/themes`) in CSS
+  cascade layers, so a theme can recolour everything and restyle any part
+  without `!important`. Classic's type is built from a free C64 font by
+  `tools/pxlfont.py`.
 - **Data**: nothing is bundled. Shelves load as they scroll into view, from
   GameBase64 and the Internet Archive, the Archive's copy of HVSC 79, and
   libretro-thumbnails. The only ROM breadbin ships is its own build of the free
   1541 DOS.
-- **CSDb**: demo and tune details go through a relay
+- **CSDb**: tune details go through a relay
   ([r.jina.ai](https://jina.ai/reader/) by default, or your own:
   `docs/play/relay/worker.js` is a Cloudflare Worker for it).
 
@@ -125,6 +155,8 @@ Breadbin runs on free software, each under its own licence:
   Pascual Candel Palazón: the free 1541 DOS (MIT), with breadbin's patch.
 - [resid-rs](https://github.com/digitalstreamio/resid-rs), the Rust port of
   Dag Lem's reSID: the SID (GPL-3.0).
+- The [PXL font](https://github.com/MEGA65/open-roms) by Retrofan, from the
+  MEGA65 Open ROMs: the Classic look's type (LGPL-3.0).
 - [Exomizer](https://bitbucket.org/magli143/exomizer) by Magnus Lind: its
   decruncher, ported to Rust for EasySplit files (zlib-style licence).
 - [EasyFlash](https://skoe.de/easyflash/) by Thomas Giesel: the cartridge and
@@ -137,8 +169,9 @@ Breadbin runs on free software, each under its own licence:
   (MIT). Its colours follow Neovim's retrobox (after gruvbox by morhetz).
 - [blip-deck](https://github.com/jacobandresen/blip-deck): the touch pad's
   arcade stick and FIRE button (MIT), loaded from jsDelivr at a pinned tag.
-- Pixelify Sans, Silkscreen, Figtree and JetBrains Mono from Google Fonts (SIL
-  Open Font License).
+- Pixelify Sans, Silkscreen, Figtree, JetBrains Mono, Micro 5, VT323 and Noto
+  Emoji from Google Fonts (SIL Open Font License); Arimo and Cousine (Apache
+  License 2.0).
 
 The games, demos and music are the work of their coders, musicians,
 graphicians and crackers, credited on every card from the scene's own records:

@@ -50,6 +50,11 @@ jobs:
       - name: Build the Studio (cc65 in WebAssembly, the code editor)
         run: make studio
 
+      # ESLint's mistakes fail the build; its measures (long, deep, branchy functions) are warnings
+      # (make quality prints them all, with lines of code and clippy)
+      - name: Lint the JavaScript
+        run: tools/studio/node_modules/.bin/eslint docs/play tools
+
       - name: Test the Studio
         run: make test-studio
 

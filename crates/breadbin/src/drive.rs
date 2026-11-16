@@ -425,7 +425,7 @@ mod tests {
     impl crate::cpu::Bus for Paused {
         fn read(&mut self, a: u16) -> u8 {
             self.n += 1;
-            if self.n % self.every == 0 {
+            if self.n.is_multiple_of(self.every) {
                 self.drive.tick(&mut self.ram);
             }
             self.ram.0[a as usize]

@@ -44,7 +44,7 @@ let player = null;
  * Assemble `music` into the player's code and data (bytes from $1000), with
  * `tc` (a Toolchain). `sfx` also starts that sound effect with the song.
  */
-export async function assemblePlayer(tc, music, { sfx = null } = {}) {
+async function assemblePlayer(tc, music, { sfx = null } = {}) {
   player ??= resourceText('runtime/bbsound.s');
   const files = { 'stub.s': sfx == null ? STUB : SFX_STUB(sfx), 'bbsound.s': await player, 'music.s': musicSource(music), 'psid.cfg': CFG };
   const objects = {};
@@ -61,7 +61,7 @@ export async function assemblePlayer(tc, music, { sfx = null } = {}) {
 }
 
 /** A PSID v2 file around `code` (loaded at $1000) with `songs` songs. */
-export function psidFile(code, { songs = 1, start = 1, name = '', author = '', released = '' } = {}) {
+function psidFile(code, { songs = 1, start = 1, name = '', author = '', released = '' } = {}) {
   const head = new Uint8Array(0x7c);
   const be16 = (at, v) => ((head[at] = (v >> 8) & 255), (head[at + 1] = v & 255));
   const str = (at, s) => head.set(new TextEncoder().encode(String(s).replace(/[^\x20-\x7e]/g, '').slice(0, 31)), at);

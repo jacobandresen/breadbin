@@ -12,6 +12,7 @@ import { scroller } from './scroller.js';
 import { pollGamepads } from './gamepad.js';
 import { settings, save, loadRoms } from './settings.js';
 import { $, h, pixel, toast, share } from './ui.js';
+import { GameTools } from './tools.js';
 
 let session = null;
 let pad = null;
@@ -72,9 +73,15 @@ function loadError(e) {
 const hackedBy = (title) =>
   `HACKED BY CLAUDE CODE ... ${title.toUpperCase()} HAD ITS LOADER PATCHED TO RUN ON THE FREE MEGA65 OPEN ROMS AND BREADBIN'S VIRTUAL DRIVE, NO COMMODORE ROMS NEEDED ... GREETINGS TO THE MEGA65 TEAM, VICE, EXOMIZER, EASYFLASH AND THE SCENE THAT KEPT THESE GAMES ALIVE ...      `;
 
+/** The program of `item`: { name, bytes, sides? }, downloaded (`progress(got, total)`) unless it came in the link. */
+async function fetchProgram(item, progress) {
+  if (item.bytes) return { name: item.name, bytes: item.bytes }; // in the link itself (cart.js, the Studio's Share)
+  if (item.gb) return { name: item.gb.split('/').pop(), bytes: await ia.gb64Game(item.gb, progress) };
+  return item.parts ? releaseParts(item, progress) : archiveFile(item.ia || item.id, progress);
+}
+
 /** Start `item` (a game from GameBase64 or the archive, or a demo). */
 export async function launch(kind, item) {
-  $('#detail').close();
   dispatchEvent(new Event('breadbin:launch'));
   const [stage, status, note] = [$('#emu-stage'), $('#emu-status'), $('#emu-note')];
   $('#emu-title').textContent = pixel(item.title);
@@ -93,14 +100,7 @@ export async function launch(kind, item) {
     bar.style.width = total ? `${Math.round((got / total) * 100)}%` : `${Math.min(95, got / 2000)}%`;
   };
   try {
-    // item.bytes: a program that came in the link itself (cart.js, the Studio's Share)
-    const { name, bytes, sides } = item.bytes
-      ? { name: item.name, bytes: item.bytes }
-      : item.gb
-      ? { name: item.gb.split('/').pop(), bytes: await ia.gb64Game(item.gb, progress) }
-      : item.parts
-        ? await releaseParts(item, progress)
-        : await archiveFile(item.ia || item.id, progress);
+    const { name, bytes, sides } = await fetchProgram(item, progress);
     bar.style.width = '100%';
     const roms = await loadRoms();
     // a trackmo or a game whose loader runs on the drive gets a real 1541
@@ -136,6 +136,7 @@ export async function launch(kind, item) {
       },
     });
     status.textContent = 'starting…';
+    tools.attach(session);
     stopGamepads?.();
     stopGamepads = pollGamepads((m) => session?.send(m), () => port);
     setPort(port);
@@ -150,7 +151,7 @@ export async function launch(kind, item) {
     if (item.wip) toast('🚧 Work in progress: this one may not start or play right.');
   } catch (e) {
     stage.replaceChildren(h('div.emu-error', {}, h('b', {}, '?LOAD ERROR'), loadError(e),
-      h('button.key.pill.primary', { onclick: () => launch(kind, item) }, '↻ Try again')));
+      h('button.key.pill.primary', { onclick: () => launch(kind, item) }, 'Try again')));
   }
 }
 
@@ -201,7 +202,18 @@ $('#emu-disk').addEventListener('click', () => {
   swapDisk?.();
   session?.frame.focus();
 });
-$('#emu-share').addEventListener('click', () => playing && share(playing.tab, playing.item.id, playing.item.title));
+// 🔧 Tools: the cheat finder, the trainer, the monitor (tools.js), in a drawer beside the C64
+// (the stage and the drawer side by side in a row; on a phone, one above the other)
+const tools = new GameTools();
+const emuMain = h('div.emu-main');
+$('#emu-stage').before(emuMain);
+emuMain.append($('#emu-stage'), tools.el);
+tools.onToggle = (on) => $('#emu-tools').setAttribute('aria-pressed', String(on));
+$('#emu-tools').addEventListener('click', () => {
+  tools.toggle();
+  session?.frame.focus();
+});
+$('#emu-share').addEventListener('click', () => playing && share(playing.item.cart ? 'play' : playing.tab, playing.item.id, playing.item.title));
 $('#emu-pad').addEventListener('click', () => {
   const on = !$('#emu').classList.contains('touch');
   save({ pad: on });
@@ -217,6 +229,7 @@ function closeEmu() {
   stopGamepads = null;
   session?.stop();
   session = null;
+  tools.attach(null);
   $('#emu').hidden = true;
   $('#emu-sound').hidden = true;
   if (document.fullscreenElement) document.exitFullscreen();

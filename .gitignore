@@ -9,3 +9,6 @@ docs/play/acme.wasm
 docs/play/studio/cc65/
 docs/play/studio/vendor/
 tools/studio/node_modules/
+
+# Python bytecode (tools/pxlfont.py)
+__pycache__/

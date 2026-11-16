@@ -30,13 +30,9 @@ const AUDIO_SESSION = `if (navigator.audioSession) navigator.audioSession.type =
  * KERNAL or BASIC is swapped for ours.
  */
 function kernalGuard(kernal, basic) {
-  const b64 = (rom) => {
-    let bin = '';
-    for (const b of rom) bin += String.fromCharCode(b);
-    return btoa(bin);
-  };
+  const b64 = (rom) => Uint8Array.from(rom).toBase64();
   return `(() => {
-    const rom = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const rom = (s) => Uint8Array.fromBase64(s);
     const ours = { kernal: rom('${b64(kernal)}'), basic: ${basic ? `rom('${b64(basic)}')` : 'null'} };
     const load = wasm_loadfile;
     wasm_loadfile = (name, data, len, ...rest) =>
@@ -45,15 +41,28 @@ function kernalGuard(kernal, basic) {
       : load(name, data, len, ...rest);
   })();`;
 }
-// With onHotkey (the Studio): keys meant for the page, not the C64, while the
-// C64 has the keyboard: Ctrl+Enter (run), Ctrl+S (save), F1 (help), Alt+Enter
-// (full screen), Escape (back to the code), and the debugger's F6, F10 and
-// F11 (studio/debugger.js). Caught before vc64web sees them.
+/**
+ * The Studio's keys (studio.js act), as names: a key press, or null when it
+ * is not one of them. `stopped`: the debugger has stopped the CPU (F5 runs
+ * on; elsewhere it is the browser's reload). `c64`: pressed while the C64 has
+ * the keyboard, where Escape goes back to the code. Self-contained: HOTKEYS
+ * puts its source in vc64web's page.
+ */
+export function studioKey(e, stopped = false, c64 = false) {
+  if (e.altKey && /^[1-5]$/.test(e.key)) return `mode${e.key}`;
+  if (e.ctrlKey || e.metaKey) return { Enter: 'run', r: 'run', s: 'save', S: 'save', '=': 'bigger', '+': 'bigger', '-': 'smaller', b: 'files' }[e.key] ?? null;
+  if (e.altKey && e.key === 'Enter') return 'fullscreen';
+  if (e.key === 'F5') return stopped ? 'pause' : null;
+  if (e.key === 'F6') return e.shiftKey ? 'slower' : 'pause';
+  if (e.key === 'F8') return e.shiftKey ? 'mark' : e.altKey ? 'replay' : 'again';
+  if (e.key === 'F11') return e.shiftKey ? 'out' : 'into';
+  return { F1: 'help', F10: 'over', ...(c64 && { Escape: 'escape' }) }[e.key] ?? null;
+}
+
+// With onHotkey (the Studio): its keys come to the page while the C64 has the
+// keyboard, caught before vc64web sees them (none of them is a C64 key).
 const HOTKEYS = `addEventListener('keydown', (e) => {
-  const mod = e.ctrlKey || e.metaKey;
-  // F6, F10, F11 (the debugger's pause, step over, step into; Shift+F11 step out) aren't C64 keys
-  const key = e.altKey && e.key === 'Enter' ? 'fullscreen' : mod && e.key === 'Enter' ? 'run' : mod && (e.key === 's' || e.key === 'S') ? 'save' : e.key === 'F1' ? 'help' : e.key === 'Escape' ? 'escape'
-    : e.key === 'F6' ? 'pause' : e.key === 'F10' ? 'over' : e.key === 'F11' ? (e.shiftKey ? 'out' : 'into') : null;
+  const key = (${studioKey})(e, false, true);
   if (!key) return;
   e.preventDefault();
   e.stopImmediatePropagation();
@@ -101,58 +110,51 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
   host.replaceChildren(frame);
 
   let sent = false;
+  let loading = false; // reload(): from the reset until the new program is in memory
   let poll = 0;
   let peeks = 0;
   const peekWaiting = new Map();
   const callWaiting = new Map();
   // the frame may already be gone (the player closed while a timer was waiting)
   const script = (s) => frame.contentWindow?.postMessage({ cmd: 'script', script: s }, ORIGIN);
-  const onMessage = (ev) => {
-    if (ev.origin !== ORIGIN || ev.source !== frame.contentWindow) return;
-    const msg = ev.data?.msg;
-    if (msg === 'breadbin_kernal') {
-      start();
-    } else if (msg === 'breadbin_drive') {
-      onDrive?.(ev.data);
-    } else if (msg === 'breadbin_peek') {
-      peekWaiting.get(ev.data.id)?.(ev.data.bytes);
-      peekWaiting.delete(ev.data.id);
-    } else if (msg === 'breadbin_call') {
-      callWaiting.get(ev.data.id)?.(ev.data);
-      callWaiting.delete(ev.data.id);
-    } else if (msg === 'breadbin_hotkey') {
-      onHotkey?.(ev.data.key);
-    } else if (msg === 'breadbin_alert') {
-      onAlert?.(ev.data.text);
-    } else if (msg === 'render_current_audio_state') {
-      onAudio?.(ev.data.value); // 'suspended' until a tap inside vc64web on Safari
-    } else if (msg === 'render_run_state') {
-      onState?.({ running: ev.data.value, warping: ev.data.is_warping });
-      // vc64web reports "running" once its ROMs are in; only then inject.
-      if (ev.data.value && !sent) {
-        sent = true;
-        clearInterval(poll);
-        script(ALERTS);
-        script(NO_MENU);
-        script(SID_QUALITY);
-        script(AUDIO_SESSION);
-        if (onHotkey) script(HOTKEYS);
-        // a patched Open ROMs KERNAL resets the C64; the program goes in once the
-        // patch shows in the ROM and the C64 has booted again
-        if (kernal && !roms.kernal) {
-          // a drive ROM goes in the same message, ahead of the KERNAL: vc64web
-          // reloads its stored ROMs after taking one, which would put the
-          // stock KERNAL back if it came later
-          // blank the screen first: the READY still on it would otherwise pass
-          // for the new boot's, and keys typed before it are lost
-          script(CLEAR_SCREEN);
-          script(kernalGuard(kernal, basic));
-          frame.contentWindow?.postMessage({ cmd: 'load', kernal_rom: kernal, ...(basic && { basic_rom: basic }), ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
-          script(KERNAL_IN);
-          setTimeout(start, 4000); // in case the message never comes
-        } else start();
-      }
-    }
+  const answer = (waiting, d, value) => {
+    waiting.get(d.id)?.(value);
+    waiting.delete(d.id);
+  };
+  // what vc64web's page says (and breadbin's scripts in it), by its msg
+  const on = {
+    breadbin_kernal: () => start(),
+    breadbin_drive: (d) => onDrive?.(d),
+    breadbin_peek: (d) => answer(peekWaiting, d, d.bytes),
+    breadbin_call: (d) => answer(callWaiting, d, d),
+    breadbin_loaded: () => (loading = false),
+    breadbin_hotkey: (d) => onHotkey?.(d.key),
+    breadbin_alert: (d) => onAlert?.(d.text),
+    render_current_audio_state: (d) => onAudio?.(d.value), // 'suspended' until a tap inside vc64web on Safari
+    render_run_state: (d) => {
+      onState?.({ running: d.value, warping: d.is_warping });
+      // vc64web reports "running" once its ROMs are in; only then inject
+      if (d.value && !sent) inject();
+    },
+  };
+  const onMessage = (ev) => ev.origin === ORIGIN && ev.source === frame.contentWindow && on[ev.data?.msg]?.(ev.data);
+  const inject = () => {
+    sent = true;
+    clearInterval(poll);
+    for (const s of [ALERTS, NO_MENU, SID_QUALITY, AUDIO_SESSION, onHotkey && HOTKEYS]) if (s) script(s);
+    // a patched Open ROMs KERNAL resets the C64; the program goes in once the
+    // patch shows in the ROM and the C64 has booted again
+    if (!kernal || roms.kernal) return start();
+    // a drive ROM goes in the same message, ahead of the KERNAL: vc64web
+    // reloads its stored ROMs after taking one, which would put the stock
+    // KERNAL back if it came later. The screen is blanked first: the READY
+    // still on it would otherwise pass for the new boot's, and keys typed
+    // before it are lost.
+    script(CLEAR_SCREEN);
+    script(kernalGuard(kernal, basic));
+    frame.contentWindow?.postMessage({ cmd: 'load', kernal_rom: kernal, ...(basic && { basic_rom: basic }), ...(roms.floppy && { floppy_rom: roms.floppy }) }, ORIGIN);
+    script(KERNAL_IN);
+    setTimeout(start, 4000); // in case the message never comes
   };
   let started = false;
   const start = () => {
@@ -230,6 +232,10 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
     get started() {
       return started;
     },
+    /** Is a reload() between its reset and the new program being in memory (the memory not yet the program's)? */
+    get loading() {
+      return loading;
+    },
     /**
      * Start another PRG in the running C64, without booting a new frame (the
      * Studio's Run, ~1.5 s instead of ~7): reset, wait for BASIC's READY,
@@ -249,6 +255,10 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
         script(`parent.postMessage({ msg: 'breadbin_peek', id: ${id}, bytes: ${JSON.stringify(ranges)}.map(([a, n]) => Array.from({ length: n }, (_, i) => wasm_peek(a + i))) }, '*');`);
         setTimeout(() => peekWaiting.has(id) && (peekWaiting.delete(id), resolve(null)), 1000);
       });
+    },
+    /** Write `bytes` into the C64's memory at `addr`: the Studio changes a running game's variables with it. */
+    poke(addr, bytes) {
+      script(`${JSON.stringify([...bytes])}.forEach((b, i) => wasm_poke(${addr | 0} + i, b));`);
     },
     /** Run `code` (a script) in the emulator's page: to install helpers that call() then uses. */
     script,
@@ -270,12 +280,12 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
       });
     },
     reload(bytes) {
-      let bin = '';
-      for (const b of bytes) bin += String.fromCharCode(b);
+      loading = true;
+      setTimeout(() => (loading = false), 10000); // whatever happens in there
       script(`(async () => {
         // the debugger lets go first: its breakpoints were the old program's
         if (window.bbdbg) await window.bbdbg.detach();
-        const data = Uint8Array.from(atob('${btoa(bin)}'), (c) => c.charCodeAt(0));
+        const data = Uint8Array.fromBase64('${Uint8Array.from(bytes).toBase64()}');
         // blank the old screen first: its READY would pass for the new boot's
         for (let a = 0x400; a < 0x7e8; a++) wasm_poke(a, 0x20);
         wasm_reset();
@@ -286,6 +296,7 @@ export function run(host, file, { roms = {}, kernal = null, basic = null, port =
         const end = at + data.length - 2;
         for (const z of [0x2d, 0x2f, 0x31]) { wasm_poke(z, end & 255); wasm_poke(z + 1, end >> 8); } // VARTAB, ARYTAB, STREND
         wasm_auto_type('run\\n');
+        parent.postMessage({ msg: 'breadbin_loaded' }, '*');
       })();`);
       frame.focus();
     },

@@ -56,6 +56,12 @@ void bb_init(void);
 void bb_frame(void);
 /* Frames since bb_init(), counting up 50 times a second (wraps at 65535). */
 extern volatile unsigned int bb_frames;
+/* The tape (bb.c): the joystick frame by frame, which the Studio plays back
+ * for "Keep my place" and "Replay". Its size in bytes (2 per change of the
+ * stick: 768 is some minutes of play). */
+#ifndef BB_TAPE_SIZE
+#define BB_TAPE_SIZE 768
+#endif
 
 /* Border, background and the two shared multicolours of the tiles. */
 void bb_colors(unsigned char border, unsigned char bg, unsigned char mc1, unsigned char mc2);

@@ -1,4 +1,4 @@
-.PHONY: web acme drive studio examples serve-web test test-studio test-studio-browser
+.PHONY: web acme drive studio examples serve-web test test-studio test-studio-browser quality
 
 # The engine (crates/breadbin) as WebAssembly, next to the page that loads it.
 web:
@@ -52,3 +52,8 @@ test-studio:
 # and the games played on vc64web (skipped offline).
 test-studio-browser:
 	cd tools/studio && node --test --test-concurrency=1 'test/browser/*.test.mjs'
+
+# The code, measured (tools/quality.mjs): lines by part, ESLint's findings,
+# unused exports, clippy; each run is added to tools/quality-history.jsonl.
+quality:
+	node tools/quality.mjs

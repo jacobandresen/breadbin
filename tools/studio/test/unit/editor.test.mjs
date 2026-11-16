@@ -118,10 +118,10 @@ test('the Variables panel: the game\'s globals and their sizes, from the labels'
   const memory = { segments: [{ name: 'CODE', start: 0x0810, size: 0x1000 }, { name: 'BSS', start: 0x2000, size: 0x20 }] };
   const labels = { _main: 0x0900, _score: 0x2000, _lives: 0x2002, _ex: 0x2003, _bb_frames: 0x200f, __BSS_RUN__: 0x2000, _last: 0x201e };
   assert.deepEqual(globals(labels, memory), [
-    { name: 'score', addr: 0x2000, size: 2, unit: 1 },
-    { name: 'lives', addr: 0x2002, size: 1, unit: 1 },
-    { name: 'ex', addr: 0x2003, size: 12, unit: 1 }, // up to bb_frames: the runtime's labels still end it
-    { name: 'last', addr: 0x201e, size: 2, unit: 1 }, // to the end of the segment
+    { name: 'score', addr: 0x2000, size: 2, unit: 1, signed: false },
+    { name: 'lives', addr: 0x2002, size: 1, unit: 1, signed: false },
+    { name: 'ex', addr: 0x2003, size: 12, unit: 1, signed: false }, // up to bb_frames: the runtime's labels still end it
+    { name: 'last', addr: 0x201e, size: 2, unit: 1, signed: false }, // to the end of the segment
   ]);
   assert.equal(format([3], 1), '3');
   assert.equal(format([255], 1), '255 (-1)');
@@ -140,7 +140,7 @@ test('C variables\' sizes, from cc65\'s assembly', async () => {
   assert.deepEqual(sizes, { score: { size: 2, unit: 2 }, table: { size: 6, unit: 2 }, name: { size: 2, unit: 2 }, lives: { size: 1, unit: 1 }, after: { size: 6, unit: 1 } });
   // with sizes, a variable followed by unnamed statics is no longer stretched to the next label
   const memory = { segments: [{ name: 'BSS', start: 0x2000, size: 0x40 }] };
-  assert.deepEqual(globals({ _lives: 0x2000, _far: 0x2010 }, memory, sizes)[0], { name: 'lives', addr: 0x2000, size: 1, unit: 1 });
+  assert.deepEqual(globals({ _lives: 0x2000, _far: 0x2010 }, memory, sizes)[0], { name: 'lives', addr: 0x2000, size: 1, unit: 1, signed: false });
   assert.equal(format([1, 0, 2, 0, 0xff, 0xff], 6, 2), '[1, 2, 65535]');
 });
 
@@ -174,4 +174,13 @@ unsigned char thing_count (void);   /* how many */
   assert.equal(e[3].doc, 'how many');
   assert.equal(e[2].from, 'thing.h');
   assert.deepEqual(systemIncludes('#include <stdlib.h>\n#include "bb.h"\n  # include <c64.h>\n'), ['stdlib.h', 'c64.h']);
+});
+
+test('cc65\'s commonest messages explained in plain words', async () => {
+  const { explain } = await import('../../../../docs/play/studio/diagnostics.js');
+  assert.match(explain("';' expected"), /semicolon is missing/);
+  assert.match(explain("Undeclared identifier 'score'"), /Nothing called score/);
+  assert.match(explain("Call to undeclared function 'bb_sprr'"), /bb_sprr\(\) isn't known/);
+  assert.match(explain("Segment 'BSS' overflows memory area 'BSS' by 5179 bytes"), /5179 bytes too big/);
+  assert.equal(explain('something else entirely'), null);
 });

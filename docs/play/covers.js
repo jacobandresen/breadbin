@@ -12,7 +12,7 @@ const ROMAN = { i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', v
 const ABBREV = { jr: 'junior', bros: 'brothers', intl: 'international', vs: 'versus', n: 'and' };
 
 /** Port of core::norm: a comparison key for titles. */
-export function norm(s) {
+function norm(s) {
   return s
     .toLowerCase()
     .replace(/&/g, ' and ')
