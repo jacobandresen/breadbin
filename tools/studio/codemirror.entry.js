@@ -11,9 +11,12 @@ export {
   HighlightStyle, syntaxHighlighting, StreamLanguage, LanguageSupport, indentOnInput, bracketMatching,
   foldGutter, foldKeymap, indentUnit, syntaxTree,
 } from '@codemirror/language';
-export { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment } from '@codemirror/commands';
 export {
-  autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap, snippetCompletion, completeFromList,
+  defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, undo, redo, indentMore, indentLess,
+  cursorCharLeft, cursorCharRight, cursorLineUp, cursorLineDown, insertNewlineAndIndent,
+} from '@codemirror/commands';
+export {
+  autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap, snippetCompletion, completeFromList, startCompletion,
 } from '@codemirror/autocomplete';
 export { linter, lintGutter, setDiagnostics, lintKeymap, forceLinting } from '@codemirror/lint';
 export { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';

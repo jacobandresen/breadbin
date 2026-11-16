@@ -80,11 +80,20 @@ export class SidPlayer extends EventTarget {
     await done;
     this.playing = true;
     this.paused = false;
+    this.clock = { from: performance.now(), held: 0 };
     this.dispatchEvent(new Event('state'));
+  }
+
+  /** Seconds the tune has played (a pause holds it). */
+  get elapsed() {
+    if (!this.playing || !this.clock) return 0;
+    return (this.clock.held + (this.paused ? 0 : performance.now() - this.clock.from)) / 1000;
   }
 
   setPaused(paused) {
     if (!this.playing) return;
+    if (paused && !this.paused) this.clock.held += performance.now() - this.clock.from;
+    if (!paused && this.paused) this.clock.from = performance.now();
     this.paused = paused;
     this.node.port.postMessage({ type: 'pause', paused });
     this.dispatchEvent(new Event('state'));

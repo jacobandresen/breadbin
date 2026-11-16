@@ -16,6 +16,11 @@ unsigned char tick;
 static unsigned char clear_timer;
 int start_x = 24, start_y = 171;
 
+/* tune these while the game runs: drag the values the Studio shows beside them */
+signed char jump = -62;         /* about five tiles: one platform up */
+unsigned char gravity = 3;
+unsigned char max_fall = 36;
+
 void add_score(unsigned int points) {
   score += points / 10;
   bb_num(7, 0, score, 5, BB_WHITE);

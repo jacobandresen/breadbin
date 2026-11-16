@@ -12,10 +12,11 @@
 ; Scratch: cc65's zero-page temporaries tmp1-tmp4 and ptr1, which any
 ; runtime routine may use. The music interrupt uses only $FB/$FC.
 
-        .export _bb_spr, _bb_spr_hide, _bb_spr_color, _bb_overlap
+        .export _bb_spr, _bb_spr_hide, _bb_spr_color, _bb_overlap, _bb_hits, _bb_hits_n
         .export _bb_flags_at, _bb_tile, _bb_set_tile
         .import _bb_sprite_color, _bb_sprite_multi, _bb_tile_flags, _bb_tile_color
         .import addysp, popa
+        .import _bb_frames
         .importzp c_sp, tmp1, tmp2, tmp3, tmp4, ptr1
 
 SCREEN  = $c000
@@ -140,8 +141,38 @@ _bb_spr_color:
 ;                                       int bx, int by, unsigned char bw, unsigned char bh)
 ; Stack: bw +0, by +1/2, bx +3/4, ah +5, aw +6, ay +7/8, ax +9/10; bh in A.
 ; True when ax < bx+bw, bx < ax+aw, ay < by+bh and by < ay+ah.
+;
+; Each call's two boxes are kept first, for the Studio's hitbox overlay (the
+; ▢ button over the C64), which draws the boxes the game really tests, not
+; the sprites' pictures: a ring of 8 slots of 16 bytes in bb_hits, bb_hits_n
+; the next slot. A slot is the 11 bytes of arguments as they lie on the C
+; stack (bw, by, bx, ah, aw, ay, ax, as above), then bh, then the low byte of
+; bb_frames, so the overlay can leave out boxes from long ago. About 150
+; cycles a call; X is free here (the test below only uses A, Y and tmp1-4).
 _bb_overlap:
         sta tmp4                ; bh
+        lda _bb_hits_n          ; the slot's offset: n * 16 (n < 8: no carry out)
+        asl
+        asl
+        asl
+        asl
+        tax
+        ldy #0
+@keep:  lda (c_sp),y            ; the 11 argument bytes, as they are
+        sta _bb_hits,x
+        inx
+        iny
+        cpy #11
+        bne @keep
+        lda tmp4                ; then bh
+        sta _bb_hits,x
+        lda _bb_frames          ; then the frame (low byte)
+        sta _bb_hits+1,x
+        lda _bb_hits_n          ; the next slot, round the ring
+        clc
+        adc #1
+        and #7
+        sta _bb_hits_n
         ; by + bh - ay > 0 ?
         ldy #1
         lda (c_sp),y
@@ -345,3 +376,10 @@ _bb_set_tile:
         sta (ptr1),y
 @done:  ldy #2
         jmp addysp
+
+; The hitbox overlay's ring (see bb_overlap): 8 slots of 16 bytes, and the next slot.
+        .segment "BSS"
+_bb_hits:
+        .res 128
+_bb_hits_n:
+        .res 1

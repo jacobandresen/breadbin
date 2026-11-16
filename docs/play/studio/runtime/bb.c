@@ -31,6 +31,51 @@ void bb_irq_on(void);
 
 unsigned char bb_joy_now, bb_joy_was;
 
+/* ── the tape: the joystick, frame by frame, for the Studio ────────────────
+ * Every bb_frame()'s joystick bits are kept here, run-length coded (pairs of
+ * bits and a count of frames, 1-255), with the random seed bb_init used:
+ * everything that makes one play differ from another. The Studio reads it to
+ * play a run again: it writes it into the next build's program (these are
+ * initialised, so they are in the PRG, not cleared at start) with
+ * bb_tape_mode 2, and the game then takes its joystick and its seed from the
+ * tape until the tape ends, and records on from there (mode 1 again). With
+ * the emulator at warp speed that brings the new build to the same place in
+ * the game: edit and continue. Mode 0: neither (the tape full). */
+unsigned char bb_tape_mode = 1;
+unsigned int bb_tape_len = 0;     /* bytes used */
+unsigned int bb_tape_pos = 0;     /* replaying: the next pair */
+unsigned char bb_tape_left = 0;   /* replaying: frames left of that pair */
+unsigned int bb_tape_seed = 0;
+unsigned int bb_tape_frames = 0;  /* bb_frame()s since bb_init */
+unsigned char bb_tape[BB_TAPE_SIZE] = { 0 };
+
+static unsigned char tape_rec(unsigned char live) {
+  if (bb_tape_len >= 2 && bb_tape[bb_tape_len - 2] == live && bb_tape[bb_tape_len - 1] < 255) ++bb_tape[bb_tape_len - 1];
+  else if (bb_tape_len + 2 <= BB_TAPE_SIZE) {
+    bb_tape[bb_tape_len] = live;
+    bb_tape[bb_tape_len + 1] = 1;
+    bb_tape_len += 2;
+  } else bb_tape_mode = 0; /* full: no more recording */
+  return live;
+}
+
+static unsigned char tape(unsigned char live) {
+  ++bb_tape_frames;
+  if (bb_tape_mode == 2) {
+    if (bb_tape_left == 0) {
+      if (bb_tape_pos >= bb_tape_len) {
+        bb_tape_mode = 1; /* the end of the tape: recording on from here */
+        return tape_rec(live);
+      }
+      bb_tape_left = bb_tape[bb_tape_pos + 1];
+      bb_tape_pos += 2;
+    }
+    --bb_tape_left;
+    return bb_tape[bb_tape_pos - 2];
+  }
+  return bb_tape_mode == 1 ? tape_rec(live) : live;
+}
+
 /* The screen address of each row: cy * 40, without a multiply. */
 static const unsigned int row[25] = {
   0, 40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480,
@@ -82,8 +127,20 @@ void bb_init(void) {
   VIC[0x16] = bb_multicolor_tiles ? 0x18 : 0x08;
   bb_colors(bb_screen_colors[0], bb_screen_colors[1], bb_screen_colors[2], bb_screen_colors[3]);
   bb_cls(32, BB_WHITE);
-  bb_seed(VIC[0x12] | ((unsigned int)PEEK(0xdc04) << 8));
+  /* the seed: the tape's when it is being played, else the raster's (and kept on the tape) */
+  if (bb_tape_mode == 2) bb_seed(bb_tape_seed);
+  else {
+    bb_tape_seed = VIC[0x12] | ((unsigned int)PEEK(0xdc04) << 8);
+    bb_seed(bb_tape_seed);
+  }
+  bb_tape_frames = 0;
+  /* A fixed start: the frame interrupt begins on the raster's line 0 with the
+   * frame count at 0, however long the C64 took to get here (the Studio's
+   * RUN arrives at a different moment each time). A run played again from
+   * the tape then meets its frames as the first one did. */
+  while (VIC[0x12] != 0 || (VIC[0x11] & 0x80)) {}
   bb_irq_on();
+  bb_frames = 0;
   bb_joy_now = bb_joy_was = 0;
 }
 
@@ -92,11 +149,22 @@ unsigned char bb_joy(void) {
   return ~(PEEK(0xdc00) & PEEK(0xdc01)) & 0x1f;
 }
 
+/* The Studio's frame meter: the raster line the game called bb_frame() at
+ * (its frame's work done; the frame began at line 250, with the interrupt),
+ * and how many times it was late (the work took more than a frame, so the
+ * game ran at half speed for a frame). */
+unsigned int bb_busy_line;
+unsigned char bb_busy_late;
+static unsigned char last_frame;
+
 void bb_frame(void) {
   unsigned char f = (unsigned char)bb_frames;
+  bb_busy_line = VIC[0x12] | ((unsigned int)(VIC[0x11] & 0x80) << 1);
+  if (f != last_frame) ++bb_busy_late; /* the interrupt came while the game worked: a frame missed */
   while ((unsigned char)bb_frames == f) {}
+  last_frame = (unsigned char)bb_frames;
   bb_joy_was = bb_joy_now;
-  bb_joy_now = bb_joy();
+  bb_joy_now = tape(bb_joy());
 }
 
 /* ── rooms ───────────────────────────────────────────────────────────────── */

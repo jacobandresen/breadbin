@@ -63,17 +63,14 @@ export class DebugInfo {
     this.ranges = [];
     for (const l of recs.line) {
       const file = name(l.file);
-      const c = l.type === 1;
-      // a C line, or a line of a project's own assembly file (not cc65's output, not a macro)
-      if (!(c || (l.type === undefined || l.type === 0)) || /^\.build\//.test(file) || !file || file.startsWith('/')) continue;
-      if (!c && !/\.(s|asm|a65)$/i.test(file)) continue;
-      for (const sid of ids(l.span)) {
-        const r = spanAt(sid);
+      // a C line (type 1), or a line of a project's own assembly file (type 0: not a macro's)
+      const own = l.type === 1 || ((l.type ?? 0) === 0 && /\.(s|asm|a65)$/i.test(file));
+      if (!own || !file || file.startsWith('/') || file.startsWith('.build/')) continue;
+      for (const r of ids(l.span).map(spanAt)) {
         if (!r || r[1] <= r[0]) continue;
-        if (!this.files.has(file)) this.files.set(file, new Map());
-        const lines = this.files.get(file);
-        if (!lines.has(l.line)) lines.set(l.line, []);
-        if (!lines.get(l.line).includes(r[0])) lines.get(l.line).push(r[0]);
+        const lines = this.files.get(file) ?? this.files.set(file, new Map()).get(file);
+        const at = lines.get(l.line) ?? lines.set(l.line, []).get(l.line);
+        if (!at.includes(r[0])) at.push(r[0]);
         this.ranges.push([r[0], r[1], file, l.line]);
       }
     }

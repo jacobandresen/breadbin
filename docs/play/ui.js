@@ -5,7 +5,7 @@ export const $ = (sel, el = document) => el.querySelector(sel);
 /** Text for the pixel fonts, which have no accented letters ("Fjälldata" -> "Fjalldata"). */
 export const pixel = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export const fmt = new Intl.NumberFormat('en');
-export const CHIPS = ['var(--red)', 'var(--orange)', 'var(--yellow)', 'var(--green)', 'var(--blue)'];
+const CHIPS = ['var(--danger)', 'var(--accent)', 'var(--highlight)', 'var(--ok)', 'var(--info)'];
 let chipIndex = 0;
 export const nextChip = () => CHIPS[chipIndex++ % CHIPS.length];
 
@@ -25,6 +25,15 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/** Show `dlg` (a <dialog>) as a modal: off the page once closed, closed by a click outside it. */
+export function showDialog(dlg) {
+  document.body.append(dlg);
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('click', (e) => e.target === dlg && dlg.close());
+  dlg.showModal();
+  return dlg;
+}
+
 export function toast(msg, ms = 3500) {
   const t = $('#toast');
   t.textContent = msg;
@@ -34,7 +43,8 @@ export function toast(msg, ms = 3500) {
 }
 
 /** The link that starts `id` from the `tab` shelf ('games', 'demos' or 'tunes') for whoever opens it. */
-export const shareUrl = (tab, id) => `${location.origin}${location.pathname}#${tab}/${encodeURIComponent(id)}/play`;
+// (a Studio game's id is already link words and base64url: #play/<Title>/<data>, cart.js)
+const shareUrl = (tab, id) => `${location.origin}${location.pathname}#${tab === 'play' ? `play/${id}` : `${tab}/${encodeURIComponent(id)}/play`}`;
 
 /** Share the link to `id`: a phone's share sheet (Messages, WhatsApp...), or
  *  elsewhere the clipboard, saying so. */
@@ -61,17 +71,7 @@ export async function share(tab, id, title) {
   toast(`🔗 Link to ${title} copied: paste it to a friend.`);
 }
 
-export const shareButton = (tab, item) =>
-  h('button.key.pill.share', { onclick: () => share(tab, item.id, item.title), title: 'Share a link that starts it' }, '🔗 Share');
-
 export const closeButton = (dlg) => h('button.key.icon.small.close', { onclick: () => dlg.close(), 'aria-label': 'Close' }, '✕');
-
-/** A definition list filled with add(label, value); empty values are skipped. */
-export function facts() {
-  const el = h('dl.facts');
-  el.add = (k, v) => v && el.append(h('dt', {}, k), h('dd', {}, v));
-  return el;
-}
 
 /** Cover art that fades in, falls back down a list of URLs, then to text. */
 export function art(urls, label, { boxart = false, badge, tag, wip } = {}) {
@@ -101,23 +101,6 @@ export function footer() {
     h('img', { src: '../images/breadbin.svg', alt: '', width: 20, height: 20 }),
     h('span', {}, 'breadbin bakes on free software: the MEGA65 Open ROMs, Pascual DOS, vc64web and the scene\'s own archives. '),
     h('button.linkish', { onclick: () => document.querySelector('#open-settings')?.click() }, 'Credits'));
-}
-
-/** What a playtest failure (tools/playtest's reason) means for a visitor. */
-const WIP_WORDS = [
-  [/joystick moved nothing/, 'it starts, but the playtest couldn\'t yet show the joystick moving the player'],
-  [/CPU jammed/, 'it crashed in the playtest'],
-  [/stayed at BASIC|blank screen/, 'it didn\'t start in the playtest'],
-  [/picture never changed/, 'its picture stood still in the playtest'],
-  [/no sound/, 'no sound came out in the playtest'],
-  [/ERROR|BRK AT/, 'it stopped with an error in the playtest'],
-];
-
-/** For a title that failed its playtest (`item.wip` is why): it may not start or play right. */
-export function wipNote(item) {
-  if (!item.wip) return null;
-  const why = WIP_WORDS.find(([re]) => re.test(item.wip))?.[1] || `the playtest said: ${item.wip.trim()}`;
-  return h('p.needs.wip-note', { title: item.wip.trim() }, h('b', {}, '🚧 Work in progress. '), `Breadbin is still working on this one: ${why}. It may not start or play right.`);
 }
 
 /**

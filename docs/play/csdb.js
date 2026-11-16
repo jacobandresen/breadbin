@@ -13,8 +13,6 @@ const JINA = 'https://r.jina.ai/';
 const GAP_MS = 3200; // keeps the free relay under its rate limit
 const MONTH = 30 * 24 * 3600e3;
 
-export const releaseUrl = (id) => `${SITE}/release/?id=${id}`;
-
 let direct = null;
 const canFetchDirect = () =>
   (direct ??= fetch(`${SITE}/webservice/?type=release&id=72550&depth=1`).then((r) => r.ok, () => false));

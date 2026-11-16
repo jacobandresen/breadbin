@@ -2,10 +2,10 @@
 // images, the visualisers and, in other contexts, the SID player and virtual
 // drive. This wraps its C ABI for the page.
 
-export const WASM_URL = new URL('./breadbin.wasm', import.meta.url);
+const WASM_URL = new URL('./breadbin.wasm', import.meta.url);
 
 // The drive's host functions only exist inside the emulator frame.
-export const NO_HOST = { env: { host_peek: () => 0, host_poke() {}, host_event() {} } };
+const NO_HOST = { env: { host_peek: () => 0, host_poke() {}, host_event() {} } };
 
 let wasm = null;
 let bytes = null;
@@ -81,7 +81,7 @@ export async function patchedKernal(fetchBytes, drive = false) {
     return null;
   }
 }
-export const OPEN_KERNAL = 'https://mega65.github.io/open-roms/bin/kernal_generic.rom';
+const OPEN_KERNAL = 'https://mega65.github.io/open-roms/bin/kernal_generic.rom';
 
 /** The MEGA65 Open ROMs BASIC with breadbin's patch (rom.rs: a working $A659,
  *  which Exomizer's self-extractors call to RUN what they unpacked), or null if
@@ -98,7 +98,7 @@ export async function patchedBasic(fetchBytes) {
     return null;
   }
 }
-export const OPEN_BASIC = 'https://mega65.github.io/open-roms/bin/basic_generic.rom';
+const OPEN_BASIC = 'https://mega65.github.io/open-roms/bin/basic_generic.rom';
 
 /** The file to boot among `names` (`start` is the archive's own choice). */
 export async function pick(names, start = '') {

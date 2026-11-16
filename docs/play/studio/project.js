@@ -10,7 +10,7 @@
 // In memory a project is { meta, files }: `files` maps paths to text (or
 // bytes for binary files), `meta` is project.json parsed.
 
-export const TEXT = /\.(c|h|s|asm|a|inc|json|md|txt|cfg|mk|bas)$|(^|\/)(Makefile|README|LICENSE|\.gitignore)$/i;
+const TEXT = /\.(c|h|s|asm|a|inc|json|md|txt|cfg|mk|bas)$|(^|\/)(Makefile|README|LICENSE|\.gitignore)$/i;
 export const isText = (path) => TEXT.test(path);
 /**
  * What the Studio neither shows nor reads back from disk: folders of tools and

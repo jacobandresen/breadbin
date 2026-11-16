@@ -1,5 +1,6 @@
 // help - the cheat sheet (F1 or ?): the runtime's API from bb.h, grouped as
-// the header groups it, with what each call does, all on one page.
+// the header groups it, with what each call does, all on one page. A call
+// tapped (`onPick`) goes into the code: on a phone, less to type.
 
 import { h } from '../ui.js';
 
@@ -19,7 +20,7 @@ const GROUPS = [
 
 const code = (doc) => doc.split('`').map((part, i) => (i % 2 ? h('code', {}, part) : part));
 
-export function helpSheet(api) {
+export function helpSheet(api, onPick) {
   const dlg = h('dialog.sheet.studio-help');
   const close = () => dlg.close();
   const sections = GROUPS.map(([title, re]) => {
@@ -36,7 +37,7 @@ export function helpSheet(api) {
       else runs.push([e]);
     }
     return h('section.studio-help-group', {}, h('h3', {}, title), ...runs.map((run) => h('div.studio-help-item', {},
-      h('div.studio-help-sigs', {}, ...run.map((e) => h('code.studio-help-sig', {}, e.signature.replace(/^(const |volatile )/, '')))),
+      h('div.studio-help-sigs', {}, ...run.map((e) => h('button.studio-help-sig', { onclick: () => (close(), onPick?.(e)), title: `Put ${e.name} into the code` }, e.signature.replace(/^(const |volatile )/, '')))),
       run[0].doc ? h('p', {}, ...code(run[0].doc)) : null)));
   });
   dlg.append(
@@ -45,8 +46,9 @@ export function helpSheet(api) {
       'The names your assets get (SPR_, TILE_, FLAG_, ROOM_, SONG_, SFX_) are in gen/assets.h, and the editor completes them.'),
     h('div.studio-help-grid', {}, ...sections),
     h('p.studio-small', {}, 'Keys: Ctrl+Enter build and run · Ctrl+S save · Alt+1…5 the modes · F12 or Ctrl+click go to a definition · Ctrl+F find · Ctrl+Space complete · Ctrl+/ comment'),
-    h('p.studio-small', {}, 'Debugging: click the margin left of a line number (or F9) for a breakpoint · F6 pause or run on · F10 step over · F11 step into · Shift+F11 step out. The game stops at the line, shown in yellow, with the CPU\'s registers under the C64; the Variables panel shows the globals as they are there.'),
+    h('p.studio-small', {}, 'Debugging: click the margin left of a line number (or F9) for a breakpoint · F6 pause or run on · F10 step over · F11 step into · Shift+F11 step out · Shift+F6 (or the 1× button) slow motion, half or quarter speed · Shift+F8 (◉) marks a moment, F8 (↺) goes back to it with the Tuning settings as they are now, Alt+F8 (▷) replays what you did from it · Keep my place: a Run plays what you did again with the new code, at warp speed · ▢ over the C64: hitboxes · 🔧 Tools: a monitor and a cheat finder. The game stops at the line, shown in yellow, with the CPU\'s registers under the C64; the values beside the code are as they are there.'),
+    h('p.studio-small', {}, 'Tuning: while the game runs, the code shows its variables. Drag a value sideways (Shift: ×10) or click it and type, to change it in the game; on its declaration (int speed = 3;) the number goes into the code too. Click a name to graph it. The Tuning sliders under the C64 are the globals declared with a number that the code never changes: make a #define a variable to tune it.'),
+    h('p.studio-small', {}, 'Share: ⇪ Share makes a link, a web page that plays offline (in any browser), or a .prg.'),
   );
-  dlg.addEventListener('click', (e) => e.target === dlg && close());
   return dlg;
 }

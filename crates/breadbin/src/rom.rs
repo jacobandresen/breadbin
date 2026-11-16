@@ -348,7 +348,7 @@ mod tests {
     fn open_roms() -> Vec<u8> {
         let mut k = vec![0u8; 0x2000];
         at(&mut k, 0xe521, MOVED.len()).copy_from_slice(&MOVED);
-        for (a, b, _) in FIXES.into_iter().filter(|&(a, ..)| a < FREE || a >= FREE + 35) {
+        for (a, b, _) in FIXES.into_iter().filter(|&(a, ..)| !(FREE..FREE + 35).contains(&a)) {
             at(&mut k, a, 1)[0] = b;
         }
         at(&mut k, DOLPHIN.0, 1)[0] = DOLPHIN.1;

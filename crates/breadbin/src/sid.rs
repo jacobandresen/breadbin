@@ -15,12 +15,12 @@ use resid::{ChipModel, Sid};
 pub use resid::SamplingMethod;
 
 /// PAL system clock and video timing.
-const PAL_CLOCK: u32 = 985_248;
-const LINE_CYCLES: u32 = 63;
-const FRAME_LINES: u32 = 312;
+pub(crate) const PAL_CLOCK: u32 = 985_248;
+pub(crate) const LINE_CYCLES: u32 = 63;
+pub(crate) const FRAME_LINES: u32 = 312;
 const FRAME_CYCLES: u32 = LINE_CYCLES * FRAME_LINES;
 /// The KERNAL's default CIA 1 timer: ~60Hz.
-const KERNAL_TIMER: u16 = 0x4025;
+pub(crate) const KERNAL_TIMER: u16 = 0x4025;
 /// SID registers shadowed for the visualiser.
 pub const NUM_REGS: usize = 0x20;
 /// Return address that marks "the routine finished": the CPU idles at $0000.
@@ -110,26 +110,26 @@ pub fn parse(data: &[u8]) -> Result<SidFile, String> {
 // ── the machine ─────────────────────────────────────────────────────────────
 
 #[derive(Default)]
-struct Cia {
-    counter: [u16; 2],
-    latch: [u16; 2],
-    control: [u8; 2],
-    mask: u8,
-    status: u8,
+pub(crate) struct Cia {
+    pub(crate) counter: [u16; 2],
+    pub(crate) latch: [u16; 2],
+    pub(crate) control: [u8; 2],
+    pub(crate) mask: u8,
+    pub(crate) status: u8,
     /// Last values written, read back from the registers not modelled (the
     /// serial data register doubles as a place to keep an RTI, for one).
-    written: [u8; 16],
+    pub(crate) written: [u8; 16],
     /// Cycle within the last `tick` at which the interrupt line went active.
-    asserted_at: Option<u32>,
+    pub(crate) asserted_at: Option<u32>,
 }
 
 impl Cia {
     /// Timer `t` is started and counting clock cycles (timer B can count other things).
-    fn counting(&self, t: usize) -> bool {
+    pub(crate) fn counting(&self, t: usize) -> bool {
         self.control[t] & 1 != 0 && !(t == 1 && self.control[1] & 0x60 != 0)
     }
 
-    fn tick(&mut self, cycles: u32) {
+    pub(crate) fn tick(&mut self, cycles: u32) {
         let was = self.interrupting();
         self.asserted_at = None;
         for t in 0..2 {
@@ -159,12 +159,12 @@ impl Cia {
         }
     }
 
-    fn interrupting(&self) -> bool {
+    pub(crate) fn interrupting(&self) -> bool {
         self.status & self.mask & 0x1f != 0
     }
 
     /// Timer `t` as it will read `ahead` cycles from now.
-    fn counter_in(&self, t: usize, ahead: u32) -> u16 {
+    pub(crate) fn counter_in(&self, t: usize, ahead: u32) -> u16 {
         let (c, latch) = (self.counter[t] as u32, self.latch[t] as u32);
         if !self.counting(t) {
             self.counter[t]
@@ -176,7 +176,7 @@ impl Cia {
     }
 
     /// `ahead`: cycles into the current instruction this read happens.
-    fn read(&mut self, reg: u16, ahead: u32) -> u8 {
+    pub(crate) fn read(&mut self, reg: u16, ahead: u32) -> u8 {
         match reg & 0x0f {
             0x00 | 0x01 => 0xff, // no keys pressed, no joystick
             0x04 => self.counter_in(0, ahead) as u8,
@@ -194,7 +194,7 @@ impl Cia {
         }
     }
 
-    fn write(&mut self, reg: u16, v: u8) {
+    pub(crate) fn write(&mut self, reg: u16, v: u8) {
         self.written[(reg & 0x0f) as usize] = v;
         let set_latch = |latch: &mut u16, hi: bool| *latch = if hi { (*latch & 0xff) | (v as u16) << 8 } else { (*latch & 0xff00) | v as u16 };
         match reg & 0x0f {

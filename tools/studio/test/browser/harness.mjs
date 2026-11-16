@@ -57,7 +57,7 @@ export async function launch() {
  * on the page are collected in `page.errors`. With `folder`, the folder
  * picker returns an OPFS directory instead of asking.
  */
-export async function openStudio(browser, base, { folder = true, width = 1500, height = 920 } = {}) {
+export async function openStudio(browser, base, { folder = true, width = 1500, height = 920, keepPlace = false } = {}) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
   page.errors = [];
@@ -68,6 +68,9 @@ export async function openStudio(browser, base, { folder = true, width = 1500, h
     await page.setRequestInterception(true);
     page.on('request', (r) => (/\/blip-deck@[^/]+\/dist\/blip-deck\.js$/.test(r.url()) ? r.respond({ status: 200, contentType: 'text/javascript', body: deck }) : r.continue()));
   }
+  // Keep my place (a Run plays the last run's joystick again) off, but in the tests that are about it:
+  // the others expect a Run to start the game from its beginning
+  await page.evaluateOnNewDocument((on) => localStorage.setItem('breadbin.studio.keepPlace', JSON.stringify(on)), keepPlace);
   if (folder) {
     await page.evaluateOnNewDocument(() => {
       window.showDirectoryPicker = async () => {
@@ -170,6 +173,18 @@ export async function c64(page, where = '.studio-stage') {
     },
   };
   return api;
+}
+
+/**
+ * The Studio's Share link for the built game (Share, then its first card,
+ * "A link"; the clipboard caught), pointing at `base` (the test server).
+ */
+export async function sharedLink(page, base) {
+  await page.evaluate(() => (navigator.clipboard.writeText = async (t) => (window.__copied = t)));
+  await page.click('.studio-share');
+  await (await page.waitForSelector('.studio-export[open] .studio-card')).click();
+  const link = await page.waitForFunction(() => window.__copied, { timeout: 20000 }).then((h) => h.jsonValue());
+  return link.replace(/^https?:\/\/[^/]+/, new URL(base).origin);
 }
 
 /** Type into the code editor, replacing its whole text. */

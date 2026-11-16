@@ -5,8 +5,8 @@
 
 import * as ia from './ia.js';
 import { verified, search } from './catalogue.js';
-import { initGames, showGame, gameCard, coversReady } from './games.js';
-import { initDemos, showDemo, demoCard } from './demos.js';
+import { initGames, gameCard, coversReady } from './games.js';
+import { initDemos, demoCard } from './demos.js';
 import { initTunes, filterTunes, playTune } from './tunes.js';
 import { launch } from './emulator.js';
 import { initHack } from './hack.js';
@@ -27,9 +27,11 @@ function route() {
   // everything after the tab is the id, which may hold a "/" of its own; a
   // trailing "/play" (a shared link, see ui.js share) starts it as well
   const [tab, ...rest] = (location.hash.slice(1) || 'games').split('/');
-  const play = rest.length > 1 && rest.at(-1) === 'play';
-  if (play) rest.pop();
+  // a game made in the Studio, inside the link: #play/<Title>/<data> (cart.js)
+  if (tab === 'play') return openCart(rest.join('/'));
+  if (rest.length > 1 && rest.at(-1) === 'play') rest.pop(); // (the old form of a link: an item's link starts it anyway)
   const item = rest.join('/');
+  if (tab === 'games' && isCart(decodeURIComponent(item))) return openCart(decodeURIComponent(item)); // the old form, #games/prg:<data>/play
   current = tab in views ? tab : 'games';
   for (const v of Object.keys(views)) $(`#${v}`).hidden = v !== current;
   for (const a of document.querySelectorAll('.tab')) a.setAttribute('aria-selected', String(a.dataset.tab === current));
@@ -38,21 +40,31 @@ function route() {
   $('#search').closest('label').style.visibility = current === 'hack' ? 'hidden' : '';
   $('#search').value = terms[current] || '';
   if (!started.has(current)) started.set(current, Promise.resolve(views[current]()).then(boot, boot));
-  if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item), play);
+  if (item && (current === 'games' || current === 'demos')) openItem(current, decodeURIComponent(item));
   if (item && current === 'tunes') started.get('tunes').then(() => playTune(decodeURIComponent(item)));
 }
 
-/** Deep link (#games/<id>, #demos/<id>): its card, or with `play` the game or
- *  demo itself. Ids not on the verified list open too, which is how the
+/** Deep link (#games/<id>, #demos/<id>, with or without the old /play): the game
+ *  or demo starts. Ids not on the verified list open too, which is how the
  *  playtests reach new titles. */
-async function openItem(tab, id, play) {
+async function openItem(tab, id) {
   const item = await findItem(tab, id);
   if (!item) return;
-  // a shared Studio game has no card to show: it starts
-  if (!play && !item.bytes) return tab === 'games' ? showGame(item) : showDemo(item);
   // the shelf's address, so closing the player leaves the shelf, not a link that starts it again
   history.replaceState(null, '', `#${tab}`);
   launch(tab === 'games' ? 'game' : 'demo', item);
+}
+
+/** A Studio game from its link (#play/<Title>/<data>): it starts, over the games shelf. */
+async function openCart(id) {
+  history.replaceState(null, '', '#games');
+  route();
+  try {
+    const { title, prg } = await unpackCart(id);
+    launch('game', { id, title: title || 'A Studio game', bytes: prg, name: `${(title || 'game').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.prg`, cart: true });
+  } catch (e) {
+    toast(`Couldn't open the game in this link: ${e.message}`);
+  }
 }
 
 async function findItem(tab, id) {
@@ -69,11 +81,6 @@ async function findItem(tab, id) {
     // the query overrides a listed game's file, parts and patches, so playtests can try others
     const known = listed && { ...listed, ...(boot && { boot }), ...extras };
     if (known) return known;
-    // a program shared from the Studio, inside the link itself (cart.js)
-    if (isCart(id)) {
-      const { title, prg } = await unpackCart(id);
-      return { id, title: title || 'A Studio game', bytes: prg, name: `${(title || 'game').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.prg` };
-    }
     if (id.startsWith('gb64:')) {
       await coversReady;
       const gb = id.slice(5);
@@ -89,7 +96,6 @@ async function findItem(tab, id) {
   }
 }
 
-$('#detail').addEventListener('close', () => history.replaceState(history.state, '', `#${current}`)); // keeps the player's step
 
 // ── search ───────────────────────────────────────────────────────────────────
 

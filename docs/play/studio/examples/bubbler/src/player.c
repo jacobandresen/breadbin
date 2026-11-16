@@ -54,7 +54,7 @@ void player_update(void) {
     ++step;
   }
   if (bb_btnp(BB_UP) && ground) {
-    bvy_ = JUMP;
+    bvy_ = jump;
     bb_sfx(SFX_JUMP);
   }
   body_fall();

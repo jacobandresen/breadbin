@@ -55,6 +55,12 @@ if (!window.bbdbg) window.bbdbg = (() => {
     const [sr, a, x, y, sp] = m.slice(1).map((v) => parseInt(v, 16));
     return { a, x, y, sp, sr };
   };
+  // The registers as they are (the CPU stopped): RetroShell's "r" prints them as a breakpoint stop does.
+  const shown = () => {
+    type('clear');
+    type('r');
+    return dumped();
+  };
   // Make RetroShell's breakpoints exactly 'want'.
   const breakpoints = (want) => {
     enter();
@@ -138,6 +144,22 @@ if (!window.bbdbg) window.bbdbg = (() => {
       wasm_halt();
       await sleep(60);
       stop = { pc: pc(), regs: { a: null, x: null, y: null, sp: null, sr: null } };
+      return stop;
+    },
+    /** One instruction, the CPU stopped (the game tools' monitor): the stop after it, registers and all. */
+    async step() {
+      if (!stop) return null;
+      await step1();
+      stop = { pc: stop.pc, regs: shown() || stop.regs };
+      return stop;
+    },
+    /** Stop the CPU now, wherever it is (the game tools' Pause): { pc, regs }. */
+    async halt() {
+      enter();
+      if (stop) return stop;
+      wasm_halt();
+      await sleep(60);
+      stop = { pc: pc(), regs: shown() || { a: null, x: null, y: null, sp: null, sr: null } };
       return stop;
     },
     /** Let go: no breakpoints, the CPU running, RetroShell out of its debugger. */

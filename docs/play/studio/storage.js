@@ -23,10 +23,13 @@ export const canUseFolders = () => typeof globalThis.showDirectoryPicker === 'fu
 let dbp = null;
 function db() {
   dbp ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
+    // version 2 adds 'history': each project's saved versions (projectHistory)
+    const req = indexedDB.open(DB, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore('projects');
-      req.result.createObjectStore('folders');
+      const have = req.result.objectStoreNames;
+      if (!have.contains('projects')) req.result.createObjectStore('projects');
+      if (!have.contains('folders')) req.result.createObjectStore('folders');
+      if (!have.contains('history')) req.result.createObjectStore('history');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -76,6 +79,37 @@ export class BrowserStore {
   }
 }
 
+// ── history: a project's versions, one kept at each Run that changed something ──
+
+const MAX_VERSIONS = 40;
+
+/** Project `key`'s saved versions, newest first: [{ at, label, files }]. */
+export async function projectHistory(key) {
+  return ((await tx('history', 'readonly', (s) => s.get(key))) || []).slice().reverse();
+}
+
+/**
+ * Keep `files` as a version of project `key` (with `label`, say "Run"),
+ * unless they are the same as the last one kept. The oldest go past 40.
+ * Resolves to whether one was kept.
+ */
+export async function keepVersion(key, files, label) {
+  const list = (await tx('history', 'readonly', (s) => s.get(key))) || [];
+  const last = list[list.length - 1];
+  const same = last && Object.keys(files).length === Object.keys(last.files).length && Object.entries(files).every(([p, d]) => sameData(last.files[p], d));
+  if (same) return false;
+  list.push({ at: Date.now(), label, files: { ...files } });
+  await tx('history', 'readwrite', (s) => s.put(list.slice(-MAX_VERSIONS), key));
+  return true;
+}
+
+const sameData = (a, b) => {
+  if (typeof a === 'string' || typeof b === 'string') return a === b;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+};
+
 /** The ids of the projects kept in this browser. */
 export const browserProjects = () => tx('projects', 'readonly', (s) => s.getAllKeys());
 
@@ -101,31 +135,34 @@ export class FolderStore {
     return (await this.handle.requestPermission?.(opts)) === 'granted';
   }
 
-  /** Every file in the folder (path -> text/bytes), skipping .git and build folders. */
-  async read() {
-    const files = {};
-    const walk = async (dir, prefix) => {
+  /** The folder's files as [path, File], skipping .git and build folders (and gen/, with `noGen`). */
+  async *files(noGen = false) {
+    async function* walk(dir, prefix) {
       for await (const [name, h] of dir.entries()) {
         const path = prefix + name;
-        if (SKIP.test(path)) continue;
-        if (h.kind === 'directory') await walk(h, `${path}/`);
-        else {
-          const f = await h.getFile();
-          this.stamps.set(path, f.lastModified);
-          const bytes = new Uint8Array(await f.arrayBuffer());
-          files[path] = bytes;
-        }
+        if (SKIP.test(path) || (noGen && path.startsWith('gen/'))) continue;
+        if (h.kind === 'directory') yield* walk(h, `${path}/`);
+        else yield [path, await h.getFile()];
       }
-    };
-    await walk(this.handle, '');
+    }
+    yield* walk(this.handle, '');
+  }
+
+  /** Every file in the folder (path -> text/bytes). */
+  async read() {
+    const files = {};
+    for await (const [path, f] of this.files()) {
+      this.stamps.set(path, f.lastModified);
+      files[path] = new Uint8Array(await f.arrayBuffer());
+    }
     return normalise(files);
   }
 
-  async fileHandle(path, create) {
-    const parts = path.split('/');
+  /** The folder `path` is in (made, with `create`). */
+  async dirOf(path, create = false) {
     let dir = this.handle;
-    for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create });
-    return dir.getFileHandle(parts.at(-1), { create });
+    for (const p of path.split('/').slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create });
+    return dir;
   }
 
   /** Write `changed` (path -> text/bytes; null deletes) to the disk. */
@@ -135,7 +172,7 @@ export class FolderStore {
         await this.delete(path);
         continue;
       }
-      const h = await this.fileHandle(path, true);
+      const h = await (await this.dirOf(path, true)).getFileHandle(path.split('/').at(-1), { create: true });
       const w = await h.createWritable();
       await w.write(typeof data === 'string' ? enc.encode(data) : data);
       await w.close();
@@ -144,11 +181,8 @@ export class FolderStore {
   }
 
   async delete(path) {
-    const parts = path.split('/');
-    let dir = this.handle;
     try {
-      for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
-      await dir.removeEntry(parts.at(-1));
+      await (await this.dirOf(path)).removeEntry(path.split('/').at(-1));
     } catch {}
     this.stamps.delete(path);
   }
@@ -160,23 +194,13 @@ export class FolderStore {
   async changes() {
     const now = new Map();
     const changed = {};
-    const walk = async (dir, prefix) => {
-      for await (const [name, h] of dir.entries()) {
-        const path = prefix + name;
-        if (SKIP.test(path) || /^gen\//.test(path)) continue;
-        if (h.kind === 'directory') await walk(h, `${path}/`);
-        else {
-          const f = await h.getFile();
-          now.set(path, f.lastModified);
-          if (this.stamps.get(path) !== f.lastModified) {
-            const bytes = new Uint8Array(await f.arrayBuffer());
-            changed[path] = isText(path) ? new TextDecoder().decode(bytes) : bytes;
-          }
-        }
-      }
-    };
-    await walk(this.handle, '');
-    for (const p of this.stamps.keys()) if (!now.has(p) && !/^gen\//.test(p)) changed[p] = null;
+    for await (const [path, f] of this.files(true)) {
+      now.set(path, f.lastModified);
+      if (this.stamps.get(path) === f.lastModified) continue;
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      changed[path] = isText(path) ? new TextDecoder().decode(bytes) : bytes;
+    }
+    for (const p of this.stamps.keys()) if (!now.has(p) && !p.startsWith('gen/')) changed[p] = null;
     for (const [p, t] of now) this.stamps.set(p, t);
     for (const [p, d] of Object.entries(changed)) if (d === null) this.stamps.delete(p);
     return changed;

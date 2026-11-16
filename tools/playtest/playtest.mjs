@@ -546,8 +546,6 @@ async function playtest(browser, kind, item) {
     const query = new URLSearchParams(Object.entries({ run: item.run, boot: item.boot, parts: item.parts?.join(','), patches: item.patches?.join(','), rom1541: item.rom1541 }).filter(([, v]) => v));
     const run = query.size ? `?${query}` : '';
     await page.goto(`${BASE}${run}#${kind}/${encodeURIComponent(item.id)}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#detail[open] .primary', { timeout: 45000 });
-    await page.click('#detail[open] .primary');
     await page.waitForFunction(
       () => /running|loaded|warp/.test(document.querySelector('#emu-status')?.textContent || '') || document.querySelector('.emu-error'),
       { timeout: 120000 },

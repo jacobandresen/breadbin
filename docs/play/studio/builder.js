@@ -5,6 +5,7 @@
 import { generate } from './codegen.js';
 import { meta, hasAssets } from './project.js';
 import { parseAcme } from './acme-diag.js';
+import { parseSymbols, parseReport, acmeDebug, asmVars } from './asmdebug.js';
 
 let worker = null;
 let next = 1;
@@ -88,7 +89,8 @@ async function acme(files, entry) {
   }
   a.FS.chdir('/src');
   try {
-    a.callMain(['-f', 'cbm', '-o', '/out.prg', entry]);
+    // -l, -r: the labels and the listing, for the debugger and the live values (asmdebug.js)
+    a.callMain(['-f', 'cbm', '-o', '/out.prg', '-l', '/labels.txt', '-r', '/report.txt', entry]);
   } catch {}
   let prg = null;
   try {
@@ -98,5 +100,15 @@ async function acme(files, entry) {
   const diagnostics = parseAcme(text);
   const ok = !!prg && !diagnostics.some((d) => d.severity === 'error');
   const memory = prg ? { segments: [], used: prg.length - 2, total: 0xffff - 0x0801, free: 0 } : null;
-  return { ok, prg: ok ? prg : null, diagnostics, log: text, memory, ms: Date.now() - t0, generated: {} };
+  const read = (p) => {
+    try {
+      return new TextDecoder('latin1').decode(a.FS.readFile(p));
+    } catch {
+      return '';
+    }
+  };
+  const labels = parseSymbols(read('/labels.txt'));
+  const report = parseReport(read('/report.txt'));
+  const debug = ok ? acmeDebug(report, labels) : '';
+  return { ok, prg: ok ? prg : null, diagnostics, log: text, memory, ms: Date.now() - t0, generated: {}, labels, debug, vars: ok ? asmVars(report, labels) : [] };
 }

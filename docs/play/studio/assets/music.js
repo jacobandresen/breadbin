@@ -27,7 +27,7 @@
 // Patterns double as sound effects: bb_sfx(SFX_JUMP) plays a pattern on the
 // third voice.
 
-export const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
+const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 export const WAVES = { tri: 0x10, saw: 0x20, pulse: 0x40, noise: 0x80, 'tri+saw': 0x30, 'tri+pulse': 0x50, 'saw+pulse': 0x60 };
 export const EFFECTS = { '.': 0, U: 1, D: 2, V: 3, C: 4 };
 export const MAX_STEPS = 64;

@@ -82,7 +82,7 @@ static void walk(unsigned char i) {
     if (body_blocked(dx) || (body_edge(dx) && (bb_rnd() & 3))) edx[i] = -edx[i];
     else bx_ += dx;
     /* the player is above: jump after them now and then */
-    if (py_px + 16 < byp_ && bb_rnd() < 6) bvy_ = JUMP;
+    if (py_px + 16 < byp_ && bb_rnd() < 6) bvy_ = jump;
   } else if (!body_blocked(dx)) bx_ += dx;
   fall2();
   put(i);
@@ -95,7 +95,7 @@ static void hop(unsigned char i) {
     if (++etime[i] > (eangry[i] ? 15u : 35u)) {
       etime[i] = bb_rnd() & 7;
       edx[i] = px < bx_ ? -1 : 1;
-      bvy_ = py_px < byp_ ? JUMP : JUMP / 2;
+      bvy_ = py_px < byp_ ? jump : jump / 2;
     }
   } else if (!body_blocked(edx[i] << 1)) bx_ += edx[i] << 1;
   fall2();

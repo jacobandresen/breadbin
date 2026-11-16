@@ -18,7 +18,7 @@ import { roomTiles, rle } from './assets/map.js';
 import { musicSource } from './assets/music.js';
 import { resourceText } from './resource.js';
 
-export const RUNTIME = ['bb.h', 'bb.c', 'bbfast.s', 'bbirq.s', 'bbsound.s'];
+const RUNTIME = ['bb.h', 'bb.c', 'bbfast.s', 'bbirq.s', 'bbsound.s'];
 /** The pixel code: in gen/ for a project that draws pixels, else empty stand-ins (see generate). */
 export const PIXELS = ['bbpixel.c', 'bbdraw.s'];
 const PIXEL_CALLS = /\bbb_(bitmap|textmode|plot|pget|line|rect|fill|circle|disc|ink|btext|blit|grab|pen)\b/;
@@ -113,9 +113,29 @@ export function generateAssets({ sprites, tiles, map, music }) {
   return out;
 }
 
+/**
+ * The bytes the running game holds for the sprites and tiles, as a build
+ * writes them (gen/assets.c): for the Studio's live editing, which writes a
+ * change in the SPRITES or TILES editor straight into the running game.
+ */
+export function assetBytes({ sprites, tiles }) {
+  const imgs = images(sprites);
+  const spriteData = new Uint8Array(Math.max(1, imgs.length) * 64);
+  imgs.forEach((s, i) => spriteData.set(encodeSprite(s), i * 64));
+  return {
+    count: imgs.length,
+    spriteData,
+    spriteColor: imgs.map((s) => s.color & 15),
+    spriteMulti: imgs.map((s) => (s.multi ? 1 : 0)),
+    mc: [sprites.mc1 & 15, sprites.mc2 & 15],
+    charset: encodeCharset(tiles),
+    tileColor: tileColors(tiles),
+  };
+}
+
 let runtime = null;
 /** The runtime library's files, as gen/<name>. */
-export async function runtimeFiles(pixels = true) {
+async function runtimeFiles(pixels = true) {
   runtime ??= Promise.all([...RUNTIME, ...PIXELS].map(async (f) => [`gen/${f}`, await resourceText(`runtime/${f}`)])).then(Object.fromEntries);
   const all = await runtime;
   if (pixels) return all;
@@ -129,7 +149,7 @@ export async function runtimeFiles(pixels = true) {
 }
 
 /** Parse a project's asset files (path -> text); a missing or broken one is reported by name. */
-export function readAssets(files) {
+function readAssets(files) {
   const out = {};
   for (const path of ASSET_FILES) {
     const key = path.replace(/^assets\/|\.json$/g, '');

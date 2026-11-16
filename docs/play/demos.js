@@ -2,18 +2,16 @@
 // by rating, by decade and by group.
 
 import * as ia from './ia.js';
-import * as csdb from './csdb.js';
 import { verified, recent } from './catalogue.js';
 import { launch } from './emulator.js';
-import { $, h, art, shelf, facts, closeButton, wipNote, footer, shareButton } from './ui.js';
-
+import { $, h, art, shelf, footer } from './ui.js';
 
 // its most telling capture (tools/playtest picks the biggest), else the sixth: the first are the loading
-const cover = (d, size = '_thumb') => [ia.fileUrl(d.id, `${d.shot || 'screenshot_06'}${size}.jpg`), ia.thumb(d.id)];
+const cover = (d) => [ia.fileUrl(d.id, `${d.shot || 'screenshot_06'}_thumb.jpg`), ia.thumb(d.id)];
 const groupsOf = (d) => (d.group || '').split(/,\s*/).filter(Boolean);
 
 export function demoCard(d) {
-  return h('button.card', { onclick: () => showDemo(d), title: d.title },
+  return h('button.card', { onclick: () => launch('demo', d), title: d.title },
     art(cover(d), d.title, { badge: d.rating ? `${d.rating.toFixed(1)}★` : null, wip: d.wip, tag: d.rom1541 ? '💾 trackmo' : null }),
     h('div.card-title', {}, d.title),
     h('div.card-sub', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')));
@@ -40,55 +38,4 @@ export async function initDemos() {
   }
   shelf(shelves, 'Work in progress', all.filter((d) => d.wip), demoCard, opts);
   shelves.after(footer());
-}
-
-export async function showDemo(d) {
-  history.replaceState(null, '', `#demos/${encodeURIComponent(d.id)}`); // shareable
-  const dlg = $('#detail');
-  const info = facts();
-  const shots = h('div.shots');
-  let hero = art(cover(d, ''), d.title);
-  dlg.replaceChildren(closeButton(dlg), h('div.sheet-body', {},
-    h('div.sheet-art.wide', {}, hero),
-    h('div', {},
-      h('h2', {}, d.title),
-      h('p.by', {}, [d.group, d.year || ''].filter(Boolean).join(' · ')),
-      info,
-      h('div.actions', {}, h('button.key.pill.primary', { onclick: () => launch('demo', d) }, '▶ Run'), shareButton('demos', d)),
-      wipNote(d),
-      d.rom1541 && h('p.needs', {}, h('b', {}, '💾 Trackmo. '),
-        'It loads with its own code on the disk drive, so it runs on an emulated 1541 with breadbin\'s free DOS, at real-drive speed.',
-        d.parts?.length > 1 ? ' When it asks for the next side, press the Disk button.' : ''),
-      h('div.links', {},
-        h('a', { href: ia.itemUrl(d.id), target: '_blank', rel: 'noopener' }, 'Internet Archive ↗'),
-        d.csdb && h('a', { href: csdb.releaseUrl(d.csdb), target: '_blank', rel: 'noopener' }, 'CSDb ↗')),
-      shots)));
-  dlg.showModal();
-  info.add('CSDb rating', d.rating ? `${d.rating.toFixed(2)} ★` : '');
-  info.add('Party', d.party);
-  try {
-    const meta = await ia.metadata(d.id);
-    // the archive's first captures are usually the C64 loading the demo, and
-    // a still picture yields the same capture over and over (same file size)
-    const all = (meta.files || []).filter((f) => /^screenshot_\d+\.jpg$/.test(f.name));
-    const sizes = new Set();
-    const pics = all
-      .slice(all.length > 8 ? 3 : 0)
-      .filter((f) => !sizes.has(f.size) && sizes.add(f.size))
-      .map((f) => f.name)
-      .slice(0, 12);
-    // the capture with the most detail (the biggest JPEG), not a black loader screen
-    const best = [...all].sort((a, b) => b.size - a.size)[0];
-    if (best) hero.replaceWith((hero = art([ia.fileUrl(d.id, best.name)], d.title)));
-    for (const p of pics) {
-      shots.append(h('img', { src: ia.fileUrl(d.id, p.replace('.jpg', '_thumb.jpg')), alt: '', loading: 'lazy', onclick: () => hero.replaceWith((hero = art([ia.fileUrl(d.id, p)], d.title))) }));
-    }
-  } catch {}
-  if (d.csdb) {
-    try {
-      const r = await csdb.release(d.csdb);
-      if (r.compo?.place) info.add('Compo', `#${r.compo.place} in ${r.compo.name}`);
-      info.add('Where', r.eventPlace);
-    } catch {}
-  }
 }

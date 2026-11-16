@@ -1,0 +1,386 @@
+/* themes/geos.css - "GEOS": breadbin dressed as a 1986 C64 desktop.
+   GEOS is the reference: a grey dither for the desk, a menu bar of lowercase
+   words between dotted rules with a clock at the right, windows whose title
+   sits in a box cut out of a striped bar, dialog boxes that cast a hard
+   shadow, a choice shown by inverting it, one bitmap typeface for everything,
+   and colour only in the icons and the blue arrow of the pointer.
+
+   On with <html data-theme="geos"> (themes/themes.js). The tokens below
+   recolour every sheet; the rules in the `theme` layer reshape the parts
+   tokens can't (the layer is last, so they win without !important). */
+
+@layer tokens {
+  :root[data-theme="geos"] {
+    color-scheme: light;
+
+    /* the desk: two greys and black, as the C64 shows them */
+    --ink: #424242;
+    --paper: #e3e3e3;
+    --white: #f7f7f7;
+
+    --bg-deep: var(--white);
+    --bg: var(--paper);
+    --surface: var(--paper);
+    --raised: var(--paper);
+    --raised-hi: var(--white);
+    --raised-top: var(--paper);
+    --edge: var(--ink);
+    --bg-glow: var(--paper);
+    --screen: var(--white);
+    --screen-glow: var(--white);
+    --screen-ink: var(--ink);
+    --checker-a: #c8c8c8;
+    --checker-b: var(--white);
+
+    --text: var(--ink);
+    --text-dim: #5e5e5e;
+
+    /* colour as GEOS has it: in the icons and the pointer */
+    --accent: #2100ce;
+    --accent-deep: var(--ink);
+    --on-accent: var(--white);
+    --highlight: var(--ink);
+    --danger: #a82020;
+    --on-danger: var(--white);
+    --ok: #2f7d12;
+    --info: #2100ce;
+    --purple: #6b4bd8;
+    --green: #4cb81c;
+
+    --glint: var(--ink);
+    --shade: var(--ink);
+
+    --pane: var(--paper);
+    --pane-hi: var(--white);
+    --line: var(--ink);
+
+    /* the code: a geoWrite page, with the C64's darker colours for the syntax */
+    --code-bg: var(--white);
+    --code-bg-soft: var(--paper);
+    --code-bg-hard: var(--ink);
+    --code-bar: var(--paper);
+    --code-rule: var(--ink);
+    --code-bg1: var(--paper);
+    --code-bg2: #c4c4c4;
+    --code-line: #ececec;
+    --code-fg: #2b2b2b;
+    --code-fg0: #000;
+    --code-gray: #5e5e5e;
+    --code-comment: #7a7a7a;
+    --code-linenr: #8c8c8c;
+    --code-red: #a82020;
+    --code-green: #2f7d12;
+    --code-yellow: #7a4a00;
+    --code-blue: #1f5d8c;
+    --code-purple: #6b2bc8;
+    --code-aqua: #2100ce;
+    --code-orange: #5e5e5e;
+    --code-visual: #c9c2ff;
+    --code-search: #d4f0c4;
+
+    --radius-s: 0;
+    --radius: 0;
+    --radius-l: 0;
+
+    /* one bitmap face, at one size, its pixels whole: Micro 5's pixel is 0.09 em (4 of them are its
+       x-height), so a size of n x 11.11px puts each on n screen pixels. --gpx is that n */
+    --gpx: clamp(2px, round(down, 100vw / 260, 1px), 4px); /* 2 on a phone, 3 on a tablet, 4 on a laptop */
+    --gfont: calc(var(--gpx) * 100 / 9);
+    --gfont-big: calc((var(--gpx) + 1px) * 100 / 9);
+    --gfont-small: calc(max(var(--gpx) - 1px, 2px) * 100 / 9); /* (never a pixel of one screen pixel) */
+    --pixel-font: "Micro 5", "Noto Emoji", "Silkscreen", monospace;
+    --display-font: var(--pixel-font);
+    --ui-font: var(--pixel-font);
+    --code-font: "VT323", ui-monospace, monospace;
+    --code-step: 8px; /* VT323 is drawn on a grid of eighths: its size (A- A+) snaps to them */
+    --code-min: 24px; /* (and it draws small: under 24px it is hard to read) */
+    @media (width < 600px) { --code-min: 16px; } /* (on a phone, a line wants its room more) */
+
+    /* the desk: a 50% dither, two screen pixels to the C64 pixel */
+    --dither: repeating-conic-gradient(var(--ink) 0 25%, var(--paper) 0 50%) 0 0 / 4px 4px;
+    /* a title bar: lines one pixel apart */
+    --stripes: repeating-linear-gradient(to bottom, var(--ink) 0 2px, var(--paper) 2px 4px);
+    --page: var(--dither);
+    /* the GEOS pointer: a blue arrow (an outline of its own, one pixel per square) */
+    --pointer: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' shape-rendering='crispEdges'%3E%3Cpath d='M1 1h12v4h-4l10 10-4 4-10-10v4H1z' fill='%232100ce' stroke='%23f7f7f7' stroke-width='1.5'/%3E%3C/svg%3E") 1 1, default;
+  }
+}
+
+@layer theme {
+:root[data-theme="geos"] {
+  cursor: var(--pointer);
+
+  /* GEOS is flat, square and still: no glow, no blur, no rounding, no easing */
+  /* the code editor keeps its own size (A- A+), snapped by --code-step */
+  & .cm-editor * { font-size: inherit; line-height: inherit; }
+  /* one size of type for everything, as on the desktop: the sheets' own sizes give way */
+  & *, & ::before, & ::after {
+    font-size: var(--gfont);
+    line-height: 1; /* (Micro 5 brings its own air above and below) */
+    letter-spacing: 0;
+    font-weight: 400;
+    font-variant-emoji: text; /* emoji as one-colour signs, as GEOS icons were (Noto Emoji) */
+    border-radius: 0;
+    text-shadow: none;
+    backdrop-filter: none;
+    transition: none;
+  }
+  & :is(a, button, label, summary, select, .card, .tune, [role="tab"]) { cursor: var(--pointer); }
+  & :focus-visible { outline: 2px dotted var(--ink); outline-offset: 1px; }
+  & body { scrollbar-color: var(--ink) var(--paper); }
+  & ::selection { background: var(--ink); color: var(--white); }
+
+  /* ── buttons: a box with a hard shadow; pressed or chosen, inverted ── */
+  & .key {
+    color: var(--ink);
+    background: var(--white);
+    border: 1px solid var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+    &:hover { background: var(--white); outline: 1px solid var(--ink); outline-offset: -3px; }
+    &:active, &[aria-pressed="true"], &.on { background: var(--ink); color: var(--white); box-shadow: none; translate: 2px 2px; transform: none; }
+  }
+  & .key.pill { letter-spacing: 0; padding: 3px 10px 4px; text-transform: lowercase; }
+  /* the button a dialog wants pressed: framed twice */
+  & .key.pill.primary {
+    color: var(--ink); background: var(--white);
+    box-shadow: 0 0 0 2px var(--white), 0 0 0 3px var(--ink), 3px 3px 0 3px var(--ink);
+    &:hover { background: var(--white); }
+    &:active { background: var(--ink); color: var(--white); }
+  }
+  & .key.icon { box-shadow: none; border: 0; background: none; }
+
+  & :is(.sheet h2, .np-title, .boot-word) { font-size: var(--gfont-big); }
+  & :is(.badge, .tag, .wip, .card-sub, .studio-file-tag, .studio-count) { font-size: var(--gfont-small); }
+
+  /* ── the menu bar ─────────────────────────────────────────────────── */
+  & .case {
+    gap: 0; padding: 0; margin: 6px 6px 0;
+    background: var(--paper); border: 1px solid var(--ink);
+    &::after { content: none; }
+  }
+  & .brand {
+    align-self: stretch; padding: 0 12px; gap: 6px;
+    border-right: 2px dotted var(--ink);
+    &:hover { background: var(--ink); .brand-label { color: var(--white); } .brand-logo { filter: invert(1) grayscale(1); } }
+  }
+  & .brand-logo { width: 20px; height: 20px; filter: grayscale(1) contrast(1.4); transform: none; }
+  & .brand-label { color: var(--ink); letter-spacing: 0; }
+  & .tabs { gap: 0; margin: 0 auto 0 0; align-self: stretch; }
+  & .tab {
+    min-width: 0; padding: 2px 14px 3px; gap: 6px;
+    text-transform: lowercase; letter-spacing: 0;
+    color: var(--ink); background: none; border: 0; box-shadow: none;
+    border-right: 2px dotted var(--ink);
+    &:hover { background: var(--ink); color: var(--white); outline: 0; }
+    &[aria-selected="true"] { background: var(--ink); color: var(--white); box-shadow: none; }
+    &:active { translate: none; }
+  }
+  & .tab-icon { display: none; }
+  & .case-tools { align-self: stretch; gap: 0; }
+  /* the Studio's bar: a menu bar of its own */
+  & .studio-bar { background: var(--paper); border-bottom: 1px solid var(--ink); }
+  /* the Studio's welcome: a note on paper, not on the desk */
+  & .studio-banner { background: var(--paper); border: 1px solid var(--ink); margin: 6px; box-shadow: 3px 3px 0 var(--ink); }
+  & .theme-clock {
+    order: -1; /* before the search, as the desktop's clock box */
+    display: flex; align-items: center; padding: 0 12px; white-space: pre;
+    border-left: 1px solid var(--ink);
+    /* a sliver of desk between the menus and the clock, as on the desktop */
+    box-shadow: -12px 0 0 0 var(--paper);
+    border-right: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  @media (width < 600px) {
+    & .theme-clock { display: none; } /* a phone's bar has no room for the time */
+    & .emu-bar { flex-wrap: wrap; }
+    & .emu-bar .key.pill { padding-inline: 6px; }
+  }
+  & .key-well { background: var(--white); box-shadow: none; border-left: 1px solid var(--ink); }
+  & .search {
+    input { color: var(--ink); padding: 3px 10px; }
+    input::placeholder { color: var(--text-dim); }
+    &:focus-within { box-shadow: inset 0 0 0 2px var(--ink); }
+  }
+  & #open-settings {
+    width: 34px; height: auto; align-self: stretch; border-left: 1px solid var(--ink); color: var(--ink);
+    &:hover { background: var(--ink); color: var(--white); outline: 0; }
+  }
+
+  /* ── the desk under it, and windows on the desk ─────────────────── */
+  & .view:not(.studio) { padding: 12px 14px 40px; }
+  & .view { scrollbar-color: var(--ink) var(--paper); }
+
+  /* a shelf is a window: its title in a box on a striped bar, the icons on paper */
+  & .shelf {
+    margin: 0 0 18px; background: var(--paper); border: 1px solid var(--ink);
+    box-shadow: inset 0 -3px 0 var(--paper), inset 0 -4px 0 var(--ink); /* the double line at a window's foot */
+    padding-bottom: 6px;
+  }
+  & .shelf-head {
+    margin: 0; padding: 3px 6px; gap: 0; min-height: 26px;
+    background: var(--stripes) 0 3px / 100% calc(100% - 6px) no-repeat, var(--paper);
+    border-bottom: 1px solid var(--ink);
+    justify-content: center;
+    .key.pill { padding: 0 8px 1px; box-shadow: none; margin-left: 6px; }
+  }
+  & .shelf-chip, & .shelf-rule { display: none; }
+  & .shelf-title {
+    padding: 0 10px; background: var(--paper);
+    letter-spacing: 0; text-transform: none;
+    margin-right: auto; margin-left: auto;
+  }
+  & .shelf .n { background: var(--paper); padding: 0 6px; }
+  & .row, & .grid { padding: 12px 12px 4px; }
+  & .row { scrollbar-color: var(--ink) var(--paper); }
+
+  /* a card is an icon on the desktop: the picture in a frame, the name under it; chosen, the name inverts */
+  & .card {
+    background: none; box-shadow: none; padding: 4px; color: var(--ink); gap: 4px;
+    &:hover, &:focus-visible { background: none; box-shadow: none; transform: none; outline: 0;
+      .art { outline: 2px solid var(--ink); outline-offset: 1px; }
+      .card-title { background: var(--ink); color: var(--white); }
+    }
+  }
+  & .art { border: 1px solid var(--ink); background: var(--white); &::before { filter: grayscale(1); opacity: 0.35; } }
+  & .art::after { box-shadow: none; }
+  & .card .art::after {
+    color: var(--white); text-indent: 0;
+    background: var(--ink) center / 46px 34px no-repeat; background-clip: content-box;
+    inset: calc(50% - 17px) calc(50% - 23px); width: auto; height: auto;
+    border: 2px solid var(--white); outline: 1px solid var(--ink);
+    transform: none;
+  }
+  & .art .placeholder { color: var(--ink); background: var(--white); }
+  & .card-title { padding: 1px 3px; justify-self: center; margin: 0 auto; }
+  & .card-sub { color: var(--text-dim); }
+  & .badge { padding: 1px 4px 2px; background: var(--ink); color: var(--white); box-shadow: none; }
+  & .tag { padding: 1px 4px 2px; background: var(--white); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+  & .wip { color: var(--white); background: var(--danger); box-shadow: none; }
+  & .skeleton .art { background: var(--dither); animation: none; opacity: 0.3; }
+  & .skeleton .card-title { background: var(--ink); opacity: 0.3; }
+  & .banner { background: var(--white); border: 1px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); color: var(--ink); b { color: var(--ink); } }
+  & .foot { background: var(--paper); border: 1px solid var(--ink); padding: 8px 12px; color: var(--ink); img { filter: grayscale(1); } }
+  & .linkish, & a { color: var(--accent); }
+  & .empty { color: var(--ink); background: var(--paper); padding: 6px 10px; display: inline-block; border: 1px solid var(--ink); }
+
+  /* ── Tunes: a file list and a player window ──────────────────────── */
+  & .view.tunes { padding: 12px 14px; gap: 14px; }
+  & .tune-list { background: var(--paper); border: 1px solid var(--ink); }
+  /* a section title on a striped bar: the stripes are the boxes either side, the words sit on paper */
+  & .tune-section {
+    justify-content: center; gap: 10px; padding: 3px 6px;
+    text-transform: none; letter-spacing: 0; background: var(--paper);
+    border-left: 0; border-bottom: 1px solid var(--ink); box-shadow: none;
+    &::before, &::after { content: ""; flex: 1; align-self: stretch; margin: 3px 0; background: var(--stripes); }
+    .count { color: var(--ink); margin: 0; }
+  }
+
+  /* a tune: a small black triangle in a column of its own, the name and who made it beside it */
+  & .tune {
+    grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; padding: 6px 12px;
+    border-bottom: 1px dotted var(--ink); color: var(--ink);
+    &:hover { background: var(--white); }
+    &.current { background: var(--ink); color: var(--white); box-shadow: none; .tune-sub, .tune-rating, .play { color: var(--white); } }
+  }
+  & .tune.current:not(.loading) .play { --bar: var(--white); }
+  & .tune-sub, & .tune-rating { color: var(--text-dim); font-size: var(--gfont-small); }
+  /* the ▶ drawn, not the emoji font's boxed one: a triangle of ink, centred in its column */
+  & .tune .play { color: var(--ink); font-size: 0; display: grid; place-items: center; }
+  & .tune:not(.current) .play::before, & .tune.loading .play::before {
+    content: ""; width: 0; height: 0; border-left: 10px solid currentColor; border-block: 7px solid transparent;
+  }
+  & .tune-player { background: var(--paper); border: 1px solid var(--ink); padding: 0 0 12px; gap: 10px;
+    &::before { content: "breadbin SID player"; display: block; padding: 3px; text-align: center; 
+      background: linear-gradient(var(--paper), var(--paper)) center / 12em 100% no-repeat, var(--stripes) 0 4px / 100% calc(100% - 8px) no-repeat, var(--paper);
+      border-bottom: 1px solid var(--ink); }
+    > * { margin-inline: 12px; }
+  }
+  & .now-playing { background: var(--white); border: 1px solid var(--ink); box-shadow: none; }
+  & .np-shot { box-shadow: none; border: 1px solid var(--ink); }
+  & .np-title { color: var(--ink); }
+  & .np-artist { font-weight: 400; }
+  & .np-stats { color: var(--ink); font-weight: 400; }
+  & .screen-bezel { background: var(--white); border: 1px solid var(--ink); box-shadow: none; }
+  & .select {
+    background-repeat: no-repeat; background-position: right 12px center;
+    font-weight: 400; color: var(--ink); background-color: var(--white); border: 1px solid var(--ink); box-shadow: 2px 2px 0 var(--ink);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23424242'/%3E%3C/svg%3E");
+  }
+  & .select option { background: var(--white); }
+
+  /* ── dialogs: a box with a hard shadow, the window's bar on top ─── */
+  & dialog.sheet {
+    background: var(--stripes) 0 5px / 100% 14px no-repeat, var(--paper);
+    border: 1px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding-top: 24px;
+    &::backdrop { background: none; backdrop-filter: none; } /* (`*` doesn't reach ::backdrop) */
+  }
+  & dialog[open] { animation: none; }
+  & .sheet-body { border-top: 1px solid var(--ink); background: var(--paper); }
+  & .sheet h2 { color: var(--ink); }
+  & .sheet .close, & .sheet-close {
+    top: 3px; right: 8px; width: 26px; height: 18px; padding: 0;
+    background: var(--paper); border: 1px solid var(--ink); box-shadow: none; color: var(--ink); line-height: 1;
+  }
+  & .settings h3 { color: var(--ink); text-transform: none; letter-spacing: 0; border-bottom: 1px solid var(--ink); padding-bottom: 2px; }
+  & .settings .credits a { color: var(--accent); font-weight: 400; }
+  & .settings .credits li { border-bottom: 1px dotted var(--ink); }
+  @media (width > 900px) { /* (the sheet's label column is sized for Figtree; a phone stacks them) */
+    & .field { grid-template-columns: max-content 1fr; }
+    & .rom-row { grid-template-columns: max-content 1fr auto; }
+  }
+  & .field input[type="text"], & .field input[type="url"] { background: var(--white); border: 1px solid var(--ink); box-shadow: none; color: var(--ink); }
+  & :is(.field input[type="range"], .check input) { accent-color: var(--ink); }
+
+  /* ── the player: the desk, the menu bar, the C64 in a window ───── */
+  & .emu { background: var(--dither); }
+  & .emu-bar {
+    margin: 6px 6px 0; padding: 0; gap: 0; background: var(--paper); border: 1px solid var(--ink); box-shadow: none;
+    .key.pill { align-self: stretch; box-shadow: none; border: 0; border-left: 2px dotted var(--ink); background: none; padding: 2px 10px;
+      &:hover { background: var(--ink); color: var(--white); outline: 0; }
+      &[aria-pressed="true"] { background: var(--ink); color: var(--white); translate: none; }
+    }
+  }
+  @media (width <= 900px) { & .emu-online { display: none; } } /* (the bar's room is the title's) */
+  & .emu-title { padding: 2px 12px; letter-spacing: 0; flex: 1 1 auto; min-width: 5em; }
+  & .emu-status { color: var(--ink); padding-right: 10px; }
+  & .emu-online { color: var(--accent); padding: 0 10px; }
+  & .emu-frame {
+    border: 1px solid var(--ink);
+    box-shadow: 0 0 0 6px var(--paper), 0 0 0 7px var(--ink), 13px 13px 0 7px var(--ink);
+  }
+  & .emu-note, & .emu-sound { }
+  & .emu-note { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); width: fit-content; padding: 2px 10px; }
+  & .emu-note:empty { visibility: hidden; }
+  & .emu-sound { background: var(--white); color: var(--ink); border: 1px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); animation: none; }
+  & .emu-loading { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); padding: 8px 18px; }
+  & .emu-loading .bar, & .boot-bar { background: var(--white); border: 1px solid var(--ink); }
+  & .emu-loading .bar i, & .boot-bar i { background: var(--ink); box-shadow: none; }
+  & .emu-error { background: var(--paper); border: 1px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); padding: 14px 18px; b { color: var(--danger); } }
+  & .emu-tools { background: var(--paper); border-left: 1px solid var(--ink); box-shadow: none; color: var(--ink); }
+  & .tools-head { }
+  & .tools-sec { border-top: 1px solid var(--ink); summary { color: var(--ink); font-weight: 400; } }
+  & .tools-item { background: var(--white); border: 1px solid var(--ink); }
+  & .tools-item code, & .tools-val { color: var(--accent); }
+  & .tools-act { background: var(--white); border: 1px solid var(--ink); color: var(--ink); &:hover { background: var(--ink); color: var(--white); } }
+  & .tools-mem { background: var(--white); color: var(--ink); border: 1px solid var(--ink); }
+  & .tools-num, & .tools-addr { background: var(--white); border: 1px solid var(--ink); color: var(--ink); }
+  & .tools-regs.stopped { color: var(--accent); }
+
+  /* ── the boot: the desk, and a dialog box saying what loads ─────── */
+  & .boot { background: var(--dither); }
+  & .boot-screen { background: var(--paper); border: 1px solid var(--ink); box-shadow: 8px 8px 0 var(--ink); padding: 18px 40px 22px; }
+  & .boot-logo { width: 48px; height: 48px; animation: none; filter: grayscale(1) contrast(1.4); }
+  & .boot-word { color: var(--ink); }
+  & #boot-status { color: var(--ink); }
+
+  /* ── the toast: a little dialog box ─────────────────────────────── */
+  & .toast { background: var(--white); color: var(--ink); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+}
+}
+
+/* the look's swatch in Settings (style.css draws the picker) */
+@layer tokens {
+  .theme-choice[data-look="geos"] { --swatch-1: #e3e3e3; --swatch-2: #424242; --swatch-3: #2100ce; }
+}

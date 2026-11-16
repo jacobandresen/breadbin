@@ -11,6 +11,7 @@ import { roomTiles, charFor, blankRoom, COLS, ROWS } from './assets/map.js';
 import { FONT, COUNT } from './assets/tiles.js';
 import { PALETTE } from './assets/palette.js';
 import { nextName } from './sprite-editor.js';
+import { constName } from './codegen.js';
 
 const SPACE = 32;
 const TOOLS = [
@@ -134,40 +135,37 @@ export class MapEditor {
     this.cells = roomTiles(this.map, r);
     for (const [k, el] of [...this.ui.list.children].entries()) el.setAttribute('aria-selected', String(k === this.room));
     this.ui.name.value = r.name;
-    this.ui.const.textContent = `ROOM_${(r.name || 'unnamed').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')} = ${this.room}`;
+    this.ui.const.textContent = `${constName('ROOM', r.name, new Set())} = ${this.room}`;
     this.history.clear();
     this.draw();
   }
 
-  addRoom() {
+  /** A change to the list of rooms, saved: `change(rooms)` returns the room to show. */
+  rooms(change) {
     this.save();
-    this.map.rooms.splice(this.room + 1, 0, blankRoom(this.map, nextName('room 1', this.map.rooms.map((r) => r.name))));
+    const i = change(this.map.rooms);
     this.cells = null;
     this.renderList();
-    this.selectRoom(this.room + 1);
+    this.selectRoom(i);
     this.save();
   }
 
+  addRoom() {
+    this.rooms((rs) => (rs.splice(this.room + 1, 0, blankRoom(this.map, nextName('room 1', rs.map((r) => r.name)))), this.room + 1));
+  }
+
   copyRoom() {
-    this.save();
-    const copy = structuredClone(this.map.rooms[this.room]);
-    copy.name = nextName(copy.name, this.map.rooms.map((r) => r.name));
-    this.map.rooms.splice(this.room + 1, 0, copy);
-    this.cells = null;
-    this.renderList();
-    this.selectRoom(this.room + 1);
-    this.save();
+    this.rooms((rs) => {
+      const copy = structuredClone(rs[this.room]);
+      copy.name = nextName(copy.name, rs.map((r) => r.name));
+      rs.splice(this.room + 1, 0, copy);
+      return this.room + 1;
+    });
   }
 
   moveRoom(d) {
     const j = this.room + d;
-    if (j < 0 || j >= this.map.rooms.length) return;
-    this.save();
-    [this.map.rooms[this.room], this.map.rooms[j]] = [this.map.rooms[j], this.map.rooms[this.room]];
-    this.cells = null;
-    this.renderList();
-    this.selectRoom(j);
-    this.save();
+    if (j >= 0 && j < this.map.rooms.length) this.rooms((rs) => (([rs[this.room], rs[j]] = [rs[j], rs[this.room]]), j));
   }
 
   removeRoom() {

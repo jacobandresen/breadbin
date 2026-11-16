@@ -7,7 +7,7 @@
  *  live patches for the game's loader, "addr:old=new" in hex (drive.rs);
  *  `sidesB64`: the release's other disks, for files not on this one. */
 async function attach(engineB64, diskB64, patches, sidesB64) {
-  const bin = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const bin = (b64) => Uint8Array.fromBase64(b64);
   const say = (m) => window.parent.postMessage({ msg: 'breadbin_drive', ...m }, '*');
   const dec = new TextDecoder();
   let w;
@@ -89,16 +89,12 @@ async function boot(file) {
   }
 }
 
-const b64 = (bytes) => {
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-};
+const b64 = (bytes) => bytes.toBase64();
 
 /** Script source that puts `disk` (the next side) in the attached virtual drive. */
 export function swapScript(disk) {
   return `(() => {
-    const w = window.breadbinDrive, disk = Uint8Array.from(atob(${JSON.stringify(b64(disk))}), (c) => c.charCodeAt(0));
+    const w = window.breadbinDrive, disk = Uint8Array.fromBase64(${JSON.stringify(b64(disk))});
     const p = w.bb_alloc(disk.length);
     new Uint8Array(w.memory.buffer, p, disk.length).set(disk);
     w.bb_drive_swap(p, disk.length);

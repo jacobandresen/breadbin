@@ -242,6 +242,7 @@ function animate() {
   const tick = (ms) => {
     if (!$('#tunes').hidden && !document.hidden) {
       viz.update(player.playing && !player.paused ? player.analyser : null, player.regs);
+      viz.elapsed = player.playing ? player.elapsed : -1;
       viz.draw(ms / 1000);
     }
     requestAnimationFrame(tick);

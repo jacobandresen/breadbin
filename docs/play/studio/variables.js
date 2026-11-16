@@ -33,7 +33,8 @@ export function globals(labels, memory, sizes = {}, { hidden = [], types = {} } 
       }
     }
     const known = sizes[name.slice(1)];
-    out.push({ name: name.slice(1), addr, size: known?.size || Math.max(1, next - addr), unit: types[name.slice(1)] || known?.unit || 1 });
+    const t = types[name.slice(1)];
+    out.push({ name: name.slice(1), addr, size: known?.size || Math.max(1, next - addr), unit: (typeof t === 'object' ? t.unit : t) || known?.unit || 1, signed: typeof t === 'object' ? t.signed : false });
   }
   return out;
 }
@@ -44,6 +45,15 @@ export function globals(labels, memory, sizes = {}, { hidden = [], types = {} } 
  * only says how many bytes a variable has; the C says what is in them.
  */
 export function cTypes(files) {
+  return Object.fromEntries(Object.entries(cDecls(files)).map(([k, v]) => [k, v.unit]));
+}
+
+/**
+ * Like cTypes, with each one's sign: { name: { unit, signed } }. In cc65 a
+ * plain `char` is unsigned; `int`, `short` and `long` are signed unless
+ * declared unsigned. Pointers are unsigned.
+ */
+export function cDecls(files) {
   const out = {};
   // a declaration: a type, then names (with sizes, initial values in { }), then ';'; no ( ): not a function
   const decl = /^\s*(?:static\s+|volatile\s+|const\s+)*((?:unsigned|signed)\s+)?(char|int|short|long|void)\b\s*(\*?)\s*([^;()]+);/;
@@ -53,10 +63,11 @@ export function cTypes(files) {
       const m = decl.exec(line);
       if (!m) continue;
       const base = m[2] === 'char' ? 1 : m[2] === 'long' ? 4 : 2;
+      const signed = m[2] === 'char' ? /signed/.test(m[1] || '') && !/unsigned/.test(m[1] || '') : !/unsigned/.test(m[1] || '');
       // "a, *b, c[4] = {...}": each name, a pointer is 2 bytes whatever it points to
       for (const part of m[4].split(',')) {
         const v = /^\s*(\*?)\s*([A-Za-z_]\w*)/.exec(part);
-        if (v) out[v[2]] = m[3] || v[1] ? 2 : base;
+        if (v) out[v[2]] = m[3] || v[1] ? { unit: 2, signed: false } : { unit: base, signed };
       }
     }
   }
@@ -84,3 +95,35 @@ export function format(bytes, size, unit = 1) {
 
 /** The [address, length] ranges to read for `vars`. */
 export const ranges = (vars) => vars.map((v) => [v.addr, Math.min(v.size, MAX_BYTES)]);
+
+/** A number read from `bytes` for a variable `v` ({ size, unit, signed }): its first item. */
+export function number(bytes, v) {
+  const n = v.size <= 2 ? v.size : Math.min(v.unit || 1, 2);
+  let x = bytes[0] | (n > 1 ? bytes[1] << 8 : 0);
+  if (v.signed && x >= 1 << (8 * n - 1)) x -= 1 << (8 * n);
+  return x;
+}
+
+/** The smallest and largest value a variable `v` can hold (a plain number: 1 or 2 bytes). */
+export function range(v) {
+  const bits = 8 * Math.min(v.size, 2);
+  return v.signed ? [-(1 << (bits - 1)), (1 << (bits - 1)) - 1] : [0, (1 << bits) - 1];
+}
+
+/** The bytes to write for `x` into variable `v`, clamped to what it holds. */
+export function bytesOf(x, v) {
+  const [lo, hi] = range(v);
+  const n = Math.max(lo, Math.min(hi, Math.round(x)));
+  const u = n < 0 ? n + (1 << (8 * Math.min(v.size, 2))) : n;
+  return v.size === 1 ? [u & 255] : [u & 255, (u >> 8) & 255];
+}
+
+/** Short text for a value in the code: a number, or a list of the first few items. */
+export function brief(bytes, v) {
+  if (!bytes?.length) return '?';
+  if (v.size <= 2 || v.size === v.unit) return String(number(bytes, v));
+  const items = [];
+  const step = v.unit === 2 ? 2 : 1;
+  for (let i = 0; i + step - 1 < bytes.length && items.length < 4; i += step) items.push(number(bytes.slice(i, i + step), { ...v, size: step }));
+  return `[${items.join(',')}${v.size > items.length * step ? ',…' : ''}]`;
+}

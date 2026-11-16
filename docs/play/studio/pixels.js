@@ -9,10 +9,9 @@
 import { PALETTE } from './assets/palette.js';
 import { h } from '../ui.js';
 
-export const SLOTS = ['.', '1', '2', '3'];
 
 /** The CSS colour of value `v` for `colors` = { bg, own, mc1, mc2 } (C64 colour numbers). */
-export function colorOf(v, colors) {
+function colorOf(v, colors) {
   if (v === '1') return PALETTE[colors.own & 15];
   if (v === '2') return PALETTE[colors.mc1 & 15];
   if (v === '3') return PALETTE[colors.mc2 & 15];
@@ -42,7 +41,7 @@ export function thumb(rows, { multi, colors, scale = 2, w = multi ? rows[0]?.len
 }
 
 /** The see-through pattern behind sprites. */
-export function checkers(ctx, w, hgt, size = 8) {
+function checkers(ctx, w, hgt, size = 8) {
   for (let y = 0; y < hgt; y += size) {
     for (let x = 0; x < w; x += size) {
       ctx.fillStyle = ((x + y) / size) % 2 ? '#2b2733' : '#221f29';
@@ -379,4 +378,25 @@ export function saveBlob(blob, name) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/**
+ * The pixel editors' keys (SPRITES, TILES), for editor `ed`: Ctrl+Z undo
+ * (Shift+Ctrl+Z, Ctrl+Y redo), a tool's letter, 1-4 a colour slot, H and V
+ * flip, then the editor's own: `keys` (key -> what it does) and `ctrl` (the
+ * same, with Ctrl). Handled keys don't reach the browser.
+ */
+export function pixelKey(ed, e, { keys = {}, ctrl = {} } = {}) {
+  if (e.target.matches('input, select, textarea')) return;
+  const k = e.key.toLowerCase();
+  const tool = TOOLS.find((t) => t.key === k);
+  let act;
+  if (e.ctrlKey || e.metaKey) act = { z: () => (e.shiftKey ? ed.redo() : ed.undo()), y: () => ed.redo(), ...ctrl }[k];
+  else if (e.altKey) return;
+  else if (tool) act = () => ((ed.canvas.tool = tool.id), ed.ui.tools.render());
+  else if (/^[1-4]$/.test(k)) act = () => ed.pickSlot('.123'[k - 1]);
+  else act = { h: () => ed.edit(flipH), v: () => ed.edit(flipV), ...keys }[k];
+  if (!act) return;
+  e.preventDefault();
+  act();
 }

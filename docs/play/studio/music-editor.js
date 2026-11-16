@@ -14,7 +14,9 @@ import { h, toast } from '../ui.js';
 import { History } from './pixels.js';
 import { parseStep, formatStep, noteName, EMPTY, MAX_STEPS, WAVES, defaultInstrument, songFrames } from './assets/music.js';
 import { previewMusic } from './psid.js';
+import { KINDS as SFX_KINDS, makeSfx } from './sfx.js';
 import { nextName } from './sprite-editor.js';
+import { constName } from './codegen.js';
 
 const PIANO = { z: 0, s: 1, x: 2, d: 3, c: 4, v: 5, g: 6, b: 7, h: 8, n: 9, j: 10, m: 11, ',': 12, q: 12, 2: 13, w: 14, 3: 15, e: 16, r: 17, 5: 18, t: 19, 6: 20, y: 21, 7: 22, u: 23, i: 24 };
 const FX_KEYS = { u: 1, d: 2, v: 3, c: 4 };
@@ -62,7 +64,10 @@ export class MusicEditor {
       transport,
       h('div.studio-musiccols', {},
         h('section.studio-musiccol', {}, h('div.studio-files-head', {}, 'Instruments', h('button.studio-tool', { onclick: () => this.addIns() }, '+ new')), u.insList, u.insEdit),
-        h('section.studio-musiccol.studio-patcol', {}, h('div.studio-files-head', {}, 'Patterns', h('button.studio-tool', { onclick: () => this.addPattern() }, '+ new'), h('button.studio-tool', { onclick: () => this.copyPattern() }, 'copy')),
+        h('section.studio-musiccol.studio-patcol', {}, h('div.studio-files-head', {}, 'Patterns', h('button.studio-tool', { onclick: () => this.addPattern() }, '+ new'), h('button.studio-tool', { onclick: () => this.copyPattern() }, 'copy'),
+          // 🎲: a sound effect made up for you (sfx.js), added as a pattern and played once
+          (u.sfx = h('select.studio-tool.studio-sfx', { title: 'A sound effect, made up for you: pick a kind (again for another take)', 'aria-label': 'Make a sound effect', onchange: (e) => (this.makeSfx(e.target.value), (e.target.value = '')) },
+            h('option', { value: '' }, '🎲 sfx…'), ...Object.entries(SFX_KINDS).map(([k, v]) => h('option', { value: k }, v.label))))),
           u.patList, u.patHead, u.grid, u.help),
         h('section.studio-musiccol', {}, h('div.studio-files-head', {}, 'Songs', h('button.studio-tool', { onclick: () => this.addSong() }, '+ new')), u.songList, u.songRows)));
 
@@ -165,7 +170,7 @@ export class MusicEditor {
   renderPatterns() {
     this.ui.patList.replaceChildren(...this.music.patterns.map((p, i) => h('button.studio-musicitem', {
       'aria-selected': String(i === this.pat), onclick: () => ((this.pat = i), (this.row = Math.min(this.row, p.steps.length - 1)), this.renderPatterns(), this.renderGrid()),
-      title: `SFX_${p.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_')} = ${i}`,
+      title: `${constName('SFX', p.name, new Set())} = ${i}`,
     }, h('span.studio-hex', {}, String(i).padStart(2, '0')), h('span', {}, p.name), h('span.studio-wave', {}, `${p.steps.length}×${p.speed}`))));
     const p = this.pattern;
     this.ui.patHead.replaceChildren(
@@ -222,50 +227,49 @@ export class MusicEditor {
   gridKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    const col = COLS[this.col];
-    let handled = true;
-    if (k === 'arrowup') this.move(-1);
-    else if (k === 'arrowdown') this.move(1);
-    else if (k === 'arrowleft') this.move(0, -1);
-    else if (k === 'arrowright' || k === 'tab') this.move(0, 1);
-    else if (k === 'pageup') this.move(-4);
-    else if (k === 'pagedown') this.move(4);
-    else if (k === 'delete' || k === 'backspace') {
-      this.setStep((st) => {
-        if (col === 'note') Object.assign(st, { note: null, release: false, ins: null, fx: 0, param: 0 });
-        else if (col === 'ins') st.ins = null;
-        else Object.assign(st, { fx: 0, param: 0 });
-      });
-      this.move(this.step);
-    } else if (col === 'note' && k === '1') {
-      this.setStep((st) => Object.assign(st, { note: null, release: true, ins: null }));
-      this.move(this.step);
-    } else if (col === 'note' && k in PIANO) {
+    const clear = () => this.clearCell();
+    const act = {
+      arrowup: () => this.move(-1),
+      arrowdown: () => this.move(1),
+      arrowleft: () => this.move(0, -1),
+      arrowright: () => this.move(0, 1),
+      tab: () => this.move(0, 1),
+      pageup: () => this.move(-4),
+      pagedown: () => this.move(4),
+      delete: clear,
+      backspace: clear,
+      ' ': () => (this.playing ? this.stop() : this.playPattern()),
+      enter: () => this.playSong(),
+    }[k] || this.typeIn(COLS[this.col], k);
+    if (!act) return;
+    e.preventDefault();
+    act();
+  }
+
+  /** What key `k` does typed into column `col` of the step (a function), or null. */
+  typeIn(col, k) {
+    const hex = /^[0-9a-f]$/.test(k) ? parseInt(k, 16) : null;
+    // change the step, then (by default) move on to the next
+    const put = (change, then = () => this.move(this.step)) => () => (this.setStep(change), then());
+    const grid = () => this.renderGrid();
+    if (col === 'note') {
+      if (k === '1') return put((st) => Object.assign(st, { note: null, release: true, ins: null }));
+      if (!(k in PIANO)) return null;
       const n = Math.max(0, Math.min(95, this.octave * 12 + PIANO[k]));
-      this.setStep((st) => Object.assign(st, { note: n, release: false, ins: this.ins }));
-      this.audition(n);
-      this.move(this.step);
-    } else if (col === 'ins' && /^[0-9a-f]$/.test(k)) {
-      const v = parseInt(k, 16);
-      if (v < this.music.instruments.length) this.setStep((st) => (st.ins = v));
-      this.move(this.step);
-    } else if (col === 'fx' && k in FX_KEYS) {
-      this.setStep((st) => ((st.fx = FX_KEYS[k]), (st.param = st.param || 4)));
-      this.renderGrid();
-      toast(`${FX_NAMES[FX_KEYS[k]]}: now type its amount in hex`, 2000);
-    } else if (col === 'fx' && k === '.') {
-      this.setStep((st) => Object.assign(st, { fx: 0, param: 0 }));
-      this.renderGrid();
-    } else if (col === 'fx' && /^[0-9a-f]$/.test(k)) {
-      this.setStep((st) => {
-        if (!st.fx) st.fx = 3;
-        st.param = ((st.param << 4) | parseInt(k, 16)) & 0xff;
-      });
-      this.renderGrid();
-    } else if (k === ' ') this.playing ? this.stop() : this.playPattern();
-    else if (k === 'enter') this.playSong();
-    else handled = false;
-    if (handled) e.preventDefault();
+      return put((st) => Object.assign(st, { note: n, release: false, ins: this.ins }), () => (this.audition(n), this.move(this.step)));
+    }
+    if (col === 'ins') return hex === null ? null : put((st) => hex < this.music.instruments.length && (st.ins = hex));
+    if (k in FX_KEYS) return put((st) => ((st.fx = FX_KEYS[k]), (st.param = st.param || 4)), () => (grid(), toast(`${FX_NAMES[FX_KEYS[k]]}: now type its amount in hex`, 2000)));
+    if (k === '.') return put((st) => Object.assign(st, { fx: 0, param: 0 }), grid);
+    if (hex !== null) return put((st) => ((st.fx ||= 3), (st.param = ((st.param << 4) | hex) & 0xff)), grid);
+    return null;
+  }
+
+  /** Delete or Backspace: the cell emptied (the note column: the whole step). */
+  clearCell() {
+    const col = COLS[this.col];
+    this.setStep((st) => Object.assign(st, col === 'note' ? { note: null, release: false, ins: null, fx: 0, param: 0 } : col === 'ins' ? { ins: null } : { fx: 0, param: 0 }));
+    this.move(this.step);
   }
 
   addPattern() {
@@ -274,6 +278,23 @@ export class MusicEditor {
       this.pat = this.music.patterns.length - 1;
       this.row = 0;
     });
+  }
+
+  /** A made-up sound effect of `kind`: a new pattern (and its instrument), selected and played once. */
+  makeSfx(kind) {
+    if (!kind) return;
+    let made;
+    this.change(() => {
+      made = makeSfx(this.music, kind);
+      this.pat = made.pattern;
+      this.ins = made.instrument;
+      this.row = 0;
+    });
+    const p = this.music.patterns[made.pattern];
+    this.playPattern();
+    clearTimeout(this.sfxTimer);
+    this.sfxTimer = setTimeout(() => this.playing && this.stop(), ((p.steps.length * p.speed) / 50) * 1000 + 400);
+    toast(`${p.name}: ${constName('SFX', p.name, new Set())} for bb_sfx() after the next build. 🎲 again for another take.`);
   }
 
   copyPattern() {
@@ -324,7 +345,7 @@ export class MusicEditor {
     const songs = this.music.songs;
     this.ui.songList.replaceChildren(...songs.map((s, i) => h('button.studio-musicitem', {
       'aria-selected': String(i === this.song), onclick: () => ((this.song = i), this.renderSongs()),
-      title: `SONG_${s.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_')} = ${i}`,
+      title: `${constName('SONG', s.name, new Set())} = ${i}`,
     }, h('span.studio-hex', {}, String(i)), h('span', {}, s.name), h('span.studio-wave', {}, `${(songFrames(this.music, s) / 50).toFixed(0)} s`))));
     const s = songs[this.song];
     if (!s) return this.ui.songRows.replaceChildren(h('p.studio-small', {}, 'No songs yet: + new makes one.'));
@@ -451,18 +472,15 @@ export class MusicEditor {
   key(e) {
     if (e.target.matches('input, select, textarea')) return;
     const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 'z') {
+    if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
       e.preventDefault();
-      const s = e.shiftKey ? this.history.redo(this.music) : this.history.undo(this.music);
+      const s = k === 'z' && !e.shiftKey ? this.history.undo(this.music) : this.history.redo(this.music);
       if (s) (this.music = s), this.save(), this.render();
-    } else if ((e.ctrlKey || e.metaKey) && k === 'y') {
-      e.preventDefault();
-      const s = this.history.redo(this.music);
-      if (s) (this.music = s), this.save(), this.render();
-    } else if (e.target === this.ui.grid) {
-      // the grid handles its own keys
-    } else if (k === '*' || k === '+') this.setOctave(this.octave + 1);
-    else if (k === '/' || k === '-') this.setOctave(this.octave - 1);
+    } else if (e.target !== this.ui.grid) {
+      // (the grid handles its own keys)
+      if (k === '*' || k === '+') this.setOctave(this.octave + 1);
+      else if (k === '/' || k === '-') this.setOctave(this.octave - 1);
+    }
   }
 }
 

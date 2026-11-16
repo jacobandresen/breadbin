@@ -1,0 +1,104 @@
+/* themes/bakery.css - breadbin's own look, "midnight bakery": a plum-ink
+   night for the room, warm toast and crust for what you touch, butter for
+   what matters, jam for warnings and mint for "online". Pixel type (Pixelify
+   Sans, Silkscreen) for names and labels, Figtree for reading; the code is
+   retrobox, as in Neovim.
+
+   A theme is a set of tokens: every sheet (style.css, studio/studio.css)
+   paints with these names only. Another theme (themes/geos.css) redefines
+   them under :root[data-theme=…] and, in the `theme` layer, may restyle
+   whole components. The layers, last wins: */
+@layer tokens, base, studio, theme;
+
+@layer tokens {
+  :root {
+    color-scheme: dark;
+
+    /* the room, darkest to lightest */
+    --bg-deep: #0b0912;
+    --bg: #120f1c;
+    --surface: #1b1729;
+    --raised: #2a2340;
+    --raised-hi: #372e55;
+    --raised-top: #3a3150;
+    --edge: #0d0a15;
+    /* glows painted on the room */
+    --bg-glow: #241c3a;
+    --screen: #1d1838;
+    --screen-glow: #3a2b4f;
+    --screen-ink: #b8acff;
+    --checker-a: #2b2733;
+    --checker-b: #1c1924;
+
+    /* type on the room */
+    --text: #f4ead8;
+    --text-dim: #b2a8c6;
+
+    /* what you touch, what matters, what says yes or no */
+    --accent: #f2a23c;
+    --accent-deep: #c4622d;
+    --on-accent: #2a1408;
+    --highlight: #ffd36b;
+    --danger: #ff5d73;
+    --on-danger: #1a0710;
+    --ok: #5fd3a6;
+    --info: #7ab8ff;
+
+    /* light and dark mixed into the room: hairlines (glint) and shadows (shade) */
+    --glint: #fff;
+    --shade: #000;
+
+    /* the Studio's panes */
+    --pane: #17141f;
+    --pane-hi: #201b2c;
+    --line: rgb(from var(--glint) r g b / 0.07);
+
+    /* the code: retrobox (Vim's colors/retrobox.vim, dark), each beside its Vim group (studio/theme.js) */
+    --code-bg: #1c1c1c; /* Normal */
+    --code-bg-soft: #282828;
+    --code-bg-hard: #1d2021;
+    --code-bar: #232120;
+    --code-rule: #2e2b29;
+    --code-bg1: #3c3836; /* Pmenu */
+    --code-bg2: #504945; /* PmenuSel, MatchParen, NonText */
+    --code-line: #303030; /* CursorLine */
+    --code-fg: #ebdbb2; /* Normal */
+    --code-fg0: #fbf1c7; /* Cursor */
+    --code-gray: #a89984;
+    --code-comment: #928374; /* Comment */
+    --code-linenr: #7c6f64; /* LineNr */
+    --code-red: #fb5944; /* Statement, Keyword */
+    --code-green: #b8bb26; /* String, Function */
+    --code-yellow: #fabd2f; /* Type, CursorLineNr */
+    --code-blue: #83a598; /* Identifier */
+    --code-purple: #d3869b; /* Constant, Number */
+    --code-aqua: #8ec07c; /* PreProc, Operator */
+    --code-orange: #fe8019; /* Special, Delimiter */
+    --code-visual: #2a405a; /* Visual */
+    /* the parts that share a colour in retrobox, apart for a theme that tells them apart */
+    --code-function: var(--code-green); /* Function: as String */
+    --code-operator: var(--code-aqua); /* Operator: as PreProc */
+    --code-gutter: var(--code-bg); /* the line numbers' margin */
+    --code-search: #3a4a3a; /* Search */
+
+    /* shape */
+    --radius-s: 6px;
+    --radius: 10px;
+    --radius-l: 16px;
+
+    /* type */
+    --pixel-font: "Silkscreen", ui-monospace, monospace;
+    --display-font: "Pixelify Sans", "Silkscreen", ui-monospace, monospace;
+    --ui-font: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --code-font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --c64-font: var(--pixel-font);
+
+    /* the page behind everything */
+    --page: radial-gradient(ellipse 120% 60% at 50% -10%, var(--bg-glow), transparent 60%), var(--bg);
+  }
+}
+
+/* the look's swatch in Settings (style.css draws the picker) */
+@layer tokens {
+  .theme-choice[data-look="bakery"] { --swatch-1: #120f1c; --swatch-2: #f2a23c; --swatch-3: #ffd36b; }
+}

@@ -13,9 +13,14 @@
 
 /* heights are in 16ths of a pixel, for smooth jumps and falls */
 #define SUB 4                      /* 1 << SUB sixteenths per pixel */
-#define GRAVITY 3                  /* 16ths of a pixel per frame, per frame */
-#define MAX_FALL 36
-#define JUMP (-62)                 /* about five tiles: one platform up */
+
+/* The feel of a jump. Variables, not #defines, so that they can be tuned
+ * while the game runs: in main.c, drag a value at the end of their line
+ * (or click it and type). The jump changes at once, and the number stays
+ * in the code. */
+extern signed char jump;           /* the push up, 16ths of a pixel per frame */
+extern unsigned char gravity;      /* 16ths of a pixel per frame, per frame */
+extern unsigned char max_fall;     /* the fastest fall */
 
 /* the hit box inside a 24x21 sprite */
 #define BOX_X 6

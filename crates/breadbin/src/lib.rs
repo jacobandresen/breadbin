@@ -15,6 +15,7 @@ pub mod cpu;
 pub mod disk;
 pub mod drive;
 pub mod exo;
+pub mod machine;
 pub mod rom;
 pub mod sid;
 pub mod viz;
@@ -313,4 +314,66 @@ pub unsafe extern "C" fn bb_player_regs(p: *const Player, out: *mut u8) -> u32 {
     let vis = (*p).snapshot();
     std::ptr::copy_nonoverlapping(vis.regs.as_ptr(), out, sid::NUM_REGS);
     vis.frame as u32
+}
+
+// ── the Studio's machine: what an exported game runs on (machine.rs) ────────
+
+use machine::Machine;
+
+/// A C64 running the PRG at `ptr` with the font `font` (4 KB) as its character
+/// ROM, its sound at `rate` Hz. Null (and the reason in the text) if it can't start.
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_new(ptr: *const u8, len: usize, font: *const u8, font_len: usize, rate: u32) -> *mut Machine {
+    match Machine::new(bytes(ptr, len), bytes(font, font_len), rate) {
+        Ok(m) => Box::into_raw(Box::new(m)),
+        Err(e) => {
+            set_text(e);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_free(m: *mut Machine) {
+    if !m.is_null() {
+        drop(Box::from_raw(m));
+    }
+}
+
+/// Run one frame; returns the picture (WIDTH x HEIGHT 0x00RRGGBB words). The
+/// frame's sound goes to the output buffer as i16 samples (bb_out_*).
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_frame(m: *mut Machine) -> *const u32 {
+    let m = &mut *m;
+    m.run_frame();
+    let audio = std::mem::take(&mut m.audio);
+    OUT.with(|o| {
+        let mut o = o.borrow_mut();
+        o.clear();
+        o.extend(audio.iter().flat_map(|s| s.to_le_bytes()));
+    });
+    m.pixels.as_ptr()
+}
+
+/// Joystick `port` (1, 2): bits up 1, down 2, left 4, right 8, fire 16.
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_joy(m: *mut Machine, port: u32, bits: u32) {
+    (*m).set_joystick(port as usize, bits as u8);
+}
+
+/// A key of the keyboard matrix (column, row) down (1) or up (0).
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_key(m: *mut Machine, col: u32, row: u32, down: u32) {
+    (*m).set_key(col as usize, row as usize, down != 0);
+}
+
+/// A key typed, as PETSCII, into the KERNAL's keyboard buffer (GETIN, cgetc).
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_type(m: *mut Machine, petscii: u32) {
+    (*m).type_key(petscii as u8);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bb_machine_ended(m: *const Machine) -> u32 {
+    (*m).ended() as u32
 }

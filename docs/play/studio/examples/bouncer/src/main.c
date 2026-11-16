@@ -32,6 +32,10 @@ static unsigned char ballon[BALLS];
 static int pickx[PICKUPS], picky[PICKUPS];
 static unsigned char pickon[PICKUPS], pickimg[PICKUPS];
 
+/* the game's feel: tune these while it plays (the Studio's Tuning sliders, or drag the values) */
+unsigned char bat_speed = 3;       /* pixels a frame */
+unsigned char ball_speed = 32;     /* 16ths of a pixel a frame, up, when served */
+
 static int batx = 148;
 static unsigned char batw = 24;    /* 24 or 48 pixels */
 static unsigned int wide_time, slow_time;
@@ -83,7 +87,7 @@ static void serve(void) {
 static void launch(unsigned char i, signed char vx) {
   ballon[i] = 1;
   ballvx[i] = vx;
-  ballvy[i] = -32;
+  ballvy[i] = -ball_speed;
 }
 
 /* The ball hit the tile in cell cx, cy: break it if it is a brick. */
@@ -213,8 +217,8 @@ int main(void) {
     while (lives) {
       bb_frame();
       /* the bat */
-      if (bb_btn(BB_LEFT)) batx -= 3;
-      if (bb_btn(BB_RIGHT)) batx += 3;
+      if (bb_btn(BB_LEFT)) batx -= bat_speed;
+      if (bb_btn(BB_RIGHT)) batx += bat_speed;
       if (batx < LEFT_WALL) batx = LEFT_WALL;
       if (batx > RIGHT_WALL - batw) batx = RIGHT_WALL - batw;
       if (wide_time && --wide_time == 0) batw = 24;

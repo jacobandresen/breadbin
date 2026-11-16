@@ -6,10 +6,11 @@
 // shift the image, [ ] the previous / next sprite, Ctrl+Z / Ctrl+Y undo.
 
 import { h, toast } from '../ui.js';
-import { PaintCanvas, History, colorPicker, toolbar, thumb, shift, flipH, flipV, drawRows, TOOLS, readImage, pickImage, sheetPng, saveBlob } from './pixels.js';
+import { PaintCanvas, History, colorPicker, toolbar, thumb, shift, flipH, flipV, drawRows, readImage, pickImage, sheetPng, saveBlob, pixelKey } from './pixels.js';
 import { blankSprite, convert } from './assets/sprites.js';
 import { cells, spriteFromCell } from './assets/image.js';
 import { PALETTE, COLOR_NAMES } from './assets/palette.js';
+import { constName } from './codegen.js';
 
 export class SpriteEditor {
   constructor(studio) {
@@ -146,7 +147,7 @@ export class SpriteEditor {
     this.canvas.set(s.rows, { multi: s.multi, colors: this.colors() });
     this.ui.name.value = s.name;
     this.ui.flip.checked = !!s.flip;
-    const cname = `SPR_${(s.name || 'unnamed').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
+    const cname = constName('SPR', s.name, new Set());
     this.ui.const.textContent = cname;
     this.el.querySelector('.studio-flipname').textContent = `${cname}_FLIP`;
     for (const [k, b] of [...this.ui.mode.children].entries()) b.setAttribute('aria-pressed', String(k === (s.multi ? 1 : 0)));
@@ -259,49 +260,46 @@ export class SpriteEditor {
     this.save();
   }
 
-  add() {
-    this.history.push(this.sheet);
-    const multi = this.sprite?.multi ?? true;
-    this.sheet.sprites.splice(this.index + 1, 0, { ...blankSprite(`sprite ${this.sheet.sprites.length}`, multi), color: this.sprite?.color ?? 1 });
-    if (imageCount(this.sheet) > MAX_IMAGES) {
-      this.sheet.sprites.splice(this.index + 1, 1);
-      return toast(`${MAX_IMAGES} sprite images (mirrors count too) fill the runtime's sprite memory.`);
-    }
+  /** A change to the list of sprites, undoable and saved: `change(list)` returns the sprite to show (none: no change). */
+  sprites(change) {
+    const before = structuredClone(this.sheet);
+    const i = change(this.sheet.sprites);
+    if (i === undefined) return;
+    this.history.push(before);
     this.renderList();
-    this.select(this.index + 1);
+    this.select(i);
     this.save();
   }
 
+  add() {
+    this.sprites((list) => {
+      list.splice(this.index + 1, 0, { ...blankSprite(`sprite ${list.length}`, this.sprite?.multi ?? true), color: this.sprite?.color ?? 1 });
+      if (imageCount(this.sheet) <= MAX_IMAGES) return this.index + 1;
+      list.splice(this.index + 1, 1);
+      toast(`${MAX_IMAGES} sprite images (mirrors count too) fill the runtime's sprite memory.`);
+    });
+  }
+
   duplicate() {
-    this.history.push(this.sheet);
-    const copy = structuredClone(this.sprite);
-    copy.name = nextName(copy.name, this.sheet.sprites.map((s) => s.name));
-    this.sheet.sprites.splice(this.index + 1, 0, copy);
-    this.renderList();
-    this.select(this.index + 1);
-    this.save();
+    this.sprites((list) => {
+      const copy = structuredClone(this.sprite);
+      copy.name = nextName(copy.name, list.map((s) => s.name));
+      list.splice(this.index + 1, 0, copy);
+      return this.index + 1;
+    });
   }
 
   move(d) {
     const j = this.index + d;
     if (j < 0 || j >= this.sheet.sprites.length) return;
-    this.history.push(this.sheet);
-    const list = this.sheet.sprites;
-    [list[this.index], list[j]] = [list[j], list[this.index]];
-    this.renderList();
-    this.select(j);
-    this.save();
+    this.sprites((list) => (([list[this.index], list[j]] = [list[j], list[this.index]]), j));
     toast('Moved: sprite numbers changed, the SPR_ names did not.');
   }
 
   remove() {
     if (this.sheet.sprites.length === 1) return toast('A project keeps at least one sprite.');
     if (!confirm(`Delete the sprite ${this.sprite.name}? Code that uses its SPR_ name won't build until you change it.`)) return;
-    this.history.push(this.sheet);
-    this.sheet.sprites.splice(this.index, 1);
-    this.renderList();
-    this.select(this.index);
-    this.save();
+    this.sprites((list) => (list.splice(this.index, 1), this.index));
   }
 
   /** Sprites from a picture: each 24x21 cell with something in it, after the selected sprite. */
@@ -349,34 +347,24 @@ export class SpriteEditor {
   }
 
   key(e) {
-    if (e.target.matches('input, select, textarea')) return;
-    const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 'z') return (e.preventDefault(), e.shiftKey ? this.redo() : this.undo());
-    if ((e.ctrlKey || e.metaKey) && k === 'y') return (e.preventDefault(), this.redo());
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const tool = TOOLS.find((t) => t.key === k);
-    if (tool) {
-      this.canvas.tool = tool.id;
-      this.ui.tools.render();
-    } else if (/^[1-4]$/.test(k)) this.pickSlot(['.', '1', '2', '3'][Number(k) - 1]);
-    else if (k === 'h') this.edit(flipH);
-    else if (k === 'v') this.edit(flipV);
-    else if (k === 'arrowleft') this.edit((r) => shift(r, -1, 0));
-    else if (k === 'arrowright') this.edit((r) => shift(r, 1, 0));
-    else if (k === 'arrowup') this.edit((r) => shift(r, 0, -1));
-    else if (k === 'arrowdown') this.edit((r) => shift(r, 0, 1));
-    else if (k === '[') this.select(this.index - 1);
-    else if (k === ']') this.select(this.index + 1);
-    else if (k === 'o') (this.ui.onion.checked = !this.ui.onion.checked), this.select(this.index);
-    else return;
-    e.preventDefault();
+    pixelKey(this, e, {
+      keys: {
+        arrowleft: () => this.edit((r) => shift(r, -1, 0)),
+        arrowright: () => this.edit((r) => shift(r, 1, 0)),
+        arrowup: () => this.edit((r) => shift(r, 0, -1)),
+        arrowdown: () => this.edit((r) => shift(r, 0, 1)),
+        '[': () => this.select(this.index - 1),
+        ']': () => this.select(this.index + 1),
+        o: () => ((this.ui.onion.checked = !this.ui.onion.checked), this.select(this.index)),
+      },
+    });
   }
 }
 
 /** The most sprite images the runtime has room for: 64 x 64 bytes at $D000 (bb.h). */
-export const MAX_IMAGES = 64;
+const MAX_IMAGES = 64;
 /** The images a sheet makes: each sprite, and its mirror when "flip" is ticked. */
-export const imageCount = (sheet) => sheet.sprites.reduce((n, s) => n + (s.flip ? 2 : 1), 0);
+const imageCount = (sheet) => sheet.sprites.reduce((n, s) => n + (s.flip ? 2 : 1), 0);
 
 /** "walk 1" -> "walk 2", "hero" -> "hero 2", avoiding `taken`. */
 export function nextName(name, taken) {
