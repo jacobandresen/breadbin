@@ -43,9 +43,10 @@ jobs:
       - name: Build the assembler for the browser
         run: make acme
 
+      # 26: the code uses the built-in base64 of Uint8Array (toBase64, fromBase64), which Node has from 25
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Build the Studio (cc65 in WebAssembly, the code editor)
         run: make studio
