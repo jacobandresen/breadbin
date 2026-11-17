@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="14" shape-rendering="crispEdges">
+  <!-- Chicago's title-bar buttons (themes/chicago.css): minimise, maximise, close, each a 16x14 raised
+       button lit from the top left; drawn here, pixel by pixel, not anyone's mark -->
+  <!-- minimise: a bar at the foot -->
+  <rect x="0" width="16" height="14" fill="#c0c0c0"/>
+  <path d="M0 0h15v1H1v12H0z" fill="#fff"/>
+  <path d="M1 12h14V1h-1v11H1z" fill="#808080"/>
+  <path d="M0 13h16V0h-1v13H0z" fill="#0a0a0a"/>
+  <rect x="4" y="9" width="6" height="2"/>
+  <!-- maximise: a window, its top edge thick -->
+  <rect x="16" width="16" height="14" fill="#c0c0c0"/>
+  <path d="M16 0h15v1H17v12H16z" fill="#fff"/>
+  <path d="M17 12h14V1h-1v11H17z" fill="#808080"/>
+  <path d="M16 13h16V0h-1v13H16z" fill="#0a0a0a"/>
+  <path d="M19 2h9v9h-9zM20 4v6h7V4z" fill-rule="evenodd"/>
+  <!-- close: an x, two pixels thick -->
+  <rect x="34" width="16" height="14" fill="#c0c0c0"/>
+  <path d="M34 0h15v1H35v12H34z" fill="#fff"/>
+  <path d="M35 12h14V1h-1v11H35z" fill="#808080"/>
+  <path d="M34 13h16V0h-1v13H34z" fill="#0a0a0a"/>
+  <path d="M38 3h2v1h1v1h2V4h1V3h2v1h-1v1h-1v1h-1v1h1v1h1v1h1v1h-2V9h-1V8h-2v1h-1v1h-2V9h1V8h1V7h1V6h-1V5h-1V4h-1z"/>
+</svg>

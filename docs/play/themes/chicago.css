@@ -72,7 +72,7 @@
     --code-yellow: #8000ff; /* types */
     --code-green: #808080; /* strings */
     --code-function: #000;
-    --code-purple: #ff8000; /* numbers */
+    --code-purple: #c45f00; /* numbers (the editor's orange, a shade darker: 4.2:1 on white) */
     --code-aqua: #804000; /* the preprocessor */
     --code-operator: #000080;
     --code-orange: #000080; /* brackets and punctuation, as operators */
@@ -155,15 +155,16 @@
   }
   & .brand-logo { width: 18px; height: 18px; filter: none; transform: none; }
   & .brand-label { font: 700 13px var(--ui-font); color: #000; }
-  & .tabs { gap: 3px; margin: 0 auto 0 4px; }
+  & .tabs { gap: 3px; margin: 0 auto 0 4px; min-width: 0; flex: 0 1 auto; }
   & .tab {
     min-width: 0; justify-content: flex-start; padding: 4px 8px; gap: 6px;
     font: 13px var(--ui-font); text-transform: none; color: #000; background: var(--face); box-shadow: var(--bevel-out);
     &:hover { background: var(--face); }
     &[aria-selected="true"] { font-weight: 700; color: #000; background: var(--checker); box-shadow: var(--bevel-in); }
   }
-  & .tab-icon { font-size: 14px; }
-  @media (width > 900px) { & .tab { min-width: 150px; } } /* (the taskbar's buttons full width only where they fit) */
+  & .tab-icon { font-size: 14px; display: inline-flex; }
+  @media (pointer: coarse) { & :is(.tab, .brand) { padding-block: 8px; } } /* (taller taskbar buttons for a finger) */
+  @media (width > 900px) { & .tab { width: 150px; flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; } } /* (the taskbar's buttons full width where they fit, narrower where not) */
   & .case-tools { gap: 4px; }
   & .key-well { background: var(--hilite); box-shadow: var(--bevel-field); }
   & .search {
@@ -183,16 +184,13 @@
   & .shelf-head {
     margin: 0; padding: 2px 3px 2px 6px; gap: 6px; background: var(--navy); color: var(--hilite);
     /* minimise, maximise, close: drawn, not anyone's mark */
-    &::after {
-      content: "_  □  ×"; flex: none; white-space: pre; padding: 0 4px; font: 700 12px/16px var(--ui-font); color: #000; background: var(--face);
-      box-shadow: var(--bevel-out);
-    }
+    &::after { content: ""; flex: none; width: 50px; height: 14px; background: url("chicago-buttons.svg"); }
     .key.pill { min-width: 0; padding: 1px 8px; font-size: 12px; }
   }
   & .shelf-chip { display: none; }
   & .shelf-title { font: 700 13px var(--ui-font); text-transform: none; color: var(--hilite); }
   & .shelf-rule { background: none; }
-  & .shelf .n { color: var(--hilite); }
+  & .shelf .n { color: var(--text-dim); } /* (the count, on the grey of its button) */
   & .row, & .grid { margin-top: 3px; padding: 10px; background: var(--hilite); box-shadow: var(--bevel-field); scrollbar-color: auto; }
 
   /* a card: an icon on white, its name under it; chosen, the name in navy */
@@ -278,7 +276,7 @@
   & #btn-pause::before { content: "▮▮"; letter-spacing: -1px; }
   & #btn-stop::before { content: "■"; }
   & #btn-skip::before { content: "▶▶|"; letter-spacing: -2px; }
-  @media (width < 600px) { & .tune-player { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "vis" "np" "ctl"; } }
+  @media (width < 1250px) { & .tune-player { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "vis" "np" "ctl"; } }
   @media (width <= 900px) { & .tune-player { align-self: stretch; } }
   & .player-controls .key.pill {
     min-width: 0; padding: 2px 8px; font: 9px/14px "Silkscreen", monospace; text-transform: uppercase; color: #20202c;
@@ -325,27 +323,54 @@
     top: 6px; right: 6px; width: 16px; height: 14px; padding: 0; font: 700 11px/1 var(--ui-font); color: #000; background: var(--face);
     box-shadow: var(--bevel-out);
   }
+  /* the Studio's dialogs (projects, cheat sheet): their sticky head is the title bar */
+  & .studio-picker-head {
+    margin: 3px 3px 10px; padding: 3px 3px 3px 6px; background: var(--navy);
+    h2 { flex: 1; margin: 0; padding: 0; background: none; }
+    .close { position: static; }
+  }
   & .settings h3 { font: 700 13px var(--ui-font); text-transform: none; color: #000; border-bottom: 1px solid var(--shadow); box-shadow: 0 1px var(--hilite); padding-bottom: 2px; }
   & .settings p { color: #000; }
   & .settings .credits a { color: #0000ff; font-weight: 400; }
   & .settings .credits li { border-bottom: 0; }
   & .field input[type="text"], & .field input[type="url"] { color: #000; background: var(--hilite); box-shadow: var(--bevel-field); }
   & :is(.field input[type="range"], .check input) { accent-color: var(--navy); }
+  /* the sliders as the time drew them: a sunken groove, a raised grey thumb (Settings', the Studio's tuning and instruments) */
+  & :is(.field, .studio) input[type="range"] {
+    appearance: none; height: 22px; background: none;
+    &::-webkit-slider-runnable-track { height: 4px; background: var(--hilite); box-shadow: var(--bevel-field); }
+    &::-webkit-slider-thumb { appearance: none; width: 11px; height: 21px; margin-top: -9px; background: var(--face); box-shadow: var(--bevel-out); }
+    &::-moz-range-track { height: 4px; background: var(--hilite); box-shadow: var(--bevel-field); }
+    &::-moz-range-thumb { width: 11px; height: 21px; border: 0; border-radius: 0; background: var(--face); box-shadow: var(--bevel-out); }
+  }
   & .theme-choice { background: var(--face); box-shadow: var(--bevel-out); &:has(:checked) { box-shadow: var(--bevel-in); background: var(--checker); } b { font-weight: 700; } }
 
   /* ── the player: a window, the C64 in it ───────────────────────── */
-  & .emu { background: var(--desk); }
+  /* a maximised window: the name on the navy bar with the close box, the buttons on a toolbar under it, the C64 sunk into the face;
+     above the taskbar, which keeps a button for it (desktop.js), and gone to that button when minimised */
+  & .emu { padding: 3px; background: var(--face); box-shadow: var(--bevel-window); }
+  @media (width >= 600px) { & .emu { bottom: var(--taskbar, 34px); } }
+  & .emu.minimized { display: none; }
+  & .task-emu[aria-pressed="true"] { font-weight: 700; background: var(--checker); box-shadow: var(--bevel-in); }
+  /* (only the window in front has its button pressed: while the player is up, the shelves' button is raised) */
+  & .tab[aria-selected="true"][data-closed] { font-weight: 400; background: var(--face); box-shadow: var(--bevel-out); } /* (its windows all closed: the button stands up) */
+  &:has(.emu:not([hidden], .minimized)) .tab[aria-selected="true"] { font-weight: 400; background: var(--face); box-shadow: var(--bevel-out); }
   & .emu-bar {
-    margin: 8px 8px 0; padding: 3px 3px 3px 6px; gap: 4px; color: var(--hilite); background: var(--navy);
-    box-shadow: 0 0 0 3px var(--face), 0 0 0 4px var(--hilite), 0 0 0 5px var(--dark);
-    .key.pill { min-width: 0; padding: 2px 8px; font-size: 12px; }
+    margin: 0; padding: 0 2px 4px; gap: 4px; flex-wrap: wrap; color: #000; box-shadow: none;
+    background: linear-gradient(var(--navy), var(--navy)) 0 0 / 100% 22px no-repeat;
+    border-bottom: 1px solid var(--shadow);
+    .key.pill { order: 3; min-width: 0; height: 22px; padding: 0 8px; font-size: 12px; line-height: 20px; }
   }
-  & #emu-close { min-width: 0; padding: 0 5px; }
-  & .emu-title { font: 700 13px var(--ui-font); color: var(--hilite); }
-  & .emu-status { color: var(--light); }
-  & .emu-online { color: #ffff80; }
+  & .emu-title { order: 1; flex: 1 0 calc(100% - 30px); padding: 0 4px; font: 700 13px/22px var(--ui-font); color: var(--hilite); }
+  & .emu-bar #emu-close {
+    order: 2; align-self: start; margin-top: 4px; width: 16px; height: 14px; padding: 0; font-size: 0;
+    &::before { content: "×"; font: 700 14px/12px var(--ui-font); }
+  }
+  & .emu-status { order: 4; margin-left: auto; color: #000; }
+  & .emu-online { order: 4; color: #0000ff; font-weight: 400; text-decoration: underline; }
+  & .emu-stage { background: var(--face); }
   & .emu-frame { box-shadow: 0 0 0 3px var(--face), 0 0 0 4px var(--shadow), 0 0 0 5px var(--dark), 0 0 0 6px var(--light); }
-  & .emu-note { color: var(--hilite); }
+  & .emu-note { color: #000; }
   & .emu-sound { color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000; animation: none; }
   & .emu-loading { padding: 12px 20px; font: 13px var(--ui-font); color: #000; background: var(--face); box-shadow: var(--bevel-window); }
   /* progress, as the time showed it: navy blocks with gaps */
@@ -359,20 +384,144 @@
   & .tools-item code, & .tools-val { color: var(--navy); }
   & .tools-act { color: #000; background: var(--face); box-shadow: var(--bevel-out); &:hover { background: var(--face); color: #000; } }
 
-  /* ── starting up: a window on the desk, blocks filling its bar ─── */
-  & .boot { background: var(--desk); }
-  & .boot-screen { padding: 3px 3px 14px; gap: 10px; background: var(--face); box-shadow: var(--bevel-window); width: min(280px, 100vw - 32px); }
-  & .boot-screen::before { content: "breadbin"; justify-self: stretch; padding: 3px 6px; font: 700 13px var(--ui-font); color: var(--hilite); background: var(--navy); }
-  & .boot-logo { width: 48px; height: 48px; animation: none; filter: none; }
-  & .boot-word { font: 700 18px var(--ui-font); color: #000; }
-  & #boot-status { font: 13px var(--ui-font); color: #000; }
-  & .boot-bar { width: min(240px, 100% - 24px); }
-  & .boot-bar i { width: 60%; animation: none; }
+  /* ── starting up: the text screen before the desktop, grey on black ── */
+  & .boot { background: #000; place-items: start; padding: 12px 16px; }
+  /* waiting (a game loading): the hourglass for a pointer */
+  & .emu:has(.emu-loading) { cursor: url("chicago-hourglass.svg") 8 11, wait; }
+  & .boot-screen { display: block; padding: 0; background: none; box-shadow: none; width: auto; font: 16px/1.4 var(--code-font); color: #aaa; text-align: left; }
+  & .boot-screen::before { content: "Starting breadbin 95\2026"; display: block; margin-bottom: 1.4em; }
+  & .boot-logo, & .boot-word { display: none; }
+  & #boot-status { font: inherit; color: inherit; &::before { content: "C:\\> load "; } }
+  /* the cursor, a blinking underscore */
+  & .boot-bar { width: 0.6em; height: 2px; margin-top: 2px; background: #aaa; box-shadow: none; animation: start-cursor 1s steps(1) infinite; i { display: none; } }
 
   & .toast { color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000, 2px 2px 0 rgb(0 0 0 / 0.3); font-size: 13px; }
 
+/* ── the desktop (themes/desktop.js): icons on the teal, the Start menu, little windows ── */
+  /* the icons down the left of the desk; the windows keep clear of them where there's room */
+  @media (width > 900px) {
+    /* each icon in its cell, placed by desk.js (dragged there with the mouse); the windows start after the columns in use (--desk-w) */
+    & .desk-icons { display: block; position: absolute; inset: 0 auto 0 0; z-index: 1; width: var(--desk-w, 92px); overflow: hidden; }
+    & .desk-icon { position: absolute; left: 4px; width: 84px; }
+    & .desk-icons.dragging { z-index: 45; overflow: visible; } /* (dragged over a window's edge: above it, not cut off) */
+    & .desk-icon.dragging { opacity: 0.7; cursor: default; }
+    & main:has(#hack:not([hidden])) .desk-icons { display: none; } /* (the Studio wants the whole screen) */
+    & .view:not(.studio, .hack) { left: var(--desk-w, 92px); }
+  }
+  & .desk-icon {
+    padding: 4px 2px; color: var(--hilite); font: 12px/1.2 var(--ui-font);
+    span:last-child { padding: 1px 2px; }
+    &:focus { outline: 0; }
+    &:focus span:last-child { background: var(--navy); outline: 1px dotted var(--light); outline-offset: -1px; }
+    &:focus .win-icon { filter: brightness(0.6) sepia(1) hue-rotate(190deg) saturate(4); } /* (chosen: tinted navy, as the time did) */
+  }
+
+  /* Start, open: pressed in */
+  & .brand[aria-expanded="true"] { box-shadow: var(--bevel-in); background: var(--checker); }
+  /* the menu: up from the taskbar, a band down its side with the name on it */
+  & .start-menu {
+    left: 2px; bottom: 34px; display: flex; padding: 3px;
+    color: #000; background: var(--face); box-shadow: var(--bevel-window), 2px 2px 0 rgb(0 0 0 / 0.25);
+  }
+  & .start-banner {
+    writing-mode: vertical-rl; rotate: 180deg; padding: 6px 3px; width: 24px;
+    font: 700 20px/1 var(--ui-font); color: var(--face); background: linear-gradient(to left, var(--navy), #1084d0);
+    b { color: var(--hilite); font-weight: 700; }
+  }
+  & .start-menu > ul { min-width: 190px; }
+  & .desk-menu { bottom: auto; > ul { min-width: 150px; } > ul > li > .start-item { min-height: 0; padding: 3px 20px; } }
+  & .start-item {
+    gap: 10px; padding: 4px 22px 4px 6px; color: #000; font: 13px var(--ui-font); position: relative;
+    &:hover, &:focus { background: var(--navy); color: var(--hilite); outline: 0; }
+  }
+  & .start-menu > ul > li > .start-item { min-height: 36px; }
+  & .has-sub > .start-item::after { content: "▶"; position: absolute; right: 6px; font-size: 8px; }
+  & .has-sub { position: relative; }
+  & .has-sub.open > .start-item { background: var(--navy); color: var(--hilite); }
+  & .start-sub {
+    display: none; position: absolute; left: 100%; top: -3px; min-width: 180px; padding: 3px !important;
+    background: var(--face); box-shadow: var(--bevel-window), 2px 2px 0 rgb(0 0 0 / 0.25);
+    .start-item { padding: 3px 18px 3px 4px; gap: 6px; }
+  }
+  & .has-sub.open > .start-sub { display: block; }
+  /* a phone has no room to the right: Programs opens in place, under its name */
+  @media (width < 600px) { & .start-sub { position: static; box-shadow: none; padding: 0 0 0 26px !important; background: none; } }
+  & .start-sep { height: 2px; margin: 3px 2px; border-top: 1px solid var(--shadow); border-bottom: 1px solid var(--hilite); }
+  & .start-item:disabled { color: var(--shadow); text-shadow: 1px 1px var(--hilite); background: none; padding-left: 26px; }
+  & .recent .start-sub { max-width: 320px; .start-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+
+  & .win h2 { cursor: default; user-select: none; } /* (the title bar to drag the window by: desktop.js) */
+  /* while a dialog has the focus, the windows behind it are inactive: their title bars grey */
+  &:has(dialog[open]) .shelf-head { background-color: var(--shadow); color: var(--face); .shelf-title { color: var(--face); } }
+  &:has(dialog[open]) .studio-bar::before { background-color: var(--shadow); color: var(--face); }
+  &:has(dialog[open]) .emu-bar { background-image: linear-gradient(var(--shadow), var(--shadow)); .emu-title { color: var(--face); } }
+
+  /* the little windows: a row of an icon and words, fields with their labels, buttons at the foot right */
+  /* shutting down: the whole screen behind greys out, a dot at a time */
+  & dialog.sheet.shutdown::backdrop { background: repeating-conic-gradient(rgb(0 0 0 / 0.55) 0 25%, transparent 0 50%) 0 0 / 2px 2px; }
+  /* a window's close box: the x drawn in the face's own type, not the emoji font's */
+  & .sheet .close { font-size: 0; &::before { content: "×"; font: 700 14px/12px var(--ui-font); } }
+  & .win-field :is(input, select) { padding: 3px 4px; color: #000; background: var(--hilite); border: 0; box-shadow: var(--bevel-field); font: 13px var(--ui-font); }
+  /* Notepad: the text on white, in the fixed type, a sunken field */
+  & .readme { padding: 4px 6px; border: 0; color: #000; background: var(--hilite); box-shadow: var(--bevel-field); }
+  & .win-buttons { gap: 6px; }
+  & .win-list { padding: 10px; background: var(--hilite); box-shadow: var(--bevel-field); }
+  & .help-keys { border-collapse: collapse; td { padding: 3px 8px 3px 0; vertical-align: top; } kbd { display: inline-block; min-width: 24px; padding: 1px 5px; font: 12px var(--ui-font); text-align: center; background: var(--face); box-shadow: var(--bevel-out); } }
+  & .win .check { margin: 4px 0; font-size: 13px; }
+  & .dialup-form { display: grid; gap: 2px; }
+  & .dialup-form .win-row { align-items: center; margin-bottom: 8px; b { font-size: 15px; } }
+  /* connecting: the computer and the phone, a dot running between them */
+  & .dialup-anim { display: flex; align-items: center; gap: 0;
+    i { width: 40px; height: 2px; background: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 6px); animation: dialup-dots 0.6s steps(3) infinite; }
+  }
+  & .dialup-status { font-weight: 700; }
+  & .dialup-log { height: 7.5em; margin: 10px 0 0; padding: 4px 6px; overflow-y: auto; font: 12px/1.25 var(--code-font); color: #c0c0c0; background: #000; box-shadow: var(--bevel-field); }
+  /* the tray: its icons (the speaker; while it dials, two little screens lighting in turn) and the time, sunk in one */
+  & :is(.tray-volume, .tray-modem) {
+    display: flex; align-items: center; align-self: stretch; margin-right: -4px; padding: 0 2px 0 6px; border: 0; background: none; cursor: default;
+    box-shadow: inset 0 1px var(--shadow), inset 0 -1px var(--hilite);
+  }
+  & #open-settings + :is(.tray-volume, .tray-modem) { box-shadow: inset 1px 1px var(--shadow), inset 0 -1px var(--hilite); }
+  & :is(.tray-volume, .tray-modem) + .theme-clock { box-shadow: inset -1px -1px var(--hilite), inset 0 1px var(--shadow); }
+  & .tray-modem { .led { animation: tray-led 0.5s steps(1) infinite; } .led.b { animation-delay: -0.25s; } }
+  @media (width < 600px) { & .tray-volume { display: none; } }
+  /* the volume: a little window over the tray, the slider standing up */
+  & .volume-pop {
+    position: fixed; z-index: 41; display: grid; justify-items: center; gap: 8px; padding: 8px 12px; color: #000; background: var(--face); box-shadow: var(--bevel-window);
+    font: 13px var(--ui-font);
+    /* the slider as the time drew it: a sunken groove, a raised grey thumb */
+    input[type="range"] {
+      writing-mode: vertical-lr; direction: rtl; appearance: none; width: 22px; height: 96px; margin: 0; background: none;
+      &::-webkit-slider-runnable-track { width: 4px; margin: 0 auto; background: var(--hilite); box-shadow: var(--bevel-field); }
+      &::-webkit-slider-thumb { appearance: none; width: 22px; height: 11px; margin-left: -9px; background: var(--face); box-shadow: var(--bevel-out); }
+      &::-moz-range-track { width: 4px; background: var(--hilite); box-shadow: var(--bevel-field); }
+      &::-moz-range-thumb { width: 22px; height: 11px; border: 0; border-radius: 0; background: var(--face); box-shadow: var(--bevel-out); }
+    }
+  }
+
+  /* "Click here to begin": a yellow tip over Start, its point at the button, sliding in as it did */
+  & .start-hint {
+    position: fixed; z-index: 4; padding: 3px 8px; pointer-events: none;
+    font: 700 13px var(--ui-font); color: #000; background: #ffffe1; box-shadow: 0 0 0 1px #000; white-space: nowrap;
+    animation: start-hint 1.2s steps(12) both;
+    &::after { content: ""; position: absolute; left: 14px; top: 100%; border: 6px solid transparent; border-top-color: #000; border-left-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { & :is(.start-hint, .dialup-anim i, .tray-modem .led, .boot-bar) { animation: none; } }
+
+  /* the end of the day: orange on black, the whole screen */
+  & .safe-off {
+    gap: 30px; background: #000;
+    p { margin: 0; font: 700 clamp(22px, 4.5vw, 44px)/1.3 var(--ui-font); color: #ff8000; }
+    small { font: 13px var(--ui-font); color: #c06000; }
+  }
+
   /* ── the Studio: a window of toolbars and panes ────────────────── */
-  & .studio-bar { background: var(--face); border-bottom: 0; box-shadow: inset 0 -1px var(--shadow), inset 0 -2px var(--hilite); }
+  & .studio-bar { flex-wrap: wrap; row-gap: 6px; padding-top: 3px; background: var(--face); border-bottom: 0; box-shadow: inset 0 -1px var(--shadow), inset 0 -2px var(--hilite); }
+  /* its title bar, on a row of its own above the toolbar: the name in white on navy, the window's buttons at the right */
+  & .studio-bar::before {
+    content: "breadbin Studio"; order: -1; flex: 1 0 100%; margin: 0 -11px; padding: 2px 6px;
+    font: 700 13px/18px var(--ui-font); color: var(--hilite); background: url("chicago-buttons.svg") right 3px center no-repeat, var(--navy);
+  }
   & .studio-project { color: #000; background: var(--face); box-shadow: var(--bevel-out); font: 700 13px var(--ui-font); }
   & .studio-modes { gap: 2px; padding: 0; background: none; box-shadow: none; }
   & .studio-mode {
@@ -404,5 +553,9 @@
   .theme-choice[data-look="chicago"] { --swatch-1: #008080; --swatch-2: #c0c0c0; --swatch-3: #000080; }
 }
 
+@keyframes start-cursor { 50% { opacity: 0; } }
+@keyframes start-hint { from { clip-path: inset(0 100% 0 0); } }
+@keyframes tray-led { 50% { fill: #0f0; } }
+@keyframes dialup-dots { to { background-position: 6px 0; } }
 @keyframes amp-scroll { from { text-indent: 100%; } to { text-indent: -100%; } }
 @media (prefers-reduced-motion: reduce) { :root[data-theme="chicago"] .np-title { animation: none; } }

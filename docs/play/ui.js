@@ -1,6 +1,8 @@
 // ui - shared page pieces: an element builder, toasts, the shelves of keycap
 // cards and their cover art.
 
+import { withLook } from './themes/themes.js';
+
 export const $ = (sel, el = document) => el.querySelector(sel);
 /** Text for the pixel fonts, which have no accented letters ("Fjälldata" -> "Fjalldata"). */
 export const pixel = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -44,7 +46,8 @@ export function toast(msg, ms = 3500) {
 
 /** The link that starts `id` from the `tab` shelf ('games', 'demos' or 'tunes') for whoever opens it. */
 // (a Studio game's id is already link words and base64url: #play/<Title>/<data>, cart.js)
-const shareUrl = (tab, id) => `${location.origin}${location.pathname}#${tab === 'play' ? `play/${id}` : `${tab}/${encodeURIComponent(id)}/play`}`;
+// It carries the look showing (?look=chicago), so the friend sees it as you do; the plain look adds nothing.
+const shareUrl = (tab, id) => withLook(`${location.origin}${location.pathname}#${tab === 'play' ? `play/${id}` : `${tab}/${encodeURIComponent(id)}/play`}`);
 
 /** Share the link to `id`: a phone's share sheet (Messages, WhatsApp...), or
  *  elsewhere the clipboard, saying so. */
@@ -57,6 +60,11 @@ export async function share(tab, id, title) {
       if (e.name === 'AbortError') return; // the sheet was dismissed
     } // no sheet after all: copy instead
   }
+  return copyLink(url, `🔗 Link to ${title} copied: paste it to a friend.`);
+}
+
+/** `url` to the clipboard, a toast saying `said` (or, with no clipboard at all, a box to copy it from). */
+export async function copyLink(url, said) {
   try {
     await navigator.clipboard.writeText(url);
   } catch {
@@ -68,7 +76,7 @@ export async function share(tab, id, title) {
     ta.remove();
     if (!ok) return prompt('Copy this link:', url);
   }
-  toast(`🔗 Link to ${title} copied: paste it to a friend.`);
+  toast(said);
 }
 
 export const closeButton = (dlg) => h('button.key.icon.small.close', { onclick: () => dlg.close(), 'aria-label': 'Close' }, '✕');

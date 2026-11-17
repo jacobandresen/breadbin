@@ -93,6 +93,7 @@ export async function launch(kind, item) {
   const bar = h('i');
   const label = h('div', {}, `SEARCHING FOR ${item.title.toUpperCase()}`);
   stage.replaceChildren(h('div.emu-loading', {}, label, h('div.bar', {}, bar)));
+  opener = document.activeElement?.closest?.('.card, .tune, a, button') || opener; // (to give the focus back to on closing)
   $('#emu').hidden = false;
   if (!history.state?.emu) history.pushState({ emu: true }, '');
   const progress = (got, total) => {
@@ -233,7 +234,21 @@ function closeEmu() {
   $('#emu').hidden = true;
   $('#emu-sound').hidden = true;
   if (document.fullscreenElement) document.exitFullscreen();
+  // the focus back where the game was started from (its card), so the keys carry on from there
+  // (and again once the page has settled: leaving the history entry can drop the focus to the shelf behind)
+  const back = opener;
+  const refocus = () => back?.isConnected && document.activeElement?.matches('body, .view') && back.focus({ preventScroll: true });
+  refocus();
+  setTimeout(refocus, 300);
+  opener = null;
 }
+let opener = null;
+// Esc closes the player (while the page has the keys; inside the C64 they are the game's), as it closes a sheet
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || $('#emu').hidden || document.querySelector('dialog[open]') || document.fullscreenElement) return;
+  if (e.target.closest?.('.emu-tools input, .emu-tools textarea')) return;
+  $('#emu-close').click();
+});
 // the player is a step in the history, so Back (a swipe on a phone) closes it
 $('#emu-close').addEventListener('click', () => (history.state?.emu ? history.back() : closeEmu()));
 addEventListener('popstate', () => $('#emu').hidden || closeEmu());

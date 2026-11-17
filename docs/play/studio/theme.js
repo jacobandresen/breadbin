@@ -94,9 +94,10 @@ const retroboxTheme = EditorView.theme({
 
 // Vim's highlight groups, by the tags CodeMirror's C and assembly parsers give.
 const retroboxHighlight = HighlightStyle.define([
-  { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.definitionKeyword, t.moduleKeyword, t.self], color: c.red }, // Statement, Keyword
-  { tag: [t.typeName, t.standard(t.typeName), t.className, t.namespace], color: c.yellow }, // Type
-  { tag: [t.modifier], color: c.orange }, // StorageClass: static, const, volatile, extern
+  // (a look without colours to spare sets them apart by weight instead: --code-keyword-weight)
+  { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.definitionKeyword, t.moduleKeyword, t.self], color: c.red, fontWeight: 'var(--code-keyword-weight, 400)' }, // Statement, Keyword
+  { tag: [t.typeName, t.standard(t.typeName), t.className, t.namespace], color: c.yellow, fontWeight: 'var(--code-keyword-weight, 400)' }, // Type
+  { tag: [t.modifier], color: c.orange, fontWeight: 'var(--code-keyword-weight, 400)' }, // StorageClass: static, const, volatile, extern
   { tag: [t.function(t.variableName), t.function(t.definition(t.variableName)), t.function(t.propertyName)], color: c.function, fontWeight: '700' }, // Function
   { tag: [t.string, t.special(t.string), t.docString], color: c.green }, // String
   { tag: [t.character, t.number, t.integer, t.float, t.bool, t.null, t.atom, t.constant(t.variableName), t.standard(t.variableName)], color: c.purple }, // Constant, Number
@@ -106,7 +107,7 @@ const retroboxHighlight = HighlightStyle.define([
   { tag: [t.propertyName, t.attributeName], color: c.blue }, // Identifier (struct fields)
   { tag: [t.labelName], color: c.yellow, fontWeight: '700' }, // labels in assembly
   { tag: [t.variableName, t.name], color: c.fg },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: c.comment }, // Comment
+  { tag: [t.comment, t.lineComment, t.blockComment], color: c.comment, fontStyle: 'var(--code-comment-style, normal)' }, // Comment
   { tag: t.escape, color: c.red }, // SpecialChar
   { tag: t.invalid, color: c.red, fontWeight: '700' },
   { tag: t.heading, color: c.green, fontWeight: '700' }, // Title

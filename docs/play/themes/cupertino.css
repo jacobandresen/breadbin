@@ -1,0 +1,449 @@
+/* themes/cupertino.css - "Cupertino": a tribute to the first desktops of
+   1984-1990 (the town is where they were made). One bit: black on white.
+   A grey desk of alternating dots; a white menu bar along the top with the
+   time at its right; windows with a one-pixel shadow and a title bar of
+   pinstripes, its close box at the left and its name on a plate of white;
+   round-cornered buttons, the one Return presses ringed in a thick line;
+   what is chosen, inverted. Pictures are redrawn in dots (themes/pixelate.js,
+   Atkinson's dither). No one else's marks: breadbin's toast heads the menu
+   bar, and the type is breadbin's own or free: Pumpernickel, a bold bitmap
+   face drawn for this look (tools/pumpernickel.py), for the chrome; Arimo to
+   read and Cousine for code, unless the visitor's computer has the old faces.
+
+   On with <html data-theme="cupertino"> (themes/themes.js). */
+
+/* the chrome's type: Pumpernickel, a bold bitmap face drawn for breadbin (tools/pumpernickel.py) in the manner of
+   the first desktops' system type - a 12-pixel body, so at 12 or 24 px it falls on whole pixels */
+@font-face {
+  font-family: "Pumpernickel";
+  src: url("fonts/pumpernickel.woff2") format("woff2");
+  font-display: block;
+}
+
+@layer tokens {
+  :root[data-theme="cupertino"] {
+    color-scheme: light;
+
+    --ink: #000;
+    --paper: #fff;
+    --grey: #808080; /* (only where a dither can't be: lines that say "not now") */
+
+    --bg-deep: var(--paper);
+    --bg: var(--paper);
+    --surface: var(--paper);
+    --raised: var(--paper);
+    --raised-hi: var(--paper);
+    --raised-top: var(--paper);
+    --edge: var(--ink);
+    --bg-glow: var(--paper);
+    --screen: var(--paper);
+    --screen-glow: var(--paper);
+    --screen-ink: var(--ink);
+    --checker-a: #ddd;
+    --checker-b: var(--paper);
+
+    --text: var(--ink);
+    --text-dim: #444;
+    --accent: var(--ink);
+    --accent-deep: var(--ink);
+    --on-accent: var(--paper);
+    --highlight: var(--ink);
+    --danger: var(--ink);
+    --on-danger: var(--paper);
+    --ok: var(--ink);
+    --info: var(--ink);
+    --glint: var(--ink);
+    --shade: var(--ink);
+
+    --pane: var(--paper);
+    --pane-hi: var(--paper);
+    --line: var(--ink);
+
+    /* the code: a page of the first word processors - black on white, comments and strings
+       in shades of grey, nothing in colour, keywords bold */
+    --code-bg: var(--paper);
+    --code-bg-soft: var(--paper);
+    --code-bg-hard: var(--ink);
+    --code-bar: var(--paper);
+    --code-rule: var(--ink);
+    --code-bg1: var(--paper);
+    --code-bg2: #ddd;
+    --code-gutter: var(--paper);
+    --code-line: #eee;
+    --code-fg: var(--ink);
+    --code-fg0: var(--ink);
+    --code-gray: #444;
+    --code-comment: #666;
+    --code-linenr: #777;
+    --code-red: var(--ink);
+    --code-green: #333;
+    --code-yellow: var(--ink);
+    --code-blue: var(--ink);
+    --code-purple: #333;
+    --code-aqua: #444;
+    --code-orange: var(--ink);
+    --code-function: var(--ink);
+    --code-operator: var(--ink);
+    --code-visual: #ccc;
+    --code-search: #ddd;
+    --code-keyword-weight: 700; /* keywords and types in bold, comments in italic (studio/theme.js): */
+    --code-comment-style: italic; /* as the editors of the time set C apart without colour */
+
+    --radius-s: 0;
+    --radius: 0;
+    --radius-l: 0;
+
+    --chrome-font: "Pumpernickel", "Pixelify Sans", "Arimo", "Noto Emoji", sans-serif;
+    /* its pixel, whole: 1 screen pixel, 2 on a big screen; its size, and a title bar's height, from that */
+    --cpx: clamp(1px, round(down, 100vw / 950, 1px), 2px); /* (2 only where the reading type around it is small beside it) */
+    --chrome: calc(var(--cpx) * 12);
+    --chrome-big: 24px; /* (headings: twice the pixel on a smaller screen, the chrome's own size on a big one) */
+    --bar: calc(var(--chrome) + 8px);
+    --ui-font: "Geneva", "Arimo", Helvetica, Arial, "Noto Emoji", sans-serif;
+    --pixel-font: var(--chrome-font);
+    --display-font: var(--chrome-font);
+    --code-font: "Monaco", "Cousine", "Courier New", monospace;
+    --code-min: 14px;
+    --px: 1px; /* pixelate.js: a dot of a picture is a pixel of the screen */
+
+    /* the desk: every other pixel black, a grey from far off */
+    --dots: repeating-conic-gradient(var(--ink) 0 25%, var(--paper) 0 50%) 0 0 / 2px 2px;
+    /* a lighter grey, one dot in four, for the tracks of scroll bars */
+    --dots-light: radial-gradient(var(--ink) 0.5px, transparent 0.6px) 0 0 / 2px 2px, var(--paper);
+    /* a title bar's pinstripes: six lines, a pixel apart */
+    --stripes: repeating-linear-gradient(to bottom, var(--ink) 0 1px, var(--paper) 1px 2px);
+    --page: var(--dots);
+    /* a window's edge and its shadow */
+    --frame: 0 0 0 1px var(--ink), 1px 1px 0 1px var(--ink);
+  }
+}
+
+@layer theme {
+:root[data-theme="cupertino"] {
+  & *, & ::before, & ::after {
+    border-radius: 0;
+    text-shadow: none;
+    backdrop-filter: none;
+    transition: none;
+    letter-spacing: 0;
+    animation-timing-function: steps(1);
+  }
+  & body { font-size: 14px; }
+  & * { font-variant-emoji: text; } /* emoji as one-colour signs (Noto Emoji), as the icons of the time were */
+  & ::selection { background: var(--ink); color: var(--paper); }
+  & :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  & :is(a, .linkish):not(.key, .brand) { color: var(--ink); text-decoration: underline; }
+
+  /* the rounded corners of the screen itself, black, at the top */
+  & body::before, & body::after {
+    content: ""; position: fixed; top: 0; width: 8px; height: 8px; z-index: 50; pointer-events: none;
+    background: radial-gradient(circle at 100% 100%, transparent 7.5px, var(--ink) 8px);
+  }
+  & body::before { left: 0; }
+  & body::after { right: 0; transform: scaleX(-1); }
+
+  /* scroll bars: a dotted track, a white box to drag, white boxes with arrows at the ends */
+  & * { scrollbar-color: auto; }
+  & ::-webkit-scrollbar { width: 16px; height: 16px; }
+  & ::-webkit-scrollbar-track { background: var(--dots-light); box-shadow: inset 1px 0 var(--ink), inset 0 1px var(--ink); }
+  & ::-webkit-scrollbar-thumb { background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink); }
+  & ::-webkit-scrollbar-button:single-button {
+    display: block; width: 16px; height: 16px; background: var(--paper) center / 9px 9px no-repeat; box-shadow: inset 0 0 0 1px var(--ink);
+  }
+  & ::-webkit-scrollbar-button:single-button:vertical:decrement { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Cpath d='M4.5 .5l4 4H6.5v4h-4v-4H.5z' fill='%23fff' stroke='%23000'/%3E%3C/svg%3E"); }
+  & ::-webkit-scrollbar-button:single-button:vertical:increment { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Cpath d='M4.5 8.5l4-4H6.5v-4h-4v4H.5z' fill='%23fff' stroke='%23000'/%3E%3C/svg%3E"); }
+  & ::-webkit-scrollbar-button:single-button:horizontal:decrement { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Cpath d='M.5 4.5l4-4v2h4v4h-4v2z' fill='%23fff' stroke='%23000'/%3E%3C/svg%3E"); }
+  & ::-webkit-scrollbar-button:single-button:horizontal:increment { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Cpath d='M8.5 4.5l-4-4v2h-4v4h4v2z' fill='%23fff' stroke='%23000'/%3E%3C/svg%3E"); }
+  & ::-webkit-scrollbar-corner { background: var(--paper); }
+
+  /* ── buttons: a rounded box; pushed or on, inverted ─────────────── */
+  & .key {
+    color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: none; border-radius: 6px;
+    &:hover { background: var(--paper); }
+    &:active, &[aria-pressed="true"], &.on { background: var(--ink); color: var(--paper); box-shadow: none; transform: none; }
+    &:disabled { color: var(--grey); border-color: var(--grey); opacity: 1; }
+  }
+  & .key.pill { font: 500 var(--chrome) var(--chrome-font); padding: 3px 14px; min-width: 64px; border-radius: 8px; }
+  /* the button Return presses: a thick ring round it, a pixel away */
+  & .key.pill.primary {
+    color: var(--ink); background: var(--paper); box-shadow: 0 0 0 2px var(--paper), 0 0 0 5px var(--ink); margin: 4px;
+    &:hover { background: var(--paper); }
+    &:active { background: var(--ink); color: var(--paper); }
+  }
+  & .key.icon { border-radius: 6px; }
+
+  /* ── the menu bar ────────────────────────────────────────────────── */
+  & .case {
+    gap: 0; padding: 0 8px 0 14px; min-height: calc(var(--chrome) + 10px); z-index: 3;
+    background: var(--paper); border-bottom: 1px solid var(--ink); box-shadow: none;
+    &::after { content: none; }
+  }
+  /* the first menu: breadbin's toast, where the maker's own mark was */
+  & .brand {
+    align-self: stretch; padding: 0 10px; gap: 6px;
+    &:hover, &:active { background: var(--ink); .brand-label { color: var(--paper); } .brand-logo { filter: grayscale(1) contrast(2) invert(1); } }
+  }
+  & .brand-logo { width: 18px; height: 18px; filter: grayscale(1) contrast(2); transform: none; }
+  & .brand-label { display: none; }
+  & .tabs { gap: 0; margin: 0 auto 0 0; align-self: stretch; }
+  & .tab {
+    min-width: 0; padding: 1px 10px; gap: 0; align-items: center;
+    font: 500 var(--chrome) var(--chrome-font); text-transform: none;
+    color: var(--ink); background: none; border: 0; border-radius: 0; box-shadow: none;
+    &:hover { background: none; }
+    &:active, &[aria-selected="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
+  }
+  & .tab-icon { display: none; }
+  @media (pointer: coarse) { & .tab { padding-block: 8px; } & #open-settings { min-width: 40px; } } /* (a finger needs more than a 12-pixel line) */
+  & .case-tools { align-self: stretch; gap: 6px; }
+  & .key-well { align-self: center; background: var(--paper); border: 1px solid var(--ink); box-shadow: none; }
+  & .search {
+    input { padding: 1px 6px; color: var(--ink); font-size: 13px; }
+    input::placeholder { color: var(--text-dim); }
+    &:focus-within { box-shadow: 0 0 0 1px var(--ink); }
+  }
+  & #open-settings {
+    width: 28px; height: auto; align-self: stretch; border: 0; border-radius: 0; font: 500 var(--chrome) var(--chrome-font); color: var(--ink);
+    &:hover { background: none; } &:active { background: var(--ink); color: var(--paper); }
+  }
+  & .theme-clock { display: flex; align-items: center; padding: 0 10px; font: 500 var(--chrome) var(--chrome-font); white-space: nowrap; order: 1; }
+  @media (width < 600px) { & .theme-clock { display: none; } }
+
+  /* ── the desk, and windows on it ─────────────────────────────────── */
+  & .view:not(.studio) { padding: 14px 18px 40px; }
+  & .shelf { margin: 0 2px 22px 0; background: var(--paper); box-shadow: var(--frame); }
+  /* a title bar: pinstripes from edge to edge, the close box at the left, the name on white in the middle */
+  & .shelf-head {
+    position: relative; margin: 0; padding: 0 8px 0 30px; gap: 0; min-height: var(--bar); justify-content: center;
+    background: var(--stripes) 0 4px / 100% calc(var(--bar) - 8px) no-repeat, var(--paper);
+    background-clip: content-box, border-box;
+    border-bottom: 1px solid var(--ink);
+    &::before {
+      content: ""; position: absolute; left: 8px; top: calc(var(--bar) / 2 - 5.5px); width: 11px; height: 11px;
+      background: var(--paper); box-shadow: 0 0 0 1px var(--paper), inset 0 0 0 1px var(--ink); outline: 1px solid var(--paper);
+    }
+    .key.pill { margin-left: 8px; padding: 0 10px; min-width: 0; font-size: var(--chrome); line-height: calc(var(--bar) - 6px); border-radius: 6px; box-shadow: 0 0 0 2px var(--paper); }
+  }
+  & .shelf-chip, & .shelf-rule { display: none; }
+  /* behind an open dialog the windows are inactive: their bars plain, no stripes, no close box */
+  &:has(dialog[open]) .shelf-head { background: var(--paper); &::before { visibility: hidden; } }
+  & .shelf.rolled > :not(.shelf-head) { display: none; } /* (rolled up to its title bar by its close box: desktop.js) */
+  & .shelf.rolled .shelf-head { border-bottom: 0; }
+  & .shelf-title { padding: 0 8px; margin: 0; font: 500 var(--chrome)/var(--bar) var(--chrome-font); text-transform: none; background: var(--paper); }
+  & .row, & .grid { padding: 14px 14px 8px; background: var(--paper); }
+
+  /* a card: an icon, the name under it; chosen, the name inverts */
+  & .card {
+    background: none; box-shadow: none; color: var(--ink); padding: 4px; gap: 4px;
+    &:hover, &:focus-visible { background: none; box-shadow: none; transform: none; outline: 0;
+      .card-title { background: var(--ink); color: var(--paper); }
+      .art { outline: 1px solid var(--ink); outline-offset: 2px; }
+    }
+  }
+  & .art { background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink); &::after { box-shadow: none; } }
+  & .art img { image-rendering: pixelated; }
+  & :is(.art, .np-shot) img:not([data-c64-done]) { visibility: hidden; } /* (until pixelate.js has redrawn it in dots) */
+  & :is(.art, .np-shot) img[data-c64="unreadable"] { filter: grayscale(1) contrast(1.6); } /* (one whose dots can't be read: grey, at least) */
+  & .card .art::after { content: none; }
+  & .art::before { filter: grayscale(1) contrast(2); } /* (the toast that waits for a picture, in one bit too) */
+  & .art .placeholder { font: 500 var(--chrome) var(--chrome-font); color: var(--ink); background: var(--dots-light); }
+  & .card-title { padding: 0 3px; margin: 0 auto; font-size: 13px; font-weight: 400; }
+  & .card-sub { color: var(--text-dim); font-size: 12px; }
+  & .badge, & .tag { font: 11px var(--ui-font); padding: 0 4px; color: var(--ink); background: var(--paper); box-shadow: 0 0 0 1px var(--ink); border-radius: 3px; }
+  & .wip { font: 700 11px var(--ui-font); padding: 0 4px; color: var(--paper); background: var(--ink); box-shadow: none; }
+  & .skeleton .art { background: var(--dots-light); animation: none; }
+  & .skeleton .card-title { background: #ddd; }
+  & .banner { color: var(--ink); background: var(--paper); box-shadow: var(--frame); b { color: var(--ink); } }
+  & .foot { margin: 10px 2px 0 0; padding: 6px 10px; color: var(--ink); background: var(--paper); box-shadow: var(--frame); border: 0; img { filter: grayscale(1) contrast(2); } }
+  & .empty { display: inline-block; padding: 4px 10px; color: var(--ink); background: var(--paper); box-shadow: var(--frame); }
+
+  /* ── Tunes: a list window and a player window ───────────────────── */
+  & .view.tunes { padding: 14px 18px; gap: 18px; }
+  & .tune-list { background: var(--paper); border: 0; box-shadow: var(--frame); }
+  & .tune-section {
+    justify-content: center; gap: 8px; padding: 2px 8px; font: 500 var(--chrome) var(--chrome-font); text-transform: none; letter-spacing: 0;
+    background: var(--paper); border-left: 0; border-bottom: 1px solid var(--ink); box-shadow: none;
+    &::before, &::after { content: ""; flex: 1; align-self: stretch; margin: 3px 0; background: var(--stripes); }
+    .count { color: var(--ink); margin: 0; }
+  }
+  & .tune {
+    grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; padding: 4px 10px; color: var(--ink); border-bottom: 1px dotted var(--ink);
+    &:hover { background: var(--paper); }
+    &.current { background: var(--ink); color: var(--paper); box-shadow: none; .tune-sub, .tune-rating, .play { color: var(--paper); } }
+  }
+  & .tune.current:not(.loading) .play { --bar: var(--paper); }
+  & .tune .play { color: var(--ink); }
+  & :is(.tune:not(.current), .tune.loading) .play { font-size: 0; display: grid; place-items: center; } /* (the one playing keeps its bars) */
+  & .tune:not(.current) .play::before, & .tune.loading .play::before {
+    content: ""; width: 0; height: 0; border-left: 8px solid currentColor; border-block: 5px solid transparent;
+  }
+  & .tune-sub, & .tune-rating { color: var(--text-dim); }
+  & .tune-player {
+    align-self: start; padding: 0 0 14px; gap: 12px; background: var(--paper); box-shadow: var(--frame);
+    &::before {
+      content: "SID Player"; display: block; text-align: center; font: 500 var(--chrome)/var(--bar) var(--chrome-font);
+      background: linear-gradient(var(--paper), var(--paper)) center / 7.5em 100% no-repeat, var(--stripes) 0 4px / 100% calc(var(--bar) - 8px) no-repeat, var(--paper);
+      border-bottom: 1px solid var(--ink);
+    }
+    > * { margin-inline: 14px; }
+  }
+  & .now-playing { background: var(--paper); border: 1px solid var(--ink); box-shadow: none; }
+  & .np-shot { box-shadow: none; border: 1px solid var(--ink); }
+  & .np-title { font: 500 var(--chrome-big)/1.2 var(--chrome-font); color: var(--ink); }
+  & .np-artist { font-weight: 700; }
+  & :is(.np-meta, .np-stats, .np-group) { color: var(--ink); font-weight: 400; }
+  & .np-idle { color: var(--ink); b { color: var(--ink); } }
+  & .screen-bezel { background: var(--ink); border: 1px solid var(--ink); box-shadow: none; border-radius: 6px; }
+  & :is(#viz, .np-shot) { filter: grayscale(1) contrast(1.8); } /* (the visualisers in white on black, as the screen of the time would show them) */
+  & .select {
+    font: 500 var(--chrome) var(--chrome-font); color: var(--ink); background-color: var(--paper); border: 1px solid var(--ink); box-shadow: 1px 1px 0 var(--ink); border-radius: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  & .select option { background: var(--paper); }
+  & .subtune { color: var(--ink); }
+
+  /* ── dialogs: the modal box - a thin line, white, a thick line ──── */
+  & dialog.sheet {
+    padding: 4px; color: var(--ink); background: var(--paper); border: 1px solid var(--ink);
+    box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 5px var(--ink), 2px 2px 0 var(--ink);
+    &::backdrop { background: none; backdrop-filter: none; }
+  }
+  & dialog[open] { animation: none; }
+  & .sheet h2 { font: 500 var(--chrome-big) var(--chrome-font); color: var(--ink); }
+  & .sheet .close { top: 12px; right: 12px; width: 22px; height: 22px; font-size: 13px; border-radius: 0; }
+  & .settings h3 { font: 500 var(--chrome) var(--chrome-font); text-transform: none; color: var(--ink); border-bottom: 1px solid var(--ink); padding-bottom: 2px; }
+  & .settings p { color: var(--ink); }
+  & .settings .credits { color: var(--ink); }
+  & .settings .credits a { color: var(--ink); text-decoration: underline; font-weight: 700; }
+  & .settings .credits li { border-bottom: 1px dotted var(--ink); }
+  & .field input[type="text"], & .field input[type="url"] { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: none; }
+  & :is(.field input[type="range"], .check input) { accent-color: var(--ink); }
+  & .theme-choice { background: var(--paper); border: 1px solid var(--ink); box-shadow: none; border-radius: 6px; &:has(:checked) { box-shadow: 0 0 0 2px var(--ink); } }
+  & .rom-row .state, & .rom-row .state.ok { color: var(--ink); }
+
+  /* ── the player: the C64 in a window on the desk ────────────────── */
+  & .emu { background: var(--dots); }
+  & .emu-bar {
+    margin: 0; padding: 0 8px 0 14px; gap: 0; min-height: calc(var(--chrome) + 10px); background: var(--paper); border-bottom: 1px solid var(--ink); box-shadow: none;
+    .key.pill { align-self: stretch; min-width: 0; padding: 0 10px; border: 0; border-radius: 0; font-size: var(--chrome);
+      &:hover { background: none; }
+      &:active, &[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+    }
+  }
+  & .emu-title { font: 500 var(--chrome) var(--chrome-font); padding-right: 12px; }
+  & .emu-status { color: var(--ink); }
+  & .emu-online { color: var(--ink); text-decoration: underline; font-weight: 400; padding: 0 10px; }
+  @media (width <= 900px) { & .emu-online { display: none; } }
+  & .emu-frame { box-shadow: 0 0 0 8px var(--paper), 0 0 0 9px var(--ink), 2px 2px 0 9px var(--ink); }
+  & .emu-note { color: var(--ink); background: var(--paper); box-shadow: var(--frame); width: fit-content; padding: 2px 10px; &:empty { visibility: hidden; } }
+  & .emu-sound { color: var(--ink); background: var(--paper); box-shadow: var(--frame); animation: none; }
+  & .emu-loading { font: 500 var(--chrome) var(--chrome-font); color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 5px var(--ink); padding: 18px 26px; }
+  /* progress: a bar filling black */
+  & .emu-loading .bar, & .boot-bar { height: 12px; border-radius: 0; background: var(--paper); border: 1px solid var(--ink); }
+  & .emu-loading .bar i, & .boot-bar i { background: var(--ink); box-shadow: none; }
+  & .emu-error { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 5px var(--ink); padding: 18px 22px; b { font: 500 var(--chrome) var(--chrome-font); color: var(--ink); } }
+  & .emu-tools { color: var(--ink); background: var(--paper); border-left: 1px solid var(--ink); box-shadow: none; }
+  & .tools-head { font: 500 var(--chrome) var(--chrome-font); }
+  & .tools-sec { border-top: 1px solid var(--ink); summary { color: var(--ink); } }
+  & :is(.tools-item, .tools-mem, .tools-num, .tools-addr) { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: none; }
+  & .tools-item code, & .tools-val { color: var(--ink); font-weight: 700; }
+  & .tools-act { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 6px; &:hover { background: var(--paper); } &:active { background: var(--ink); color: var(--paper); } }
+
+  /* ── starting up: "Welcome to breadbin", in a box on the desk ───── */
+  & .boot { background: var(--dots); }
+  /* waiting (starting up, a game loading): the wristwatch for a pointer */
+  & :is(.boot:not(.done), .emu:has(.emu-loading)) { cursor: url("cupertino-watch.svg") 8 8, wait; }
+  & .boot-screen {
+    padding: 22px 48px 20px; gap: 8px; background: var(--paper); border: 1px solid var(--ink);
+    box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 5px var(--ink);
+  }
+  & .boot-logo { width: 32px; height: 32px; animation: none; filter: grayscale(1) contrast(2); }
+  & .boot-word { font: 500 var(--chrome-big) var(--chrome-font); color: var(--ink); &::before { content: "Welcome to "; } }
+  & #boot-status { font-size: 13px; color: var(--ink); }
+  & .boot-bar { width: 200px; }
+
+  & .toast { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); border-radius: 0; }
+
+  /* ── the menu under the toast (themes/desktop.js), and its desk accessories ── */
+  & .brand[aria-expanded="true"] { background: var(--ink); .brand-logo { filter: grayscale(1) contrast(2) invert(1); } }
+  & .start-menu { min-width: 210px; padding: 0 0 2px; color: var(--ink); background: var(--paper); box-shadow: 0 0 0 1px var(--ink), 1px 1px 0 1px var(--ink); }
+  & .start-menu .win-icon { display: none; } /* (the menus of the time were words) */
+  & .start-item {
+    display: block; padding: 1px 16px; color: var(--ink); font: 500 var(--chrome)/calc(var(--chrome) + 6px) var(--chrome-font);
+    &:hover, &:focus { background: var(--ink); color: var(--paper); outline: 0; }
+  }
+  & .start-sep { height: 0; margin: 2px 0; border-top: 1px dotted var(--ink); }
+
+  /* the desk's icons, down its right side (on a screen with room for desk beside the windows): the disk at the top, the Trash at the foot */
+  @media (width > 1100px) {
+    & .desk-icons {
+      position: absolute; inset: 0 0 0 auto; z-index: 1; width: calc(var(--cpx) * 48 + 48px); padding: 14px 6px 18px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    & .desk-icon:last-child { margin-top: auto; } /* (the Trash, at the foot) */
+    & main:has(#hack:not([hidden])) .desk-icons { display: none; }
+    & .view:not(.studio, .hack) { right: calc(var(--cpx) * 48 + 48px); padding-right: 8px; }
+  }
+  & .desk-icon {
+    gap: 2px; padding: 2px; color: var(--ink); font: 500 var(--chrome) var(--chrome-font);
+    span:last-child { padding: 0 3px; background: var(--paper); }
+    .win-icon { filter: grayscale(1) contrast(3); } /* (one bit) */
+    &:focus { outline: 0; span:last-child { background: var(--ink); color: var(--paper); } .win-icon { filter: grayscale(1) contrast(3) invert(1); } }
+  }
+
+  /* a dialog of the desk accessories: the modal box, an icon at the left, the buttons at the foot right */
+  & .win h2 { font-size: var(--chrome); }
+  & .win-row { gap: 16px; }
+  & .win-icon { filter: grayscale(1) contrast(3); }
+  & .win-buttons { gap: 12px; }
+  & .win-field :is(input, select) { padding: 2px 4px; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); font: 13px var(--ui-font); }
+  /* Puzzle: fifteen tiles in a frame, a gap to slide them into */
+  & .puzzle { border: 1px solid var(--ink); }
+  & .puzzle-tile {
+    border: 1px solid var(--ink); border-radius: 0; background: var(--paper); color: var(--ink); font: 500 var(--chrome-big) var(--chrome-font);
+    &:active { background: var(--ink); color: var(--paper); }
+    &:disabled { background: var(--dots-light); border-color: transparent; }
+  }
+  & .puzzle.solved .puzzle-tile:not(:disabled) { background: var(--ink); color: var(--paper); }
+  /* the read-me: a plain page of text, as the simple editor of the time showed one */
+  & .readme { padding: 6px 8px; border: 1px solid var(--ink); color: var(--ink); background: var(--paper); }
+  /* the end of the day: a box on the grey desk */
+  & .safe-off.mac {
+    gap: 18px; background: var(--dots);
+    > div { display: flex; gap: 16px; align-items: center; padding: 20px 28px; background: var(--paper); border: 1px solid var(--ink); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 5px var(--ink); }
+    p { margin: 0; font: 500 var(--chrome-big)/1.4 var(--chrome-font); }
+    small { padding: 2px 8px; background: var(--paper); font-size: 12px; }
+  }
+
+  /* ── the Studio: a window of black and white ───────────────────── */
+  & .studio-bar { background: var(--paper); border-bottom: 1px solid var(--ink); box-shadow: none; }
+  & .studio-project { font: 500 var(--chrome) var(--chrome-font); color: var(--ink); }
+  & .studio-modes { gap: 0; padding: 0; background: none; box-shadow: none; border: 1px solid var(--ink); border-radius: 6px; overflow: hidden; }
+  & .studio-mode {
+    color: var(--ink); background: var(--paper); box-shadow: none; border-radius: 0; font: 500 var(--chrome) var(--chrome-font);
+    &[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+  }
+  & .studio-banner { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); margin: 6px; box-shadow: 2px 2px 0 var(--ink); }
+  & .studio-main, & .studio-side, & .studio-files { background: var(--paper); }
+  & .studio-codehead { background: var(--paper); border-bottom: 1px solid var(--ink); }
+  & .studio-crumb { padding: 0 8px; color: var(--ink); background: var(--paper); font: 500 var(--chrome) var(--chrome-font); }
+  & .studio-status { color: var(--ink); background: var(--paper); border-top: 1px solid var(--ink); }
+  & .studio-tool, & .studio-toolbtn { color: var(--ink); }
+  & .studio-input, & .studio-select { color: var(--ink); background: var(--paper); border: 1px solid var(--ink); box-shadow: none; }
+  /* the C64's screen, as a little black screen in the window (the C64 draws in colour there anyway) */
+  & .studio-screen { padding: 6px; background: var(--paper); border: 1px solid var(--ink); box-shadow: 1px 1px 0 var(--ink); border-radius: 0; }
+  & .studio-stage { background: var(--ink); box-shadow: none; border-radius: 0; }
+  & .studio-idle { color: #ccc; b { font: 500 var(--chrome-big) var(--chrome-font); color: var(--paper); } &::before { filter: grayscale(1) contrast(2); } }
+  & .studio-phonebar { background: var(--paper); border-top: 1px solid var(--ink); }
+  & .studio-phoneview {
+    color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 6px;
+    &[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  }
+}
+}
+
+/* the look's swatch in Settings (style.css draws the picker) */
+@layer tokens {
+  .theme-choice[data-look="cupertino"] { --swatch-1: #fff; --swatch-2: #808080; --swatch-3: #000; .theme-swatch { outline: 1px solid #000; outline-offset: -1px; } }
+}

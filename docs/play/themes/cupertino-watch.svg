@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" shape-rendering="crispEdges">
+  <!-- Cupertino's "wait" pointer (themes/cupertino.css): a wristwatch, one bit, white edged so it shows on black -->
+  <path d="M5 0h6v3h1v1h1v8h-1v1h-1v3H5v-3H4v-1H3V4h1V3h1z" fill="#000"/>
+  <path d="M5 4h6v1h1v6h-1v1H5v-1H4V5h1z" fill="#fff"/>
+  <path d="M8 5h1v3h2v1H8z" fill="#000"/>
+</svg>

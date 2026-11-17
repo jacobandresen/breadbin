@@ -102,6 +102,18 @@ async function findItem(tab, id) {
 let searchTimer = 0;
 // Enter puts the phone keyboard away; the results are already showing
 $('#search').addEventListener('keydown', (e) => e.key === 'Enter' && e.target.blur());
+// "/" goes to the search from anywhere it isn't a character (a field, the Studio, the player), as on most sites with one;
+// in a look that says --type-to-search: 1 (Classic: a C64 puts what you type straight on the screen), any letter does
+addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || current === 'hack' || $('#emu').checkVisibility()) return;
+  if (e.target.closest?.('input, textarea, select, button, [contenteditable], dialog')) return;
+  if (e.key === '/') {
+    e.preventDefault();
+    $('#search').focus();
+  } else if (/^[\p{L}\p{N}]$/u.test(e.key) && getComputedStyle(document.documentElement).getPropertyValue('--type-to-search').trim() === '1') {
+    $('#search').focus(); // (the key's character lands in it)
+  }
+});
 $('#search').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   const term = (terms[current] = e.target.value.trim());

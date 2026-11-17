@@ -36,16 +36,28 @@ did it:
 
 [![Giana Sisters in landscape on a phone, between the stick and the fire button](docs/images/shots/phone.png)](https://jacobandresen.github.io/breadbin/play/#games/gb64%3Ag2%2FGIANA1_03275_02.zip/play)
 
-**Four looks**, under Settings → Look:
+**Five looks**, under Settings → Look:
 - **Midnight bakery**, breadbin's own;
 - **Classic**, breadbin as a C64 would draw it: the light blue border round the
   blue screen, the C64's 8x8 type on its grid of big pixels, and the box art
-  redrawn in its 16 colours;
-- **GEOS**, the 1986 desktop: grey dither, striped title bars, bitmap type;
+  redrawn in its 16 colours; type anywhere and it searches, as a C64 puts what
+  you type on the screen;
+- **GEOS**, the 1986 desktop: grey dither, striped title bars, bitmap type,
+  and its first menu, with the info box, a note pad, a puzzle and BASIC (out
+  to Classic);
 - **Chicago**, a tribute to the desktop of 1995: teal, grey bevels, navy title
   bars and a taskbar. Its Tunes are a 1997 MP3 player's, spectrum and all; its
   code looks as a free editor of the time showed C; and in the Studio the key
-  under Esc drops a console down from the top.
+  under Esc drops a console down from the top. Its Start menu opens (Ctrl+Esc
+  too), with Documents (what you played last), a Run box, Shut Down, a Notepad
+  that keeps your level codes, and Dial-Up Networking, which dials, sings the
+  modem's song and never gets online; the desk's icons go where you drag them,
+  windows drag by their title bars (in Cupertino and GEOS too), and a
+  window's × closes it down to the taskbar;
+- **Cupertino**, a tribute to the first desktops of 1984: black on white, a
+  grey desk of dots, pinstriped title bars, a bold bitmap system type of its
+  own, the box art in dots as the first paint program drew them (Atkinson's
+  dither), and desk accessories under the toast at the left of the menu bar.
 
 ## Listen
 
@@ -92,7 +104,9 @@ and how it all works.
 ## Share
 
 Every game, demo and tune has a **Share** link that starts it for whoever
-opens it: the phone's share sheet, or copied on a computer.
+opens it: the phone's share sheet, or copied on a computer. The link keeps
+the look you're in (`?look=chicago`), so your friend sees it as you do, for
+that visit; Settings can copy a link to any page in the look showing.
 
 ## Playtested, honestly
 
@@ -132,7 +146,8 @@ Node. See [`tools/playtest`](tools/playtest/README.md) for how a pass is decided
 - **Looks**: each theme is a sheet of tokens (`docs/play/themes`) in CSS
   cascade layers, so a theme can recolour everything and restyle any part
   without `!important`. Classic's type is built from a free C64 font by
-  `tools/pxlfont.py`.
+  `tools/pxlfont.py`; Cupertino's, Pumpernickel, a bold bitmap face, is drawn
+  pixel by pixel in `tools/pumpernickel.py`.
 - **Data**: nothing is bundled. Shelves load as they scroll into view, from
   GameBase64 and the Internet Archive, the Archive's copy of HVSC 79, and
   libretro-thumbnails. The only ROM breadbin ships is its own build of the free
