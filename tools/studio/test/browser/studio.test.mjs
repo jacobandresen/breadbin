@@ -668,9 +668,122 @@ test('the looks: Settings switches the theme at once, a reload keeps it, the cod
   assert.match(chicago.font, /Arimo/);
   assert.ok(await page.$('.theme-clock'), 'the clock in the taskbar\'s tray');
 
+  await pick('cupertino');
+  const cupertino = await look();
+  assert.equal(cupertino.theme, 'cupertino');
+  assert.equal(cupertino.code, 'rgb(255, 255, 255)', 'black on white');
+  assert.ok(await page.$('.theme-clock'), 'the time in the menu bar');
+
   await pick('bakery');
   assert.deepEqual(await look(), bakery, 'back to the bakery, exactly');
   assert.equal(await page.$('.theme-clock'), null);
+  assert.deepEqual(page.errors, []);
+});
+
+test('the desktops: Chicago\'s Start opens a menu that goes places, Dial-Up dials; Cupertino\'s and GEOS\'s first menus have their own; other looks have none', async () => {
+  const page = await openStudio(browser, server.url);
+  const look = (id) => page.evaluate(async (id) => (await import('./themes/themes.js')).applyTheme(id), id);
+  await look('chicago');
+  await page.waitForSelector('.start-menu', { hidden: true });
+  await page.click('.tray-volume');
+  await page.$eval('.volume-pop input[type="checkbox"]', (m) => m.click());
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('breadbin.settings')).volume), 0, 'the tray\'s speaker mutes');
+  await page.$eval('.volume-pop input[type="checkbox"]', (m) => m.click());
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('breadbin.settings')).volume) > 0, 'and unmutes');
+  await page.keyboard.press('Escape');
+  await page.click('.brand');
+  assert.equal(await page.$eval('.start-menu', (e) => e.hidden), false, 'Start opens the menu');
+  assert.equal(await page.evaluate(() => location.hash), '#hack', 'and goes nowhere itself');
+  await page.evaluate(() => document.querySelector('.has-sub > .start-item').click());
+  await page.evaluate(() => [...document.querySelectorAll('.start-sub .start-item')].find((b) => b.textContent === 'Tunes').click());
+  assert.equal(await page.evaluate(() => location.hash), '#tunes', 'Programs > Tunes');
+  assert.ok(await page.$eval('.start-menu', (e) => e.hidden), 'the menu closes behind it');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('Escape');
+  await page.keyboard.up('Control');
+  assert.equal(await page.$eval('.start-menu', (e) => e.hidden), false, 'Ctrl+Esc opens it too');
+  await page.evaluate(() => [...document.querySelectorAll('.start-item')].find((b) => b.textContent === 'Dial-Up Networking').click());
+  assert.equal(await page.$eval('dialog.dialup[open] h2', (e) => e.textContent), 'Connect To');
+  await page.click('dialog.dialup .primary');
+  assert.equal(await page.$eval('dialog.dialup[open] h2', (e) => e.textContent), 'Connecting to BreadNet');
+  await page.click('dialog.dialup .key.pill'); // Cancel: it never gets online anyway
+  await look('cupertino');
+  await page.waitForFunction(() => document.querySelector('.start-menu [role="menu"][aria-label="breadbin"]'));
+  await page.click('.brand');
+  await page.evaluate(() => [...document.querySelectorAll('.start-item')].find((b) => b.textContent === 'Puzzle').click());
+  assert.equal(await page.$$eval('dialog.puzzle-win[open] .puzzle-tile', (t) => t.length), 16, 'Cupertino: the Puzzle, fifteen tiles and a gap');
+  await page.keyboard.press('Escape');
+  await look('geos');
+  await page.waitForFunction(() => [...document.querySelectorAll('.start-item')].some((b) => b.textContent === 'BASIC'));
+  await page.click('.brand');
+  await page.evaluate(() => [...document.querySelectorAll('.start-item')].find((b) => b.textContent === 'BASIC').click());
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'classic', 'GEOS: BASIC leaves for the C64\'s own screen');
+  await look('bakery');
+  await page.waitForFunction(() => !document.querySelector('.start-menu, .desk-icons')); // (gone with the look)
+  assert.equal(await page.$eval('.tab[data-tab="games"] .tab-icon', (e) => e.textContent), '🕹', 'the taskbar\'s pictures give the glyphs back');
+  await page.click('.brand');
+  assert.equal(await page.evaluate(() => location.hash), '#games', 'Start is the way to Games again');
+  assert.deepEqual(page.errors, []);
+});
+
+test('a link brings its look (?look=geos) for the visit, the shares carry it, Settings drops it; the desktops\' windows drag by their title bars', async () => {
+  const page = await openStudio(browser, server.url);
+  await page.goto(`${server.url}?look=geos#demos`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#demos .shelf-head');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'geos', 'the link\'s look');
+  assert.notEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('breadbin.settings') || '{}').theme), 'geos', 'without saving it');
+  assert.match(await page.evaluate(async () => (await import('./themes/themes.js')).withLook(location.origin + location.pathname + '#games/x/play')), /\?look=geos#games\/x\/play$/, 'a shared link carries it');
+  // a window dragged by its bar moves (and comes to the front); a double click on the bar puts it back
+  const bar = await page.$eval('#demos .shelf:nth-of-type(2) .shelf-head', (b) => { const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(bar.x, bar.y);
+  await page.mouse.down();
+  await page.mouse.move(bar.x - 100, bar.y + 60, { steps: 8 });
+  await page.mouse.up();
+  assert.equal(await page.$eval('#demos .shelf:nth-of-type(2)', (s) => s.style.translate), '-100px 60px', 'dragged by its title bar');
+  await page.mouse.click(bar.x - 100, bar.y + 60, { clickCount: 2 });
+  assert.equal(await page.$eval('#demos .shelf:nth-of-type(2)', (s) => s.style.translate), '', 'a double click puts it back');
+  await page.evaluate(() => document.getElementById('open-settings').click());
+  assert.equal(await page.$eval('.theme-picker input:checked', (i) => i.value), 'geos', 'Settings shows the look showing');
+  await page.$eval('.theme-picker input[value="chicago"]', (i) => i.click());
+  assert.equal(await page.evaluate(() => location.search), '', 'a look chosen in Settings takes the link\'s out of the address');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('breadbin.settings')).theme), 'chicago', 'and is saved');
+  assert.deepEqual(page.errors, []);
+});
+
+test('Chicago\'s desk: a window\'s × closes it down to its taskbar button; the mouse drags the icons about, the windows keeping clear', async () => {
+  const page = await openStudio(browser, server.url);
+  await page.evaluate(async () => (await import('./themes/themes.js')).applyTheme('chicago'));
+  await page.waitForSelector('.desk-icons');
+  // the × drawn on the Studio's title bar closes it down to its taskbar button, which brings it back
+  const bar = await page.$eval('.studio-bar', (b) => { const r = b.getBoundingClientRect(); return { x: r.right - 11, y: r.top + 10 }; });
+  await page.mouse.click(bar.x, bar.y);
+  assert.ok(await page.$eval('#hack', (v) => v.classList.contains('win-closed') && !v.getClientRects().length), 'the title bar\'s × closes the window');
+  assert.ok(await page.$eval('.tab[data-tab="hack"]', (t) => t.hasAttribute('data-closed')), 'and its taskbar button stands up');
+  await page.click('.tab[data-tab="hack"]');
+  await page.waitForFunction(() => !document.querySelector('.win-closed, .tab[data-closed]'));
+  // the desk's icons go where the mouse drags them: onto another's cell, they swap; past the column, a new one, the windows moving over
+  await page.click('.tab[data-tab="games"]');
+  await page.waitForFunction(() => document.querySelector('.desk-icon').getClientRects().length);
+  const at = (label) => page.$eval(`.desk-icon[data-label="${label}"]`, (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 20, left: e.offsetLeft, top: e.offsetTop }; });
+  const drag = async (label, x, y) => {
+    const a = await at(label);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(x, y, { steps: 8 });
+    await page.mouse.up();
+  };
+  const [bin, mine] = [await at('Recycle Bin'), await at('My Breadbin')];
+  await drag('Recycle Bin', mine.x, mine.y);
+  assert.deepEqual([(await at('Recycle Bin')).top, (await at('My Breadbin')).top], [mine.top, bin.top], 'dropped on another icon, the two swap');
+  assert.equal(await page.$$eval('dialog[open]', (d) => d.length), 0, 'and the drag opens nothing');
+  const left = await page.$eval('#games', (v) => v.offsetLeft);
+  await drag('readme.txt', mine.x + 84, mine.y + 140);
+  assert.ok((await at('readme.txt')).left > mine.left, 'dragged past the column: a new column');
+  assert.equal(await page.$eval('#games', (v) => v.offsetLeft), left + 84, 'and the windows keep clear of it');
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('breadbin.desk'))['readme.txt']), 'where they are is kept');
+  await page.mouse.click(mine.x, 700, { button: 'right' });
+  await page.evaluate(() => [...document.querySelectorAll('.desk-menu .start-item')].find((b) => b.textContent === 'Arrange Icons').click());
+  assert.equal(await page.$eval('#games', (v) => v.offsetLeft), left, 'Arrange Icons: one column again');
   assert.deepEqual(page.errors, []);
 });
 

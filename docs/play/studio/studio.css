@@ -457,6 +457,12 @@
   /* the C64 as big as the Studio has room for, its controls under it */
   &[data-view="game"] .studio-side { border-left: 0; align-items: center; }
   &[data-view="game"] .studio-side > * { width: min(100%, 960px); }
+  /* at a desk (a look taking turns, as Classic) the side has a height of its own: the C64 fits it down as well as across,
+     the row of its buttons still in sight (a phone's side grows with what is in it, and scrolls) */
+  @media (min-width: 901px) {
+    &[data-view="game"] .studio-side { container-type: size; }
+    &[data-view="game"] .studio-side > * { width: min(100%, 960px, (100cqh - 64px) * 4 / 3); }
+  }
 }
 /* a phone on its side: the height is what's short - no tips; in the game view, no project bar, and the C64 as big as the height allows */
 @media (orientation: landscape) and (max-height: 500px) {

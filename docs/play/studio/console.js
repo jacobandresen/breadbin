@@ -118,6 +118,6 @@ const HELP = {
   'mode <m>': 'code, sprites, tiles, map or music',
   ls: 'the project\'s files',
   clear: 'clear the console',
-  'theme <id>': 'another look (bakery, classic, geos, chicago)',
+  'theme <id>': 'another look (bakery, classic, geos, chicago, cupertino)',
   quit: 'close the console (or `)',
 };

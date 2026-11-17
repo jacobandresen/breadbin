@@ -176,9 +176,9 @@
     &:active { translate: none; }
   }
   & .tab-icon { display: none; }
-  & .case-tools { align-self: stretch; gap: 0; }
+  & .case-tools { align-self: stretch; gap: 0; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
   /* the Studio's bar: a menu bar of its own */
-  & .studio-bar { background: var(--paper); border-bottom: 1px solid var(--ink); }
+  & .studio-bar { background: var(--paper); border-bottom: 1px solid var(--ink); flex-wrap: wrap; row-gap: 6px; } /* (at this size of type the bar may need two rows) */
   /* the Studio's welcome: a note on paper, not on the desk */
   & .studio-banner { background: var(--paper); border: 1px solid var(--ink); margin: 6px; box-shadow: 3px 3px 0 var(--ink); }
   & .theme-clock {
@@ -197,7 +197,8 @@
   }
   & .key-well { background: var(--white); box-shadow: none; border-left: 1px solid var(--ink); }
   & .search {
-    input { color: var(--ink); padding: 3px 10px; }
+    flex: 1 1 8.5em; min-width: 0; max-width: 8.5em; /* (room for "Search games…" in the bitmap face, where the bar has it) */
+    input { color: var(--ink); padding: 3px 10px; width: 100%; min-width: 0; }
     input::placeholder { color: var(--text-dim); }
     &:focus-within { box-shadow: inset 0 0 0 2px var(--ink); }
   }
@@ -231,6 +232,12 @@
   }
   & .shelf .n { background: var(--paper); padding: 0 6px; }
   & .row, & .grid { padding: 12px 12px 4px; }
+  /* a card as wide as a long word in the face, at its size (wide shelves keep their own width) */
+  & .grid { grid-template-columns: repeat(auto-fill, minmax(max(150px, calc(var(--gfont) * 4.6)), 1fr)); }
+  & .row { grid-auto-columns: max(150px, calc(var(--gfont) * 4.6)); }
+  & .wide .grid { grid-template-columns: repeat(auto-fill, minmax(max(220px, calc(var(--gfont) * 6)), 1fr)); }
+  & .wide .row { grid-auto-columns: max(220px, calc(var(--gfont) * 6)); }
+  & .card-title { overflow-wrap: anywhere; } /* (and a word longer still breaks rather than runs off) */
   & .row { scrollbar-color: var(--ink) var(--paper); }
 
   /* a card is an icon on the desktop: the picture in a frame, the name under it; chosen, the name inverts */
@@ -251,8 +258,8 @@
     transform: none;
   }
   & .art .placeholder { color: var(--ink); background: var(--white); }
-  & .card-title { padding: 1px 3px; justify-self: center; margin: 0 auto; }
-  & .card-sub { color: var(--text-dim); }
+  & .card-title { padding: 1px 3px; justify-self: center; margin: 0 auto; -webkit-line-clamp: 3; } /* (a long name in the big bitmap face wants a third line) */
+  & .card-sub { color: var(--text-dim); white-space: normal; text-overflow: clip; } /* (wrapped, not cut: "1984 · Datas…" says nothing) */
   & .badge { padding: 1px 4px 2px; background: var(--ink); color: var(--white); box-shadow: none; }
   & .tag { padding: 1px 4px 2px; background: var(--white); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
   & .wip { color: var(--white); background: var(--danger); box-shadow: none; }
@@ -282,10 +289,11 @@
     &:hover { background: var(--white); }
     &.current { background: var(--ink); color: var(--white); box-shadow: none; .tune-sub, .tune-rating, .play { color: var(--white); } }
   }
-  & .tune.current:not(.loading) .play { --bar: var(--white); }
+  & .tune.current:not(.loading) .play { --bar: var(--white); font-size: 0; } /* (the bars, not the ▶: the one size of type would bring it back) */
   & .tune-sub, & .tune-rating { color: var(--text-dim); font-size: var(--gfont-small); }
   /* the ▶ drawn, not the emoji font's boxed one: a triangle of ink, centred in its column */
-  & .tune .play { color: var(--ink); font-size: 0; display: grid; place-items: center; }
+  & .tune .play { color: var(--ink); }
+  & :is(.tune:not(.current), .tune.loading) .play { font-size: 0; display: grid; place-items: center; } /* (the one playing keeps its bars) */
   & .tune:not(.current) .play::before, & .tune.loading .play::before {
     content: ""; width: 0; height: 0; border-left: 10px solid currentColor; border-block: 7px solid transparent;
   }
@@ -342,7 +350,7 @@
       &[aria-pressed="true"] { background: var(--ink); color: var(--white); translate: none; }
     }
   }
-  @media (width <= 900px) { & .emu-online { display: none; } } /* (the bar's room is the title's) */
+  @media (width <= 1500px) { & .emu-online { display: none; } } /* (the bar's room is the title's; Share has the link) */
   & .emu-title { padding: 2px 12px; letter-spacing: 0; flex: 1 1 auto; min-width: 5em; }
   & .emu-status { color: var(--ink); padding-right: 10px; }
   & .emu-online { color: var(--accent); padding: 0 10px; }
@@ -374,6 +382,26 @@
   & .boot-logo { width: 48px; height: 48px; animation: none; filter: grayscale(1) contrast(1.4); }
   & .boot-word { color: var(--ink); }
   & #boot-status { color: var(--ink); }
+
+  /* ── the first menu (themes/desktop.js): a box hanging from the bar, a hard shadow, the choice inverted ── */
+  & .brand[aria-expanded="true"] { background: var(--ink); .brand-label { color: var(--white); } .brand-logo { filter: invert(1) grayscale(1); } }
+  & .start-menu { min-width: 6em; color: var(--ink); background: var(--white); border: 1px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+  & .start-menu .win-icon { display: none; } /* (its menus were words) */
+  & .start-item { display: block; padding: 2px 12px 3px; color: var(--ink); &:hover, &:focus { background: var(--ink); color: var(--white); outline: 0; } }
+  & .start-sep { height: 0; border-top: 2px dotted var(--ink); }
+  /* its desk accessories and the info box: dialog boxes of the desktop's own size of type */
+  & dialog.win { width: min(760px, 100vw - 16px); }
+  & dialog.win.puzzle-win { width: fit-content; }
+  & .win-icon { filter: grayscale(1) contrast(2); }
+  & .win-row { gap: 18px; }
+  & .about-mem { font-size: var(--gfont-small); }
+  & .puzzle { border: 1px solid var(--ink); grid-template-columns: repeat(4, calc(var(--gfont) * 1.4)); }
+  & .puzzle-tile {
+    width: calc(var(--gfont) * 1.4); height: calc(var(--gfont) * 1.4); color: var(--ink); background: var(--white); border: 1px solid var(--ink);
+    &:active { background: var(--ink); color: var(--white); }
+    &:disabled { background: var(--dither); border-color: transparent; }
+  }
+  & .puzzle.solved .puzzle-tile:not(:disabled) { background: var(--ink); color: var(--white); }
 
   /* ── the toast: a little dialog box ─────────────────────────────── */
   & .toast { background: var(--white); color: var(--ink); border: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }

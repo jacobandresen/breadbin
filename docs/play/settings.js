@@ -2,24 +2,33 @@
 // relay. Changes to the sound are announced with a 'breadbin:sound' event.
 
 import * as store from './store.js';
-import { $, h, toast, closeButton } from './ui.js';
-import { THEMES, applyTheme } from './themes/themes.js';
+import { $, h, toast, closeButton, copyLink } from './ui.js';
+import { THEMES, applyTheme, linkLook, currentLook, withLook } from './themes/themes.js';
 
-const DEFAULTS = { theme: 'bakery', hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0, pad: matchMedia('(pointer: coarse)').matches };
+const DEFAULTS = { theme: 'bakery', scanlines: true, hq: true, width: 0.35, volume: 0.9, relay: '', viz: 0, pad: matchMedia('(pointer: coarse)').matches };
 export const settings = { ...DEFAULTS, ...store.load('settings', {}) };
 
 export function save(patch) {
   Object.assign(settings, patch);
+  // a look chosen here outlasts the one a link brought: the link's ?look leaves the address
+  if (patch.theme && linkLook()) {
+    const u = new URL(location.href);
+    u.searchParams.delete('look');
+    history.replaceState(history.state, '', u.href);
+  }
   store.save('settings', settings);
 }
 
-applyTheme(settings.theme);
+applyTheme(linkLook() || settings.theme); // (a shared link's look for this visit, without changing the saved one)
+/** Classic's CRT scan lines, on or off (classic.css reads the attribute). */
+const scanlines = (on) => document.documentElement.toggleAttribute('data-no-scanlines', !on);
+scanlines(settings.scanlines);
 
 /** The looks, side by side, each a small picture of itself: pick one and the page changes at once. */
 function themePicker() {
   return h('div.theme-picker', { role: 'radiogroup', 'aria-label': 'Look' }, THEMES.map((t) =>
     h('label.theme-choice', { 'data-look': t.id },
-      h('input', { type: 'radio', name: 'theme', value: t.id, checked: settings.theme === t.id, onchange: () => save({ theme: applyTheme(t.id) }) }),
+      h('input', { type: 'radio', name: 'theme', value: t.id, checked: currentLook() === t.id, onchange: () => save({ theme: applyTheme(t.id) }) }),
       h('span.theme-swatch', { 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
       h('b', {}, t.name),
       h('span', {}, t.about))));
@@ -110,6 +119,9 @@ export function openSettings() {
     h('h2', {}, 'Settings'),
     h('h3', {}, 'Look'),
     themePicker(),
+    // (the Share buttons' links carry the look as well: this is the page you're on)
+    h('p.theme-link', {}, h('button.key.pill.small', { type: 'button', onclick: () => copyLink(withLook(location.href), `🔗 Link to this page in ${THEMES.find((t) => t.id === currentLook()).name} copied.`) }, '🔗 Copy a link to this page in this look')),
+    h('label.check', {}, h('input', { type: 'checkbox', checked: settings.scanlines, onchange: (e) => { save({ scanlines: e.target.checked }); scanlines(e.target.checked); } }), 'Scan lines on the Classic screen (off reads more crisply)'),
     h('h3', {}, 'Sound'),
     h('label.check', {}, hq, 'High-quality resampling (reSID band-limited; uses more CPU)'),
     h('label.field', {}, 'Stereo width', slider('width', 1)),

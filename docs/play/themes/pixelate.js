@@ -1,4 +1,5 @@
-// pixelate - the Classic theme shows pictures as a C64 would have: on its
+// pixelate - a look may redraw pictures in its machine's way. 'c64' (Classic):
+// pictures as a C64 would have shown them: on its
 // grid of pixels (each as big as the theme's --px; WIDE makes them multicolour
 // mode's double-wide ones), in its 16 colours, the shades between them dithered in the ordered
 // checkerboard C64 artists used. Box art is far finer than a C64 could draw;
@@ -7,6 +8,11 @@
 // The C64 version of a picture replaces its src (a blob: URL) and the
 // original comes back when the theme goes. Reading a picture's pixels needs
 // its host to allow it (CORS): a picture from one that doesn't stays as it is.
+//
+// 'mac' (Cupertino): black and white only, one dot to a screen pixel, the
+// greys made of dots spread the way the first paint program on the 1984 Mac
+// spread them (Atkinson's dither: of each dot's error only six eighths is
+// passed on, so the lights stay clean and the darks stay deep).
 
 /** The C64's 16 colours (Pepto's palette, as studio.css has them). */
 const PALETTE = [
@@ -41,7 +47,8 @@ function c64ify(src, cols, rows, dither = DITHER) {
   sx.drawImage(src, 0, 0, cols, rows);
   const img = sx.getImageData(0, 0, cols, rows);
   const d = img.data;
-  for (let y = 0; y < rows; y++) {
+  if (mode === 'mac') atkinson(d, cols, rows);
+  else for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = (y * cols + x) * 4;
       const lean = BAYER[(y & 3) * 4 + (x & 3)] * dither;
@@ -59,6 +66,30 @@ function c64ify(src, cols, rows, dither = DITHER) {
   return out;
 }
 
+/** Pixels `d` (RGBA, cols x rows) in black and white, Atkinson-dithered. */
+function atkinson(d, cols, rows) {
+  const grey = new Float32Array(cols * rows);
+  for (let i = 0; i < grey.length; i++) {
+    const l = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+    grey[i] = (l - 128) * 1.15 + 140; // a little more contrast, a little lighter: box art is darker than a Mac's paper
+  }
+  const spread = [[1, 0], [2, 0], [-1, 1], [0, 1], [1, 1], [0, 2]];
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = y * cols + x;
+      const v = grey[i] < 128 ? 0 : 255;
+      const err = (grey[i] - v) / 8;
+      for (const [dx, dy] of spread) {
+        const X = x + dx;
+        const Y = y + dy;
+        if (X >= 0 && X < cols && Y < rows) grey[Y * cols + X] += err;
+      }
+      d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v;
+      d[i * 4 + 3] = 255;
+    }
+  }
+}
+
 /** The grid `img` shows its picture on: how many C64 pixels across and down, as it is laid out. */
 function grid(img) {
   const px = parseFloat(getComputedStyle(img).getPropertyValue('--px')) || 3;
@@ -72,8 +103,10 @@ function grid(img) {
 function plan(img) {
   // a C64 screen (a screenshot, often a blurred thumbnail of one, up to 403x284 with its border): its colours are
   // the C64's already, give or take the JPEG - snapped back to them, no dither, and never more pixels than it has
-  const screen = img.naturalWidth <= 403 && img.naturalHeight <= 284 && img.naturalWidth >= img.naturalHeight;
+  const screen = mode === 'c64' && img.naturalWidth <= 403 && img.naturalHeight <= 284 && img.naturalWidth >= img.naturalHeight;
   const { cols, rows } = grid(img);
+  // in dots, every picture, at a dot to the screen pixel (a small one is first scaled up to its place)
+  if (mode === 'mac') return { screen, cols, rows };
   if (screen && cols * WIDE > img.naturalWidth) return { screen, cols: Math.floor(img.naturalWidth / WIDE), rows: Math.round((rows * img.naturalWidth) / (cols * WIDE)) };
   if (!screen && img.naturalWidth <= cols * WIDE * 1.5) return null; // no finer than the grid
   return { screen, cols, rows };
@@ -114,6 +147,7 @@ function readable(url) {
 }
 
 let on = false;
+let mode = 'c64';
 function onLoad({ target: img }) {
   if (!on || !img.matches?.(PICTURES) || img.src.startsWith('blob:')) return;
   // another picture in it now (ui.js falls back down its list): this one is judged afresh
@@ -121,16 +155,18 @@ function onLoad({ target: img }) {
   convert(img);
 }
 
-/** Classic on: every picture, now and as they load, the C64's way. */
-export function start() {
-  if (on) return;
+/** On: every picture, now and as they load, `kind`'s way ('c64' or 'mac'). */
+export function start(kind = 'c64') {
+  if (on && kind === mode) return;
+  if (on) stop();
   on = true;
+  mode = kind;
   // a load doesn't bubble, but it can be caught on its way down - from the document: a "load" never reaches window
   document.addEventListener('load', onLoad, true);
   for (const img of document.querySelectorAll(PICTURES)) if (img.complete) convert(img);
 }
 
-/** Classic off: the pictures as they came. */
+/** Off: the pictures as they came. */
 export function stop() {
   on = false;
   document.removeEventListener('load', onLoad, true);

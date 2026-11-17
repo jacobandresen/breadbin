@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="22" shape-rendering="crispEdges">
+  <!-- Chicago's "wait" pointer (themes/chicago.css): an hourglass, its sand running down, outlined in black -->
+  <path d="M1 0h14v3h-1v3l-4 4v2l4 4v3h1v3H1v-3h1v-3l4-4v-2L2 6V3H1z" fill="#000"/>
+  <path d="M3 3h10v3l-4 4v2l4 4v3H3v-3l4-4v-2L3 6z" fill="#fff"/>
+  <path d="M5 6h6l-3 3zM7 12h2v1l3 3v2H4v-2l3-3z" fill="#808080"/>
+</svg>

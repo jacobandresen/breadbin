@@ -27,6 +27,13 @@
   font-display: block;
 }
 
+/* --px registered as a length, so scripts reading it (viz.js, pixelate.js) get the pixels it comes to, not "clamp(…)" */
+@property --px {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 3px;
+}
+
 @layer tokens {
   :root[data-theme="classic"] {
     color-scheme: dark;
@@ -120,6 +127,7 @@
     --code-step: 8px; /* the code's size (A- A+) snaps to whole C64 cells */
     --code-min: var(--char); /* and is never under one: the code as a C64 shows it */
     --studio-turns: 1; /* the Studio shows the code or the C64, taking turns, as a C64 shows one thing at a time */
+    --type-to-search: 1; /* what you type goes straight to the screen, as on a C64: here, into the search (app.js) */
 
     /* the border round the screen */
     --page: var(--c64-blue);
@@ -163,6 +171,7 @@
       var(--scanlines),
       radial-gradient(ellipse 80% 70% at 50% 45%, transparent 60%, rgb(0 0 0 / 0.2));
   }
+  &[data-no-scanlines] { --scanlines: linear-gradient(transparent, transparent); } /* (Settings can turn the scan lines off: crisper to read) */
   & input, & textarea, & [contenteditable] { caret-shape: block; }
   & ::selection { background: var(--c64-glow); color: var(--c64-blue); }
   & :focus-visible { outline: var(--px) solid var(--c64-white); outline-offset: var(--px); }
@@ -206,9 +215,9 @@
   & .studio-hint { display: none; } /* (a line of shortcuts that wraps at this size: the cheat sheet, ?, has them) */
   & .studio[data-turns] .studio-banner { flex: 0 1 auto; max-height: 40%; overflow-y: auto; align-items: start; }
   & .studio-banner-text { flex: 1 1 100%; } /* the tips the full width, their buttons on a row under them */
-  /* the Studio is a workbench: there, as in 80-column C64 software, all its type is half as wide (PXL 80, 4x8),
+  /* the Studio (and the player's Tools) is a workbench: there, as in 80-column C64 software, all its type is half as wide (PXL 80, 4x8),
      on the C64's own pixel, as big as everywhere else */
-  & :is(.view.hack, .studio-picker, .studio-help) {
+  & :is(.view.hack, .studio-picker, .studio-help, .emu-tools) {
     --pixel-font: "PXL 80", "Noto Emoji", monospace;
     --display-font: var(--pixel-font);
     --ui-font: var(--pixel-font);
@@ -217,7 +226,7 @@
   }
   & .key-well { background: none; box-shadow: none; }
   & .search {
-    input { width: calc(var(--char) * 14); padding: var(--px) var(--px); color: var(--c64-white); text-transform: uppercase; }
+    input { width: calc(var(--char) * 14); min-width: 0; padding: var(--px) var(--px); color: var(--c64-white); text-transform: uppercase; }
     input::placeholder { color: var(--c64-glow); }
     &:focus-within { box-shadow: none; }
   }
@@ -227,11 +236,11 @@
 
   /* ── the shelves: a heading in reverse video, the covers under it ── */
   & .view:not(.studio) { padding: var(--char) var(--char) calc(var(--char) * 4); } /* (the Studio has no margin of its own) */
-  & .shelf-head { gap: var(--char); margin-bottom: var(--char); }
+  & .shelf-head { gap: var(--px) var(--char); margin-bottom: var(--char); flex-wrap: wrap; } /* (on a phone Show All may go under a long name) */
   & .shelf-chip { display: none; }
   & .shelf-title { padding: 0 var(--px); color: var(--c64-blue); background: var(--c64-glow); text-transform: uppercase; }
   & .shelf-rule { height: var(--px); background: repeating-linear-gradient(90deg, var(--c64-glow) 0 var(--char), transparent var(--char) calc(var(--char) * 2)); }
-  & .shelf .n { color: var(--c64-glow); }
+  & .shelf .n { color: inherit; } /* (the count, in its button's own reverse video) */
   & .shelf-head .key.pill { padding: 0 var(--px); }
 
   & .row { grid-auto-columns: calc(var(--char) * 8); gap: var(--char); }
@@ -246,6 +255,11 @@
     }
   }
   & .art { background: var(--bg-deep); box-shadow: none; &::before { opacity: 0.2; } }
+  /* while a picture is being redrawn the C64's way: the block cursor blinks in its frame, so it reads as coming, not missing */
+  & .art:has(img:not([data-c64-done]))::before {
+    background: var(--c64-glow); opacity: 1; inset: auto; left: calc(50% - var(--char) / 2); top: calc(50% - var(--char) / 2);
+    width: var(--char); height: var(--char); animation: c64-cursor 1s steps(1) infinite;
+  }
   & .art::after { box-shadow: none; }
   & .card .art::after {
     content: "RUN"; color: var(--c64-blue); text-indent: 0;
@@ -253,8 +267,10 @@
     padding: var(--px) calc(var(--px) * 2); transform: none;
   }
   & .art .placeholder { color: var(--c64-white); background: var(--bg-deep); text-transform: uppercase; }
-  & .card-title { color: var(--c64-glow); padding: 0 var(--px); margin: 0 auto; -webkit-line-clamp: 2; }
-  & .card-sub { color: var(--text-dim); }
+  & .card-title { color: var(--c64-glow); padding: 0 var(--px); margin: 0 auto; -webkit-line-clamp: 3; } /* (a long name at 8x8 wants a third line) */
+  /* who made it and when: in the half-width, 80-column cut, wrapped, not cut ("1984 · Da…" says nothing), and in the
+     brighter light blue (the narrower cut wants the contrast) */
+  & .card-sub { color: var(--c64-glow); white-space: normal; text-overflow: clip; overflow: visible; margin-top: 0; font-family: "PXL 80", monospace; }
   & .badge { padding: 0 var(--px); color: var(--c64-blue); background: var(--c64-white); box-shadow: none; }
   & .tag { padding: 0 var(--px); color: var(--c64-white); background: var(--c64-blue); box-shadow: none; }
   & .wip { padding: 0 var(--px); color: var(--c64-white); background: var(--c64-lightred); box-shadow: none; }
@@ -266,7 +282,12 @@
   & .empty { color: var(--c64-glow); }
 
   /* ── Tunes: a directory listing and the player ───────────────────── */
+  /* the list and the player share the screen to its foot; the player's buttons come before its screen, so they're never scrolled away */
+  & .view.tunes { padding: var(--char); gap: var(--char); }
   & .tune-list { border-right: var(--px) solid var(--c64-lightblue); }
+  & .tune-player { padding: 0; gap: var(--char); }
+  & .tune-player .player-controls { order: 1; }
+  & .tune-player .screen-bezel { order: 2; }
   & .tune-section {
     background: var(--c64-glow); color: var(--c64-blue); border-left: 0; box-shadow: none; text-transform: uppercase;
     .count { color: var(--c64-blue); text-transform: uppercase; }
@@ -278,6 +299,8 @@
   }
   & .tune.current:not(.loading) .play { --bar: var(--c64-blue); }
   & .tune-sub, & .tune-rating { color: var(--text-dim); }
+  & .tune-sub { white-space: normal; font-family: "PXL 80", monospace; color: var(--c64-glow); } /* (wrapped, not cut, and in the half-width cut: the composer and the year are what you look for) */
+  & .tune-name { white-space: normal; }
   & .tune .play { color: var(--c64-white); }
   & .now-playing { background: none; box-shadow: none; border: var(--px) solid var(--c64-lightblue); }
   & .np-shot { box-shadow: none; border: var(--px) solid var(--c64-lightblue); }
@@ -333,23 +356,40 @@
     .key.pill { padding: 0 var(--px); }
   }
   /* narrower, the bar keeps one row: the archive.org link goes (the game's Share is there), on a phone its words go 80-column */
-  @media (width <= 900px) { & .emu-online { display: none; } }
+  @media (width <= 1500px) { & .emu-online { display: none; } } /* (at 8x8 the name and the buttons need the bar more; Share has the link) */
+  /* a finger needs more to aim at than an 8x8 word: the tabs, ☰ and the buttons get taller hit areas, the type stays on its grid */
+  @media (pointer: coarse) {
+    & .tab { padding: calc(var(--px) * 3) var(--px); }
+    & #open-settings { padding: calc(var(--px) * 3) calc(var(--px) * 3); }
+    & .key.pill { min-height: calc(var(--char) * 2); }
+    & .emu-bar .key.pill { padding-block: calc(var(--px) * 3); }
+  }
+  /* a phone: the name and ☰ on the first row, the tabs on the next, the search on a row of its own under them
+     ("SEARCH GAMES…" doesn't fit beside the name); in the Studio, which has no search, no row for it */
+  @media (width < 600px) {
+    & .case-tools { display: contents; }
+    & #open-settings { order: 1; margin-left: auto; }
+    & .tabs { order: 2; }
+    & .search { order: 3; flex: 1 0 100%; min-width: 0; input { width: 100%; } }
+    &:has(#hack:not([hidden])) .search { display: none; }
+  }
   @media (width < 600px) {
     & .emu-bar { --pixel-font: "PXL 80", monospace; flex-wrap: wrap; gap: 0 var(--char); }
     & .emu-bar :is(.key, .emu-title) { font-family: "PXL 80", monospace; }
+    & .emu-status { display: none; } /* (a sliver of it would only show a letter or two; the screen says what's loading) */
   }
-  & .emu-title { color: var(--c64-white); text-transform: uppercase; flex: 1 1 auto; min-width: calc(var(--char) * 6); }
+  & .emu-title { color: var(--c64-white); text-transform: uppercase; flex: 0 1 auto; min-width: calc(var(--char) * 6); }
   /* the bar's buttons as words: the pictures and labels give way to a word each */
   & :is(#emu-pad, #emu-tools, #emu-share, #emu-full, #emu-close) {
-    font-size: 0; > * { display: none; }
-    &::after { font-size: var(--char); }
+    font-size: 0; color: transparent; > * { display: none; } /* (transparent too: a glyph like ⛶ can still leave a sliver at size 0) */
+    &::after { font-size: var(--char); color: var(--c64-blue); }
   }
   & #emu-pad::after { content: "PAD"; }
   & #emu-tools::after { content: "TOOLS"; }
   & #emu-share::after { content: "SHARE"; }
   & #emu-full::after { content: "FULL"; }
   & #emu-close::after { content: "CLOSE"; }
-  & .emu-status { color: var(--c64-glow); text-transform: uppercase; }
+  & .emu-status { flex: 1 1 0; color: var(--c64-glow); text-transform: uppercase; font-family: "PXL 80", monospace; } /* (what it's doing, in the half-width cut: the name keeps its room) */
   & .emu-online { color: var(--c64-lightgreen); }
   & .emu-frame { box-shadow: 0 0 0 var(--px) var(--c64-glow); }
   & .emu-note { color: var(--c64-glow); }
@@ -365,6 +405,12 @@
   & .tools-act { background: var(--c64-glow); color: var(--c64-blue); &:hover { background: var(--c64-white); color: var(--c64-blue); } }
   & .tools-mem { background: var(--bg-deep); color: var(--c64-glow); }
   & .tools-num, & .tools-addr { background: var(--bg-deep); color: var(--c64-white); border: 0; }
+
+  /* loading a game: the border flickers in stripes, as a C64's did while a tape loaded */
+  &:has(.emu:not([hidden]) .emu-loading) {
+    background: repeating-linear-gradient(to bottom, #6c5eb5 0 calc(var(--px) * 3), #9ad284 0 calc(var(--px) * 5), #352879 0 calc(var(--px) * 7), #b8c76f 0 calc(var(--px) * 8), #70a4b2 0 calc(var(--px) * 11)) 0 0 / 100% calc(var(--px) * 11);
+    animation: tape-stripes 0.2s steps(4) infinite;
+  }
 
   /* ── the boot: the C64 coming on ─────────────────────────────────── */
   & .boot { background: var(--c64-lightblue); padding: var(--border); place-items: stretch; }
@@ -402,7 +448,8 @@
 }
 
 @keyframes c64-cursor { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { :root[data-theme="classic"] * { animation: none !important; } }
+@keyframes tape-stripes { to { background-position: 0 calc(var(--px) * 37); } }
+@media (prefers-reduced-motion: reduce) { :root[data-theme="classic"], :root[data-theme="classic"] * { animation: none !important; } }
 
 /* the look's swatch in Settings (style.css draws the picker) */
 @layer tokens {

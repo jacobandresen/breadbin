@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="breadbin">
 <meta name="theme-color" content="#120f1c">
 <!-- the saved look, before anything paints (themes/themes.js keeps it after) -->
-<script>try { const t = JSON.parse(localStorage.getItem('breadbin.settings') || '{}').theme; if (t && t !== 'bakery') document.documentElement.dataset.theme = t; } catch {}</script>
+<script>try { const s = JSON.parse(localStorage.getItem('breadbin.settings') || '{}'); const look = new URLSearchParams(location.search).get('look') || s.theme; if (/^(classic|geos|chicago|cupertino)$/.test(look)) document.documentElement.dataset.theme = look; if (s.scanlines === false) document.documentElement.toggleAttribute('data-no-scanlines', true); } catch {}</script>
 <!-- on a phone, "Add to Home Screen" opens breadbin full screen, without the browser around it -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,6 +23,7 @@
 <link rel="stylesheet" href="themes/classic.css">
 <link rel="stylesheet" href="themes/geos.css">
 <link rel="stylesheet" href="themes/chicago.css">
+<link rel="stylesheet" href="themes/cupertino.css">
 </head>
 <body>
 
@@ -49,7 +50,7 @@
   <div class="case-tools">
     <label class="search key-well">
       <span class="visually-hidden">Search</span>
-      <input id="search" type="search" placeholder="Search…" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      <input id="search" type="search" title="Search (/)" placeholder="Search…" autocomplete="off" spellcheck="false" enterkeyhint="search">
     </label>
     <button class="key icon" id="open-settings" title="Settings" aria-label="Settings">☰</button>
   </div>

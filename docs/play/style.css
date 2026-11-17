@@ -157,6 +157,7 @@ main { flex: 1; min-height: 0; position: relative; }
 .shelf-chip { width: 6px; height: 22px; border-radius: 2px; flex: none; box-shadow: 0 0 8px rgb(from var(--glint) r g b / 0.08); }
 .shelf-title { font-size: 15px; letter-spacing: 2px; text-transform: uppercase; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shelf-rule { flex: 1; height: 1px; background: rgb(from var(--text) r g b / 0.08); }
+@media (width < 600px) { .shelf-title { white-space: normal; } } /* (a phone wraps a long name rather than cut it) */
 
 .row {
   display: grid;
@@ -312,9 +313,7 @@ main { flex: 1; min-height: 0; position: relative; }
 .tune.loading .play { animation: blink 0.6s steps(2) infinite; }
 /* the tune that's on: a little equaliser in place of its ▶ */
 .tune.current:not(.loading) .play { font-size: 0; display: flex; justify-content: center; align-items: flex-end; gap: 2px; height: 14px; }
-.tune.current:not(.loading) .play::before,
-.tune.current:not(.loading) .play::after,
-.tune.current:not(.loading) .play { --bar: linear-gradient(var(--highlight), var(--accent)); }
+.tune.current:not(.loading) .play { --bar: linear-gradient(var(--highlight), var(--accent)); } /* (the bars inherit it, so a look can set its own) */
 .tune.current:not(.loading) .play::before, .tune.current:not(.loading) .play::after {
   content: ""; width: 3px; height: 100%; border-radius: 1px; background: var(--bar);
   animation: eq 0.9s ease-in-out infinite alternate;
@@ -458,6 +457,9 @@ dialog[open] { animation: rise 160ms ease-out; }
     0 0 0 10px var(--raised), 0 0 0 11px rgb(from var(--glint) r g b / 0.06), 0 0 0 13px var(--edge),
     0 0 90px rgb(from var(--accent) r g b / 0.16), 0 24px 60px rgb(from var(--shade) r g b / 0.8);
 }
+/* at a desk, the screen is as big as its stage leaves room for, whatever a look puts round it (the bar, the note, the Tools) */
+.emu:not(.touch) .emu-stage { container-type: size; }
+.emu:not(.touch) .emu-frame { width: min(100cqw, 100cqh * 4 / 3); }
 .emu-loading { text-align: center; font: 13px/2 var(--pixel-font); color: var(--text-dim); }
 .emu-loading .bar { width: 260px; height: 10px; margin: 10px auto; border-radius: 3px; background: var(--edge); overflow: hidden; }
 .emu-loading .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-deep), var(--accent), var(--highlight)); box-shadow: 0 0 12px rgb(from var(--accent) r g b / 0.6); transition: width 150ms; }
@@ -549,7 +551,7 @@ dialog[open] { animation: rise 160ms ease-out; }
   .tabs { order: 3; width: 100%; margin: 0; }
   .tab { min-width: 0; flex: 1; padding: 9px 8px 12px; font-size: 11px; }
   .case-tools { margin-left: auto; }
-  .search input { width: 140px; }
+  .search input { width: 170px; } /* (room for "Search games…") */
   .view { padding: 8px 16px 32px; }
   .row { grid-auto-columns: 128px; gap: 10px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
@@ -599,7 +601,43 @@ button, a, label, select, .card, .tune { -webkit-tap-highlight-color: transparen
 
 /* ── Hack: the Studio has its own sheet, studio/studio.css ───────── */
 
-}
+/* ── The desktops (themes/desktop.js, in the looks that have one): their menu, icons and little
+      windows. The layout is here; each look's sheet draws them its own way ──────────────────── */
+
+.start-menu { position: fixed; z-index: 40; }
+.shelf.moved { position: relative; } /* a desk window dragged by its title bar (desktop.js): above the others */
+.view:has(.shelf.moved) { overflow-x: hidden; } /* (moved sideways, it doesn't make the view scroll that way) */
+.win-closed { display: none !important; } /* a desk window closed by its title bar's × (desktop.js): back from its taskbar button or desk icon */
+.start-menu ul { list-style: none; margin: 0; padding: 0; }
+.start-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: default; }
+.desk-icons { display: none; }
+.desk-icon { display: grid; justify-items: center; gap: 3px; border: 0; background: none; color: inherit; text-align: center; cursor: default; }
+.win-icon { display: inline-grid; flex: none; }
+.win-icon svg { display: block; }
+dialog.win { width: min(400px, 100vw - 16px); }
+dialog.win.help { width: min(480px, 100vw - 16px); }
+dialog.win.readme-win { width: min(680px, 100vw - 16px); }
+dialog.sheet.win.puzzle-win { width: fit-content; }
+.win .sheet-body { gap: 12px; }
+.win h2 { margin: 0 0 4px; }
+.win p { margin: 0 0 6px; }
+.win-row { display: flex; gap: 14px; align-items: flex-start; }
+.win-field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; margin: 4px 0; }
+.win-field :is(input, select) { min-width: 0; }
+.run-box .win-field { grid-template-columns: auto 1fr; }
+.win-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.win-hint { color: var(--text-dim); }
+.readme { width: 100%; resize: vertical; white-space: pre; overflow: auto; font: 13px/1.4 var(--code-font); }
+.notepad { white-space: pre-wrap; } /* (notes wrap; the read-me keeps its columns) */
+/* About: the memory as a bar, the part taken filled */
+.about-mem { display: grid; gap: 2px; margin-top: 8px; font-size: 12px; }
+.about-mem i { display: block; height: 12px; margin-top: 4px; border: 1px solid currentColor; background: linear-gradient(90deg, currentColor calc(var(--used) * 100%), transparent 0); }
+/* Puzzle: fifteen tiles in a frame of sixteen */
+.puzzle { display: grid; grid-template-columns: repeat(4, 44px); width: fit-content; margin: 0 auto; }
+.puzzle-tile { width: 44px; height: 44px; padding: 0; cursor: default; }
+/* the screen at the end of the day */
+.safe-off { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 24px; text-align: center; cursor: default; }
+.safe-off:focus { outline: 0; }
 
 /* ── The player's 🔧 Tools (tools.js): a drawer beside the C64 ────── */
 
